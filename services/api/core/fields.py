@@ -110,6 +110,8 @@ class EncryptedValue(str):
 
     __slots__ = ("ciphertext",)
 
+    ciphertext: str
+
     def __new__(cls, plaintext: str) -> EncryptedValue:
         instance = super().__new__(cls, "")
         instance.ciphertext = encrypt(plaintext)

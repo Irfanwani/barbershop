@@ -88,8 +88,8 @@ class TestCreate:
         ).json()
 
         assert body["subtotal"] == 25000
-        assert body["platform_fee"] == 2500
-        assert body["total"] == 27500
+        assert body["platform_fee"] == 250
+        assert body["total"] == 25250
 
     def test_multiple_services_are_summed(self):
         client, token = logged_in(make_user())
@@ -103,7 +103,7 @@ class TestCreate:
         ).json()
 
         assert body["subtotal"] == 35000
-        assert body["total"] == 38500
+        assert body["total"] == 35350
         assert len(body["items"]) == 2
 
     def test_line_items_snapshot_the_price(self):
@@ -121,7 +121,55 @@ class TestCreate:
         haircut.save()
 
         assert body["items"][0]["unit_price"] == 25000
-        assert body["total_display"] == "₹275.00"
+        assert body["total_display"] == "₹252.50"
+
+    def test_the_fee_is_frozen_at_booking_time(self, settings):
+        """Changing the platform fee must not move an existing booking.
+
+        The customer agreed to a specific total. A fee that changes underneath a
+        confirmed booking is a charge they never agreed to.
+        """
+        client, token = logged_in(make_user())
+        profile, haircut, _ = self._shop()
+        settings.PLATFORM_FEE_PERCENT = 20
+
+        body = client.post(
+            BOOKINGS + "new/",
+            booking_payload(profile, [haircut.id]),
+            content_type="application/json",
+            **auth_header(token),
+        ).json()
+
+        assert body["platform_fee"] == 5000
+
+        settings.PLATFORM_FEE_PERCENT = 1
+
+        booking = Booking.objects.get(reference=body["reference"])
+        booking.refresh_from_db()
+        assert booking.platform_fee == 5000
+        assert booking.total == booking.subtotal + 5000
+
+    def test_the_quote_agrees_with_what_is_actually_charged(self):
+        """A quote is worthless if the booking does not match it."""
+        client, token = logged_in(make_user())
+        profile, haircut, _ = self._shop()
+
+        quoted = client.post(
+            BOOKINGS + "quote/",
+            booking_payload(profile, [haircut.id]),
+            content_type="application/json",
+            **auth_header(token),
+        ).json()
+
+        booked = client.post(
+            BOOKINGS + "new/",
+            booking_payload(profile, [haircut.id]),
+            content_type="application/json",
+            **auth_header(token),
+        ).json()
+
+        assert quoted["total"] == booked["total"]
+        assert quoted["platform_fee"] == booked["platform_fee"]
 
     def test_duration_comes_from_the_services(self):
         client, token = logged_in(make_user())
@@ -614,9 +662,9 @@ class TestQuote:
         ).json()
 
         assert body["subtotal"] == 25000
-        assert body["platform_fee"] == 2500
-        assert body["total"] == 27500
-        assert body["total_display"] == "₹275.00"
+        assert body["platform_fee"] == 250
+        assert body["total"] == 25250
+        assert body["total_display"] == "₹252.50"
         assert body["is_available"] is True
 
     def test_marks_a_taken_slot_unavailable(self):

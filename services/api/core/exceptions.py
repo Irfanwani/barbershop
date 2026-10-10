@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 class APIError(APIException):
     """Base class for errors this project raises deliberately."""
 
-    status_code = status.HTTP_400_BAD_REQUEST
+    status_code: int = status.HTTP_400_BAD_REQUEST
     default_code = "error"
     default_detail = "Something went wrong."
 

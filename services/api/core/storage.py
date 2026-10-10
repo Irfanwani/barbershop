@@ -18,5 +18,7 @@ class PublicMediaStorage(S3Boto3Storage):
     querystring_auth = False
 
     @property
-    def bucket_name(self):  # type: ignore[override]
-        return settings.AWS_STORAGE_BUCKET_NAME
+    def bucket_name(self) -> str:
+        # Only defined when USE_S3 is on, which is also the only time this class
+        # is instantiated. Read defensively rather than assuming.
+        return str(getattr(settings, "AWS_STORAGE_BUCKET_NAME", ""))

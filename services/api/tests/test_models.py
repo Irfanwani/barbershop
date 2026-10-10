@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from datetime import timedelta
 from decimal import Decimal
 
@@ -278,6 +279,32 @@ class TestMoney:
     def test_quote_is_rendered_for_display(self):
         rendered = quote([(1, "Haircut", 20000, 30)], fee_percent=10).as_dict()
         assert rendered["display"]["total"] == "₹220.00"
+
+    def test_the_default_fee_is_one_percent(self, monkeypatch):
+        # Re-read from the settings module with the variable unset, rather than
+        # asserting on django.conf.settings: a developer's local .env must not
+        # be able to quietly move this number.
+        monkeypatch.delenv("PLATFORM_FEE_PERCENT", raising=False)
+        base = importlib.reload(importlib.import_module("config.settings.base"))
+
+        assert base.PLATFORM_FEE_PERCENT == 1
+        # And it is a real percent, not a string that only works by accident.
+        assert compute_platform_fee(10000, base.PLATFORM_FEE_PERCENT) == 100
+
+    def test_one_percent_of_a_realistic_price(self):
+        # A ₹400 haircut: the fee is ₹4, not ₹40. Providers set the price, and
+        # a default that quietly takes a tenth of it is a default nobody asked for.
+        assert compute_platform_fee(40000, 1) == 400
+
+    def test_one_percent_of_a_cheap_service_does_not_round_away(self):
+        # A ₹5 trim at 1% is 5 paise. Rounding this to zero would make the fee
+        # disappear on small bookings and make the tax arithmetic inconsistent.
+        assert compute_platform_fee(500, 1) == 5
+
+    def test_the_fee_is_never_negative_or_absurd(self):
+        assert compute_platform_fee(100, 1) == 1
+        assert compute_platform_fee(1, 1) == 0
+        assert compute_platform_fee(1, 10) == 0
 
 
 # ---------------------------------------------------------------------------

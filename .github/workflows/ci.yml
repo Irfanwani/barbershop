@@ -81,6 +81,10 @@ jobs:
       - name: Ruff format
         run: uv run ruff format --check .
 
+      # Configured but not previously run: it drifted to 12 errors unnoticed.
+      - name: Mypy
+        run: uv run mypy .
+
       - name: Pytest
         run: uv run pytest --cov-report=xml --cov-report=term-missing
 

@@ -147,6 +147,15 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
+# Declared here, used only when USE_S3 is on (see config.settings.prod). They
+# exist unconditionally so that `core.storage.PublicMediaStorage` is typed even
+# in the development settings module that never turns S3 on.
+USE_S3 = env.get_bool("USE_S3", default=False)
+AWS_ACCESS_KEY_ID = env.get("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = env.get("AWS_SECRET_ACCESS_KEY", "")
+AWS_STORAGE_BUCKET_NAME = env.get("AWS_STORAGE_BUCKET_NAME", "")
+AWS_S3_REGION_NAME = env.get("AWS_S3_REGION_NAME", "ap-south-1")
+
 # ---------------------------------------------------------------------------
 # Database — PostGIS. `django.contrib.gis` is not optional for this project;
 # provider search is a radius query, not a Python loop over coordinates.
@@ -270,8 +279,11 @@ RAZORPAY_KEY_ID = env.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = env.get("RAZORPAY_KEY_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = env.get("RAZORPAY_WEBHOOK_SECRET", "")
 
-# Charged on top of the provider's price and shown as a separate line on the booking.
-PLATFORM_FEE_PERCENT = env.get_int("PLATFORM_FEE_PERCENT", 10)
+# Charged on top of the provider's price and shown as a separate line on the
+# booking. Bookings snapshot their fee at creation, so changing this affects new
+# bookings only — a fee that changes under an existing booking is a fee the
+# customer did not agree to.
+PLATFORM_FEE_PERCENT = env.get_int("PLATFORM_FEE_PERCENT", 1)
 
 # ---------------------------------------------------------------------------
 # Push notifications

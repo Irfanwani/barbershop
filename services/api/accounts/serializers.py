@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.contrib.auth import authenticate, password_validation
 from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -166,7 +168,7 @@ class PushTokenSerializer(serializers.ModelSerializer):
         model = PushToken
         fields = ["id", "token", "platform", "active", "created_at", "last_seen_at"]
         read_only_fields = ["id", "created_at", "last_seen_at"]
-        extra_kwargs = {
+        extra_kwargs: dict[str, Any] = {
             # Re-registering an existing token reassigns it to whoever is signed
             # in now — re-installing the app on a shared device must not leave
             # the old account holding it. The model's UniqueValidator would

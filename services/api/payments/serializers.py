@@ -66,7 +66,8 @@ class CreateOrderSerializer(serializers.Serializer):
         if hasattr(booking, "payment") and booking.payment.is_captured:
             raise serializers.ValidationError("This booking has already been paid.")
 
-        self.context["booking_obj"] = booking
+        # DRF types `context` as a Mapping; it is a mutable dict at runtime.
+        self.context["booking_obj"] = booking  # type: ignore[index]
         return value
 
 

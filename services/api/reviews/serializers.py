@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_serializer
@@ -111,7 +113,8 @@ class ReviewReplySerializer(serializers.Serializer):
     provider_reply = serializers.CharField(max_length=1000, allow_blank=True)
 
     def save(self, **kwargs) -> Review:
-        review: Review = self.instance
+        # The view only routes here for a review that exists.
+        review = cast(Review, self.instance)
         review.provider_reply = self.validated_data["provider_reply"]
         review.replied_at = timezone.now()
         review.save(update_fields=["provider_reply", "replied_at", "updated_at"])

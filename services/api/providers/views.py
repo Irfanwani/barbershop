@@ -230,11 +230,14 @@ class ProviderDetailView(APIView):
             origin = customer_profile.coords if customer_profile else None
 
         if origin is not None:
+            # Re-query to attach the distance annotation, which cannot be added
+            # to an already-instantiated row. The row is guaranteed to exist: it
+            # was fetched by pk a few lines above.
             profile = (
                 ProviderProfile.objects.select_related("user")
                 .filter(pk=profile.pk)
                 .annotate(distance_metres=Distance("coords", origin))
-                .first()
+                .get()
             )
 
         return Response(ProviderDetailSerializer(profile, context={"request": request}).data)

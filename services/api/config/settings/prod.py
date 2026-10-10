@@ -63,11 +63,8 @@ EMAIL_TIMEOUT = env.get_int("EMAIL_TIMEOUT", 10)
 
 # --- media ------------------------------------------------------------------
 
-if env.get_bool("USE_S3", default=False):
-    AWS_ACCESS_KEY_ID = env.get("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = env.get("AWS_SECRET_ACCESS_KEY")
-    AWS_STORAGE_BUCKET_NAME = env.get("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = env.get("AWS_S3_REGION_NAME", "ap-south-1")
+if USE_S3:
+    # The AWS_* values themselves come from config.settings.base.
     AWS_QUERYSTRING_AUTH = False
     AWS_DEFAULT_ACL = None
     AWS_S3_FILE_OVERWRITE = False

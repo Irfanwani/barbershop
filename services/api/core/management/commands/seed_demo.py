@@ -12,18 +12,15 @@ import random
 from datetime import time, timedelta
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import Role
+from accounts.models import Role, User
 from bookings.models import Booking, BookingItem, BookingStatus
 from core.money import compute_platform_fee
 from providers.models import ProviderPayout, ProviderProfile, Service, ServiceType
 from reviews.models import Review
-
-User = get_user_model()
 
 DELHI = [
     ("Connaught Place", 77.2090, 28.6139),
