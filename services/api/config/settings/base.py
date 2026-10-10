@@ -225,6 +225,11 @@ SPECTACULAR_SETTINGS = {
         {"name": "reviews", "description": "Ratings and comments left after a booking."},
         {"name": "payments", "description": "Razorpay order creation and webhook confirmation."},
     ],
+    # A custom renderer so the committed schema is byte-stable: without it,
+    # drf-spectacular orders the operations inside a path by set iteration, which
+    # changes with Python's hash seed and makes the CI drift check a coin flip.
+    # See config/renderers.py.
+    "DEFAULT_RENDERER_CLASSES": ["config.renderers.CanonicalOpenApiYamlRenderer"],
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",

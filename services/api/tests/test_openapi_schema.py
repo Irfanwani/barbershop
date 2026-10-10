@@ -7,6 +7,9 @@ an old version of the app breaks in production and nobody noticed first.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 from django.urls import reverse
 from drf_spectacular.generators import SchemaGenerator
@@ -131,25 +134,66 @@ def test_the_schema_served_over_http_matches_the_committed_one(client):
     assert response.status_code == 200
 
 
-def test_the_committed_schema_is_current(tmp_path):
-    """
-    Regenerate and diff against `docs/openapi.yml`.
-
-    A mismatch means the committed schema is stale, which is how a documented
-    endpoint quietly stops existing for everyone who read the docs.
-    """
-    from django.core.management import call_command
-
-    target = tmp_path / "schema.yml"
-    call_command("spectacular", file=str(target), fail_on_warn=True)
-
+def _generate_to(path) -> str:
+    """Generate the schema in a clean interpreter, the way CI does."""
+    import subprocess
+    import sys
     from pathlib import Path
 
-    committed = Path(__file__).resolve().parent.parent / "docs" / "openapi.yml"
-    if not committed.exists():  # pragma: no cover - only on a fresh checkout
+    result = subprocess.run(
+        [sys.executable, "manage.py", "dump_schema", "--output", str(path)],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.dev"},
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    return Path(path).read_text()
+
+
+def test_the_committed_schema_is_current(tmp_path):
+    """
+    The committed schema must match what the code produces, byte for byte.
+
+    Generated in a subprocess: in-process generation picks up Django URL caches and
+    DRF view state left behind by earlier tests, so it can produce a different
+    schema depending on test order — noise that says nothing about the API.
+    """
+    fresh = _generate_to(tmp_path / "schema.yml")
+    committed_path = Path(__file__).resolve().parent.parent / "docs" / "openapi.yml"
+    if not committed_path.exists():  # pragma: no cover - only on a fresh checkout
         pytest.skip("docs/openapi.yml has not been generated yet")
 
-    assert target.read_text() == committed.read_text(), (
-        "services/api/docs/openapi.yml is out of date. Regenerate with:\n"
-        "  cd services/api && uv run python manage.py spectacular --file docs/openapi.yml"
+    if fresh != committed_path.read_text():
+        import difflib
+
+        diff = "\n".join(
+            list(
+                difflib.unified_diff(
+                    committed_path.read_text().splitlines(),
+                    fresh.splitlines(),
+                    lineterm="",
+                    n=1,
+                )
+            )[:30]
+        )
+        pytest.fail(
+            "services/api/docs/openapi.yml is out of date. Regenerate with:\n"
+            "  cd services/api && uv run python manage.py dump_schema\n\n" + diff
+        )
+
+
+def test_the_committed_schema_has_no_warnings():
+    """A schema full of warnings is documentation nobody can rely on."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "manage.py", "dump_schema", "--stdout"],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).resolve().parent.parent,
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": "config.settings.dev"},
     )
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "Warning" not in result.stderr

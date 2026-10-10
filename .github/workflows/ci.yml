@@ -141,16 +141,9 @@ jobs:
       - run: uv python install
       - run: uv sync --locked --group ci
 
-      - name: Generate the schema
-        # Does not need a database: schema generation imports URLs, not rows.
-        run: uv run python manage.py spectacular --fail-on-warn --file /tmp/schema.yml
-
       - name: The committed schema matches what the code produces
-        run: |
-          if ! diff -u docs/openapi.yml /tmp/schema.yml; then
-            echo ""
-            echo "::error::services/api/docs/openapi.yml is out of date."
-            echo "Regenerate it with:"
-            echo "  cd services/api && uv run python manage.py spectacular --file docs/openapi.yml"
-            exit 1
-          fi
+        # `dump_schema` rather than `spectacular`: it renders through
+        # config/renderers.py, which fixes the operation order so the output does
+        # not depend on Python's hash seed. Without that this check fails on
+        # commits that changed nothing.
+        run: uv run python manage.py dump_schema --check

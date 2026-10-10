@@ -49,6 +49,15 @@ api-makemigrations: ## Generate new migrations for changed models
 api-superuser: ## Create a Django superuser
 	@cd $(API_DIR) && uv run python manage.py createsuperuser
 
+api-seed: ## Fill the database with demo providers, customers and bookings
+	@cd $(API_DIR) && uv run python manage.py seed_demo
+
+api-schema: ## Regenerate the committed OpenAPI schema
+	@cd $(API_DIR) && uv run python manage.py dump_schema
+
+api-schema-check: ## Fail if the committed OpenAPI schema is stale
+	@cd $(API_DIR) && uv run python manage.py dump_schema --check
+
 # --- quality ----------------------------------------------------------------
 
 test: test-api test-app ## Run every test suite

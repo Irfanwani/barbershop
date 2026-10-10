@@ -7555,13 +7555,13 @@ components:
 tags:
 - name: auth
   description: Registration, login, tokens, password reset.
-- name: me
-  description: The authenticated user's own account and profile.
-- name: providers
-  description: 'Service providers: discovery, services, availability.'
 - name: bookings
   description: Appointments between a customer and a provider.
-- name: reviews
-  description: Ratings and comments left after a booking.
+- name: me
+  description: The authenticated user's own account and profile.
 - name: payments
   description: Razorpay order creation and webhook confirmation.
+- name: providers
+  description: 'Service providers: discovery, services, availability.'
+- name: reviews
+  description: Ratings and comments left after a booking.
