@@ -267,6 +267,16 @@ class TestMyProvider:
         assert body["id"] == profile.id
         assert body["owner"]["id"] == profile.user_id
 
+    def test_reads_back_the_location_it_was_given(self):
+        """A `coords` of {} reads as "no location", which is a lie here."""
+        user, _ = as_provider(coords=DELHI_NEAR)
+        client, token = logged_in(user)
+
+        body = client.get(f"{PROVIDERS}me/", **auth_header(token)).json()
+
+        assert body["coords"]["latitude"] == pytest.approx(28.6150, abs=1e-6)
+        assert body["coords"]["longitude"] == pytest.approx(77.2110, abs=1e-6)
+
     def test_updates_the_shop(self):
         user, profile = as_provider()
         client, token = logged_in(user)

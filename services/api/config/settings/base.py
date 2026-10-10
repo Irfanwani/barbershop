@@ -66,8 +66,6 @@ THIRD_PARTY_APPS = [
     "django_cleanup.apps.CleanupConfig",
 ]
 
-# `haircut` is the pre-v1 app. It is read by the data migrations and then
-# removed; see bookings/migrations/0003_migrate_legacy_bookings.py.
 LOCAL_APPS = [
     "core",
     "accounts",
@@ -75,7 +73,6 @@ LOCAL_APPS = [
     "bookings",
     "reviews",
     "payments",
-    "haircut",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

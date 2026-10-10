@@ -601,6 +601,7 @@ class TestCustomerProfile:
 
         assert response.status_code == 200
         assert response.json()["has_location"] is True
+        assert response.json()["coords"]["latitude"] == pytest.approx(28.6139, abs=1e-6)
 
     def test_rejects_impossible_coordinates(self):
 

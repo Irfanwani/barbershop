@@ -1,8 +1,7 @@
 """Root URL configuration.
 
-``/api/v1/`` is the supported surface. The two ``/api/`` mounts below are the
-pre-v1 handlers, kept only until the bookings/payments endpoints land in v1 and
-the data migrations retire their tables.
+``/api/v1/`` is the only supported surface. The pre-v1, unversioned handlers
+were removed once their data had been migrated across.
 """
 
 from django.conf import settings
@@ -20,9 +19,6 @@ def healthcheck(_request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include(("config.api", "v1"), namespace="v1")),
-    # --- deprecated, unversioned, removed in the next commit ----------------
-    path("api/haircut/", include("haircut.urls")),
-    path("api/payments/", include("payments.urls")),
     path("healthz", healthcheck, name="healthcheck"),
 ]
 

@@ -202,6 +202,19 @@ class PointFieldSerializer(serializers.Serializer):
             data = {"longitude": data["coordinates"][0], "latitude": data["coordinates"][1]}
         return super().to_internal_value(data)
 
+    def to_representation(self, value):
+        """Render a ``PointField`` as ``{latitude, longitude}``.
+
+        Without this the declared fields are looked up as dictionary keys
+        against a GEOS ``Point``, produce nothing, and the API returns
+        ``"coords": {}`` — a location that silently reads as absent.
+        """
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return value
+        return {"latitude": value.y, "longitude": value.x}
+
     def create(self, validated_data):  # pragma: no cover - convenience
         return Point(validated_data["longitude"], validated_data["latitude"], srid=4326)
 
