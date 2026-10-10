@@ -198,11 +198,20 @@ def raw_column(table: str, column: str, pk: int) -> str:
     return row[0] if row else ""
 
 
+def logged_in(user: User):
+    """Return ``(client, token)`` for a client already signed in as ``user``."""
+    from django.test import Client
+
+    client = Client()
+    token = authenticate(client, user)
+    return client, token
+
+
 def authenticate(client, user: User) -> str:
     """Log ``user`` in through the real login endpoint and return the token."""
     response = client.post(
         "/api/v1/auth/login/",
-        {"username": user.username, "password": "Str0ngPass!23"},
+        {"identifier": user.username, "password": "Str0ngPass!23"},
         content_type="application/json",
     )
     assert response.status_code == 200, response.content

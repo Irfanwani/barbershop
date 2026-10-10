@@ -1,0 +1,12 @@
+Hi {{ username }},
+
+Welcome to {{ brand }}. Confirm your email address to finish setting up
+your account.
+
+    {{ code }}
+
+This code works once and expires in {{ ttl_hours }} hours.
+
+If you did not create a {{ brand }} account, you can ignore this email.
+
+— {{ brand }}

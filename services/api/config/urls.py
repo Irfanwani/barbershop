@@ -1,7 +1,8 @@
 """Root URL configuration.
 
-The admin and a health check live at the root; the API itself is mounted from a
-separate module so it can be versioned without touching anything else here.
+``/api/v1/`` is the supported surface. The two ``/api/`` mounts below are the
+pre-v1 handlers, kept only until the bookings/payments endpoints land in v1 and
+the data migrations retire their tables.
 """
 
 from django.conf import settings
@@ -18,7 +19,10 @@ def healthcheck(_request):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include("config.api")),
+    path("api/v1/", include(("config.api", "v1"), namespace="v1")),
+    # --- deprecated, unversioned, removed in the next commit ----------------
+    path("api/haircut/", include("haircut.urls")),
+    path("api/payments/", include("payments.urls")),
     path("healthz", healthcheck, name="healthcheck"),
 ]
 

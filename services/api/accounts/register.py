@@ -8,6 +8,13 @@ from knox.models import AuthToken
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 
+from .legacy import (
+    BarberDetailSerializer,
+    LoginSerializer,
+    RegistrationSerializer,
+    UserDetailSerializer,
+    UserSerializer,
+)
 from .models import (
     BankDetails,
     BarberDetails,
@@ -17,13 +24,6 @@ from .models import (
     SignUpCodes,
     User,
     UserDetails,
-)
-from .serializers import (
-    BarberDetailSerializer,
-    LoginSerializer,
-    RegistrationSerializer,
-    UserDetailSerializer,
-    UserSerializer,
 )
 
 

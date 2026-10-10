@@ -287,6 +287,34 @@ def provider_has_capacity(
     return overlapping < max(provider.employee_count, 1)
 
 
+def slot_grid(provider: ProviderProfile, days: int = 14) -> list[tuple[datetime, datetime]]:
+    """Every bookable interval for the next ``days``, aligned to the slot grid.
+
+    Reads as a schedule, which is what a customer's calendar screen wants.
+    """
+    step = timedelta(minutes=provider.slot_interval_minutes or 30)
+    window_start, window_end = default_booking_window()
+    window_end = min(window_end, timezone.now() + timedelta(days=days))
+
+    slots: list[tuple[datetime, datetime]] = []
+    cursor = window_start
+    while cursor < window_end:
+        if is_within_working_hours(provider, cursor, cursor + step):
+            slots.append((cursor, cursor + step))
+        cursor += step
+    return slots
+
+
+def next_free_slot(provider: ProviderProfile) -> datetime | None:
+    """The soonest interval the provider is free for, or None."""
+    for starts_at, ends_at in slot_grid(provider, days=7):
+        if is_slot_available(provider, starts_at, ends_at) and provider_has_capacity(
+            provider, starts_at, ends_at
+        ):
+            return starts_at
+    return None
+
+
 def is_within_working_hours(
     provider: ProviderProfile, starts_at: datetime, ends_at: datetime
 ) -> bool:

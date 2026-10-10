@@ -11,8 +11,8 @@ from django.db.models.functions import Round
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 
+from accounts.legacy import BankDetailsSerializer, BarberDetailSerializer, ServicesSerializer
 from accounts.models import BarberDetails, ServicesDetails, User, UserDetails
-from accounts.serializers import BankDetailsSerializer, BarberDetailSerializer, ServicesSerializer
 from haircut.models import RatingsAndReviews
 
 

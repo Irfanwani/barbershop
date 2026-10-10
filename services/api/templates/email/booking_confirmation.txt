@@ -1,0 +1,10 @@
+Hi,
+
+Your booking at {{ provider_name }} is confirmed.
+
+    Reference: {{ reference }}
+    When:      {{ starts_at }}
+
+Manage or cancel it any time from your {{ brand }} app.
+
+— {{ brand }}

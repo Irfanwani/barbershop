@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.contrib.gis.db import models
 from django.utils import timezone
 
 from core.models import TimeStampedModel
@@ -99,6 +100,48 @@ class User(AbstractUser):
     def mark_verified(self) -> None:
         self.is_verified = True
         self.verified_at = timezone.now()
+
+
+class CustomerProfile(TimeStampedModel):
+    """A customer's own details.
+
+    Optional — a customer can browse without one. But "providers near me" needs
+    somewhere to search from, and the old API stored the customer's coordinates
+    in ``UserDetails``, which was created lazily and, when missing, caused a 500
+    in the barber-list endpoint rather than a helpful prompt.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="customer_profile",
+        limit_choices_to={"role": "customer"},
+    )
+
+    photo = models.ImageField(upload_to="customers/", blank=True, null=True)
+    about = models.TextField(blank=True, default="", max_length=500)
+    address = models.CharField(max_length=300, blank=True, default="")
+
+    # Nullable on purpose: a customer who has not granted location permission is
+    # not an error, they just do not get distance-sorted results.
+    coords = models.PointField(srid=4326, geography=True, null=True, blank=True)
+
+    preferred_service_type = models.CharField(max_length=32, blank=True, default="")
+
+    class Meta:
+        db_table = "accounts_customer_profile"
+        indexes = [
+            models.Index(
+                fields=["coords"], name="accounts_customer_coords_gist", opclasses=["gist"]
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Customer profile for {self.user}"
+
+    @property
+    def has_location(self) -> bool:
+        return self.coords is not None
 
 
 class VerificationCode(TimeStampedModel):
@@ -226,6 +269,7 @@ from accounts.legacy import (  # noqa: E402
 # way out is the single most useful thing this list can say.
 __all__ = [  # noqa: RUF022
     # current
+    "CustomerProfile",
     "LoginAudit",
     "PushToken",
     "Role",

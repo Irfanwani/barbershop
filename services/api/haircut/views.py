@@ -9,8 +9,8 @@ from rest_framework import filters, generics, permissions, serializers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from accounts.legacy import UserDetailSerializer
 from accounts.models import BarberDetails, User, UserDetails
-from accounts.serializers import UserDetailSerializer
 
 from .models import Appointments, NotificationTokens
 from .serializers import AppointmentSerializer, NotificationTokenSerializer

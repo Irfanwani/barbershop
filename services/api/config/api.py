@@ -1,13 +1,25 @@
-"""API URLs.
+"""URL configuration for API version 1.
 
-Currently this is the legacy, unversioned surface carried over from
-``barbershopbackend``. It is being replaced by ``/api/v1/``.
+Everything the mobile client talks to lives under this prefix. When v2 arrives it
+gets its own module and is mounted beside this one — v1 keeps serving until the
+app has migrated off it.
 """
 
 from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 urlpatterns = [
-    path("accounts/", include("accounts.urls")),
-    path("haircut/", include("haircut.urls")),
-    path("payments/", include("payments.urls")),
+    # --- auth ----------------------------------------------------------------
+    path("auth/", include("accounts.urls_auth")),
+    path("me/", include("accounts.urls_me")),
+    # --- providers -----------------------------------------------------------
+    path("providers/", include("providers.urls")),
+    # --- docs ----------------------------------------------------------------
+    path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("docs/", SpectacularSwaggerView.as_view(url_name="v1:schema"), name="swagger-ui"),
+    path("redoc/", SpectacularRedocView.as_view(url_name="v1:schema"), name="redoc"),
 ]

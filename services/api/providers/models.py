@@ -117,6 +117,15 @@ class ProviderProfile(TimeStampedModel):
         return self.coords.x if self.coords else None
 
     @property
+    def active_service_count(self) -> int:
+        return self.services.filter(is_active=True).count()
+
+    @property
+    def is_bookable(self) -> bool:
+        """Whether this provider can take a booking right now."""
+        return self.is_accepting_bookings and self.active_service_count > 0
+
+    @property
     def starting_price(self) -> int | None:
         return (
             self.services.filter(is_active=True)

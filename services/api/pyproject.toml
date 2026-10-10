@@ -88,7 +88,7 @@ ignore = [
 # The pre-v1 apps are deleted in the next commit; until then, ruff is not asked
 # to police code that is on its way out.
 "accounts/views*.py" = ["E722", "RUF015", "F841"]
-"accounts/serializers.py" = ["E722"]
+"accounts/legacy.py" = ["E722", "F841", "E501"]
 "accounts/register.py" = ["E722", "F841"]
 "haircut/*.py" = ["E722", "DJ001", "F841"]
 "payments/*.py" = ["E722", "F841"]
