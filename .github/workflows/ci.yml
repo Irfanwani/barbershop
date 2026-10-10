@@ -106,20 +106,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: yarn
-          cache-dependency-path: apps/mobile/yarn.lock
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Typecheck
-        run: yarn typecheck
+        run: npm run typecheck
 
       - name: Lint
-        run: yarn lint
+        run: npm run lint
 
       - name: Tests
-        run: yarn test --ci
+        run: npm test -- --ci
+
+      # A screen that typechecks can still fail to bundle on a missing asset or
+      # a bad import, and that only shows up on a device otherwise.
+      - name: Bundle
+        run: npx expo export --platform all --output-dir dist
 
   schema:
     name: OpenAPI contract

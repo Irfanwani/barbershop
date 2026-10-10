@@ -1,0 +1,280 @@
+import { useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { errorMessage } from '@/api/client';
+import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
+import { useBooking, useCancelBooking, useCreateOrder, useCreateReview } from '@/api/hooks';
+import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
+import { Field, FormError } from '@/components/field';
+import { formatRelative, formatWhen } from '@/components/booking-row';
+
+export default function BookingDetailScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { reference } = useLocalSearchParams<{ reference: string }>();
+
+  const booking = useBooking(reference ?? null);
+  const cancel = useCancelBooking();
+  const order = useCreateOrder();
+
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [showReview, setShowReview] = useState(false);
+
+  if (booking.isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: colors.background }}>
+        <Text style={{ color: colors.textMuted }}>Loading…</Text>
+      </View>
+    );
+  }
+
+  if (booking.isError || !booking.data) {
+    return (
+      <View className="flex-1" style={{ backgroundColor: colors.background }}>
+        <IconButton name="arrow-back" label="Back" onPress={() => router.back()} className="m-3" />
+        <EmptyState icon="alert-circle-outline" title="Could not load this booking" body={errorMessage(booking.error)} />
+      </View>
+    );
+  }
+
+  const record = booking.data;
+
+  async function startPayment() {
+    setPayError(null);
+    setPaying(true);
+    try {
+      const result = await order.mutateAsync(record.reference);
+      await openCheckout(result);
+    } catch (caught) {
+      setPayError(errorMessage(caught, 'Could not start the payment.'));
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  /**
+   * The Razorpay sheet needs the native SDK. It is not bundled here: a payment
+   * screen that cannot take a card is worse than one that says payments need a
+   * build with `expo-dev-client`, so the integration point is isolated in one
+   * function rather than spread across the checkout flow.
+   */
+  async function openCheckout(result: { razorpay: { key_id: string; order_id: string } }) {
+    try {
+      // Imported lazily: react-native-razorpay has a native module, and a static
+      // import would fail the JS bundle for every screen in the app.
+      const { default: RazorpayCheckout } = await import('react-native-razorpay');
+      await RazorpayCheckout.open({
+        key: result.razorpay.key_id,
+        order_id: result.razorpay.order_id,
+      });
+      await booking.refetch();
+    } catch {
+      setPayError(
+        'The payment sheet is not available in this build. Pay at the shop instead.',
+      );
+    }
+  }
+
+  return (
+    <View className="flex-1" style={{ backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32, gap: 16 }}>
+        <IconButton name="arrow-back" label="Back" onPress={() => router.back()} className="self-start" />
+
+        <View className="gap-1">
+          <Text className="text-2xl font-bold tracking-tight" style={{ color: colors.text }}>
+            {record.provider.display_name}
+          </Text>
+          <Text className="text-sm" style={{ color: colors.textMuted }}>
+            {formatWhen(record.starts_at)} · {formatRelative(record.starts_at)}
+          </Text>
+          <Text className="text-xs" style={{ color: colors.textSubtle }}>
+            Reference {record.reference}
+          </Text>
+        </View>
+
+        <Card className="gap-2">
+          {record.items.map((item, index) => (
+            <View key={item.id}>
+              {index > 0 ? <Divider className="my-2" /> : null}
+              <View className="flex-row justify-between">
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  {item.name}
+                </Text>
+                <Text className="text-sm" style={{ color: colors.text }}>
+                  {item.unit_price_display}
+                </Text>
+              </View>
+            </View>
+          ))}
+          <Divider className="my-2" />
+          <View className="flex-row justify-between">
+            <Text className="text-sm" style={{ color: colors.textMuted }}>
+              Service fee
+            </Text>
+            <Text className="text-sm" style={{ color: colors.textMuted }}>
+              {record.platform_fee_display}
+            </Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-base font-semibold" style={{ color: colors.text }}>
+              Total
+            </Text>
+            <Text className="text-base font-semibold" style={{ color: colors.text }}>
+              {record.total_display}
+            </Text>
+          </View>
+        </Card>
+
+        <Card className="gap-1">
+          <Text className="text-sm font-medium" style={{ color: colors.text }}>
+            {BOOKING_STATUS_LABELS[record.status]}
+          </Text>
+          <Text className="text-xs" style={{ color: colors.textMuted }}>
+            {record.is_paid ? 'Paid' : 'Not paid yet'} · booked {formatWhen(record.created_at)}
+          </Text>
+          {record.cancellation_reason ? (
+            <Text className="text-xs" style={{ color: colors.textMuted }}>
+              {record.cancellation_reason}
+            </Text>
+          ) : null}
+        </Card>
+
+        {payError ? <FormError message={payError} /> : null}
+
+        {!record.is_paid && record.status === 'pending_payment' ? (
+          <Button onPress={startPayment} loading={paying} testID="booking-pay">
+            Pay {record.total_display}
+          </Button>
+        ) : null}
+
+        {record.can_be_cancelled ? (
+          <Button
+            variant="ghost"
+            onPress={() => cancel.mutate({ reference: record.reference })}
+            loading={cancel.isPending}
+            testID="booking-cancel">
+            Cancel booking
+          </Button>
+        ) : null}
+
+        {record.status === 'completed' ? (
+          <Button
+            variant="secondary"
+            icon="star-outline"
+            onPress={() => setShowReview(true)}
+            testID="booking-review">
+            Leave a review
+          </Button>
+        ) : null}
+
+        {record.notes ? (
+          <Card>
+            <Text className="text-sm" style={{ color: colors.textMuted }}>
+              {record.notes}
+            </Text>
+          </Card>
+        ) : null}
+      </ScrollView>
+
+      {showReview ? (
+        <ReviewSheet
+          bookingId={record.id}
+          providerId={record.provider.id}
+          providerName={record.provider.display_name}
+          onClose={() => setShowReview(false)}
+          onDone={() => {
+            setShowReview(false);
+            void booking.refetch();
+          }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function ReviewSheet({
+  bookingId,
+  providerId,
+  providerName,
+  onClose,
+  onDone,
+}: {
+  bookingId: number;
+  providerId: number;
+  providerName: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const create = useCreateReview();
+
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    try {
+      await create.mutateAsync({ provider: providerId, booking: bookingId, rating, comment });
+      onDone();
+    } catch (caught) {
+      setError(errorMessage(caught, 'Could not save that review.'));
+    }
+  }
+
+  return (
+    <View className="absolute inset-0 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <View
+        className="gap-4 rounded-t-3xl p-5"
+        style={{ backgroundColor: colors.background, paddingBottom: insets.bottom + 24 }}>
+        <View className="flex-row items-center justify-between">
+          <Text className="text-lg font-semibold" style={{ color: colors.text }}>
+            How was {providerName}?
+          </Text>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </Pressable>
+        </View>
+
+        <View className="flex-row gap-2">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <Pressable
+              key={value}
+              onPress={() => setRating(value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: rating === value }}
+              accessibilityLabel={`${value} star${value === 1 ? '' : 's'}`}
+              testID={`review-star-${value}`}>
+              <Ionicons
+                name={value <= rating ? 'star' : 'star-outline'}
+                size={32}
+                color={value <= rating ? '#F59E0B' : colors.textSubtle}
+              />
+            </Pressable>
+          ))}
+        </View>
+
+        <Field
+          placeholder="Anything worth saying?"
+          value={comment}
+          onChangeText={setComment}
+          multiline
+          numberOfLines={4}
+          testID="review-comment"
+        />
+
+        <FormError message={error} />
+
+        <Button onPress={submit} loading={create.isPending} testID="review-submit">
+          Post review
+        </Button>
+      </View>
+    </View>
+  );
+}
