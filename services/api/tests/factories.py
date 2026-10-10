@@ -127,7 +127,11 @@ def make_booking(
 ) -> Booking:
     customer = customer or make_user()
     provider = provider or make_profile()
-    service = service or make_service(provider)
+    if service is None:
+        # Reuse the shop's existing menu item where there is one: creating a
+        # second "Haircut" for the same provider trips the unique constraint.
+        service = provider.services.filter(is_active=True).order_by("id").first()
+        service = service or make_service(provider)
 
     starts_at = starts_at or next_slot()
     ends_at = starts_at + timedelta(minutes=service.duration_minutes)

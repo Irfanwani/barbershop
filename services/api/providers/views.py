@@ -304,7 +304,7 @@ class AvailabilityView(APIView):
     permission_classes = [IsAuthenticated, IsProvider]
 
     def get(self, request, pk: int):
-        from bookings.models import is_slot_available, provider_has_capacity
+        from bookings.models import has_room
 
         profile = get_object_or_404(ProviderProfile, pk=pk, user=request.user)
 
@@ -313,9 +313,7 @@ class AvailabilityView(APIView):
 
         slots = []
         for starts_at, ends_at in slot_grid(profile, days=days):
-            free = is_slot_available(profile, starts_at, ends_at) and provider_has_capacity(
-                profile, starts_at, ends_at
-            )
+            free = has_room(profile, starts_at, ends_at)
             slots.append(
                 {
                     "starts_at": starts_at,

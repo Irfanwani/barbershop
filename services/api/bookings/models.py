@@ -244,6 +244,31 @@ def default_booking_window(now: datetime | None = None) -> tuple[datetime, datet
     return start, start + timedelta(days=30)
 
 
+def has_room(
+    provider: ProviderProfile,
+    starts_at: datetime,
+    ends_at: datetime,
+    *,
+    exclude_booking: int | None = None,
+) -> bool:
+    """Whether the provider can take one more booking over this interval.
+
+    Capacity-aware: a shop with three barbers can run three simultaneous
+    bookings, so "does this overlap anything?" is not the question. Half-open
+    intervals, so a booking ending exactly when the next begins is not a
+    conflict — which is what a customer expects when booking back-to-back.
+    """
+    overlapping = Booking.objects.filter(
+        provider=provider,
+        status__in=BLOCKING_STATUSES,
+        starts_at__lt=ends_at,
+        ends_at__gt=starts_at,
+    )
+    if exclude_booking:
+        overlapping = overlapping.exclude(pk=exclude_booking)
+    return overlapping.count() < max(provider.employee_count, 1)
+
+
 def is_slot_available(
     provider: ProviderProfile,
     starts_at: datetime,
@@ -251,11 +276,11 @@ def is_slot_available(
     *,
     exclude_booking: int | None = None,
 ) -> bool:
-    """Whether the provider is free for the given interval.
+    """Whether *nothing at all* overlaps this interval.
 
-    Uses a simple half-open interval overlap: ``starts_at < other.ends_at`` and
-    ``ends_at > other.starts_at``. A 30-minute booking ending exactly when the
-    next begins is not a conflict, which is what customers expect.
+    Stricter than :func:`has_room`. Use this when the slot is single-occupancy
+    by nature (a treatment room, one chair); use :func:`has_room` for anything
+    that scales with headcount.
     """
     conflicts = Booking.objects.filter(
         provider=provider,
@@ -308,9 +333,7 @@ def slot_grid(provider: ProviderProfile, days: int = 14) -> list[tuple[datetime,
 def next_free_slot(provider: ProviderProfile) -> datetime | None:
     """The soonest interval the provider is free for, or None."""
     for starts_at, ends_at in slot_grid(provider, days=7):
-        if is_slot_available(provider, starts_at, ends_at) and provider_has_capacity(
-            provider, starts_at, ends_at
-        ):
+        if has_room(provider, starts_at, ends_at):
             return starts_at
     return None
 
