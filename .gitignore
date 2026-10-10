@@ -39,9 +39,11 @@ venv/
 htmlcov/
 coverage.xml
 
-# django
-staticfiles/
-media/
+# django — keep the empty directories, drop their contents
+staticfiles/*
+!staticfiles/.gitkeep
+media/*
+!media/.gitkeep
 *.sqlite3
 *.sqlite3-journal
 

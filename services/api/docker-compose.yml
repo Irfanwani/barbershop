@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------------------
+# Local development stack.
+#
+#   docker compose up -d db          # database only, API on your host (hot reload)
+#   docker compose up --build api    # the API in a container
+#   docker compose run --rm api python manage.py migrate
+# ---------------------------------------------------------------------------
+
+name: barbershop
+
+services:
+  db:
+    # PostGIS, not plain Postgres — provider search is a radius query.
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-barbershop}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Speeds up first boot considerably on an empty volume.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - barbershop-db:/var/lib/postgresql/data
+    healthcheck:
+      # -d/-U so the check does not depend on a local unix socket.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-barbershop}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             exec gunicorn config.wsgi:application
+               --bind 0.0.0.0:8000
+               --workers 3 --threads 2
+               --access-logfile - --error-logfile -"
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DEBUG: "True"
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      # Mounted media means an image you upload in the app is visible on disk.
+      MEDIA_ROOT: /app/media
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+      - barbershop-media:/app/media
+      - barbershop-static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # One-off helper: `docker compose run --rm api pytest`
+  # Kept as a profile so `docker compose up` does not start it.
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: pytest
+
+volumes:
+  barbershop-db:
+  barbershop-media:
+  barbershop-static:

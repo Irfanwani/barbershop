@@ -1,4 +1,5 @@
 from django.db import models
+
 from accounts.models import BarberDetails, User
 
 # Create your models here.
@@ -14,7 +15,7 @@ class Appointments(models.Model):
     paid = models.BooleanField(default=False)
 
     def __str__(self):
-        return f'{self.user} fixed an appointment with {self.barber} on {self.datetime}'
+        return f"{self.user} fixed an appointment with {self.barber} on {self.datetime}"
 
 
 class NotificationTokens(models.Model):
@@ -22,7 +23,7 @@ class NotificationTokens(models.Model):
     token = models.CharField(max_length=200, null=False, blank=False)
 
     def __str__(self):
-        return f'{self.user} has token {self.token}'
+        return f"{self.user} has token {self.token}"
 
 
 class RatingsAndReviews(models.Model):
@@ -33,4 +34,4 @@ class RatingsAndReviews(models.Model):
     date = models.DateField(auto_now_add=True)
 
     def __str__(self):
-        return f'{self.ratings} for {self.barber} by {self.user}'
+        return f"{self.ratings} for {self.barber} by {self.user}"

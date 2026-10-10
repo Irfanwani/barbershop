@@ -1,6 +1,16 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import UserDetails, BarberDetails, Emails, PasswordCodes, SignUpCodes, User, BankDetails, ServicesDetails
+
+from .models import (
+    BankDetails,
+    BarberDetails,
+    Emails,
+    PasswordCodes,
+    ServicesDetails,
+    SignUpCodes,
+    User,
+    UserDetails,
+)
 
 # Register your models here.
 admin.site.register(User, UserAdmin)
