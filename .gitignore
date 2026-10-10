@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# BarberShop monorepo — shared ignore rules
+# ---------------------------------------------------------------------------
+
+# --- secrets / local config -------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- OS ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- editors ---------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+*.swp
+
+# ---------------------------------------------------------------------------
+# Python / Django  (services/api)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.venv/
+venv/
+.python-version
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# django
+staticfiles/
+media/
+*.sqlite3
+*.sqlite3-journal
+
+# ---------------------------------------------------------------------------
+# Node / React Native  (apps/mobile)
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# metro / expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.jsbundle
+
+# --- React Native / Expo native builds -------------------------------------
+# generated
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/.xcode.env.local
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.cxx/
+*.keystore
+!debug.keystore
+
+# --- test / coverage -------------------------------------------------------
+coverage/
+*.lcov
+
+# --- misc -------------------------------------------------------------------
+*.log
+tmp/
+.cache/
