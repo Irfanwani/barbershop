@@ -22,6 +22,8 @@ urlpatterns = [
     path("bookings/", include("bookings.urls")),
     # --- reviews -----------------------------------------------------------
     path("reviews/", include("reviews.urls")),
+    # --- payments ----------------------------------------------------------
+    path("payments/", include("payments.urls")),
     # --- docs ----------------------------------------------------------------
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="v1:schema"), name="swagger-ui"),
