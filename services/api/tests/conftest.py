@@ -13,13 +13,15 @@ import pytest
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# pytest-django imports the settings module during initial conftest loading,
+# which is before this file is imported and well before pytest_configure runs.
+# config.settings.base loads `.env` at import time so the database credentials
+# are already in the environment by then.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.test")
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    from dotenv import load_dotenv
-
-    load_dotenv(BASE_DIR / ".env")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.test")
 
 
 @pytest.fixture(autouse=True)

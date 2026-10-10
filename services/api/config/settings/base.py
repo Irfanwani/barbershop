@@ -13,6 +13,19 @@ from config import env
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Load `.env` here rather than in manage.py or a test conftest: settings are
+# imported by every entrypoint — manage.py, gunicorn, pytest, celery — and each
+# one loads at a different moment. Doing it in one place means a developer never
+# has to remember to export the database password before running the tests.
+#
+# `override=False` so a real environment variable always wins over the file.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BASE_DIR / ".env", override=False)
+except ImportError:  # pragma: no cover - dotenv is a hard dependency
+    pass
+
 # ---------------------------------------------------------------------------
 # Core
 # ---------------------------------------------------------------------------
@@ -53,11 +66,16 @@ THIRD_PARTY_APPS = [
     "django_cleanup.apps.CleanupConfig",
 ]
 
+# `haircut` is the pre-v1 app. It is read by the data migrations and then
+# removed; see bookings/migrations/0003_migrate_legacy_bookings.py.
 LOCAL_APPS = [
     "core",
     "accounts",
-    "haircut",
+    "providers",
+    "bookings",
+    "reviews",
     "payments",
+    "haircut",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

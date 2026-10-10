@@ -31,7 +31,11 @@ from django.core.exceptions import (
 from django.db import IntegrityError
 from django.http import Http404
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import (
+    APIException,
+    NotFound,
+    PermissionDenied as DRFPermissionDenied,
+)
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
@@ -53,6 +57,10 @@ class APIError(APIException):
         details: Any = None,
     ) -> None:
         super().__init__(detail or self.default_detail, code or self.default_code)
+        # APIException's `code` argument only annotates `detail`; the envelope
+        # needs the override too, otherwise every raised error reports its class
+        # name instead of what it actually means.
+        self.code = code or self.default_code
         self.details = details
 
 
@@ -133,9 +141,14 @@ def api_exception_handler(exc: Exception, context: dict) -> Response | None:
             details=list(exc.messages),
         )
     elif isinstance(exc, Http404):
-        exc = APIError("Not found.", code="not_found")
+        # rest_framework's NotFound, not our APIError — otherwise a missing
+        # object would be reported as a 400 and clients would treat a deleted
+        # booking as a malformed request.
+        exc = NotFound("Not found.", code="not_found")
     elif isinstance(exc, DjangoPermissionDenied):
-        exc = APIError("You do not have permission to do that.", code="permission_denied")
+        exc = DRFPermissionDenied(
+            "You do not have permission to do that.", code="permission_denied"
+        )
     elif isinstance(exc, IntegrityError):
         # A constraint fired. The client sent something we already have, but the
         # database message is not safe to echo.
@@ -163,14 +176,17 @@ def api_exception_handler(exc: Exception, context: dict) -> Response | None:
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    code = getattr(exc, "default_code", "error")
     if isinstance(exc, APIError):
-        code = exc.default_code
+        code = exc.code
         message = str(exc.detail)
         details = exc.details
+        if details is None and isinstance(exc.detail, (dict, list)):
+            # A serializer error routed through APIError still deserves its
+            # field-level breakdown, otherwise the client only sees a sentence.
+            message, details = _flatten_drf_detail(exc.detail)
     else:
-        message, details = _flatten_drf_detail(response.data)
         code = getattr(exc, "default_code", "error")
+        message, details = _flatten_drf_detail(response.data)
 
     response.data = {
         "error": {

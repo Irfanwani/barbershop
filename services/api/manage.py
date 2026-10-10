@@ -3,19 +3,11 @@
 
 import os
 import sys
-from pathlib import Path
 
 
 def main() -> None:
-    # Load .env before Django initialises, so settings can read secrets from disk
-    # during local development without every caller exporting them first.
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv(Path(__file__).resolve().parent / ".env")
-    except ImportError:  # pragma: no cover - dotenv is a hard dependency
-        pass
-
+    # `.env` is loaded by config.settings.base, so every entrypoint behaves the
+    # same way whether it is manage.py, gunicorn or pytest.
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 
     try:
