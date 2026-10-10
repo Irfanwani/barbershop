@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import time
 from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.gis.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
+from accounts.models import ReminderPreferencesMixin
 from core.fields import EncryptedTextField
 from core.models import TimeStampedModel
 from core.money import format_minor
@@ -31,7 +33,7 @@ class ServiceType(models.TextChoices):
     OTHER = "other", "Other"
 
 
-class ProviderProfile(TimeStampedModel):
+class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
     """The public-facing shop record behind a provider account.
 
     One per provider user. ``coords`` is ``geography`` rather than geometry so
@@ -163,6 +165,90 @@ class ProviderProfile(TimeStampedModel):
 
     def owns_service(self, service_id: int) -> bool:
         return self.services.filter(pk=service_id).exists()
+
+    def hours_for(self, weekday: int) -> WorkingHours | None:
+        """The hours row for a weekday, or None if the shop never set one.
+
+        None means "fall back to the shop's own opening and closing time", which
+        is what every shop had before per-day hours existed. Treating a missing
+        row as "closed" would silently shut every provider on the platform.
+        """
+        return self.hours.filter(weekday=weekday).first()
+
+    def is_open_on(self, weekday: int) -> bool:
+        hours = self.hours_for(weekday)
+        if hours is None:
+            # Monday to Saturday by default. A barber's shop that is shut on
+            # Sunday is the exception, not the rule.
+            return weekday != 6
+        return not hours.is_closed
+
+    def day_bounds(self, weekday: int) -> tuple[time, time] | None:
+        """The opening and closing time for a weekday, or None if closed."""
+        hours = self.hours_for(weekday)
+        if hours is None:
+            return self.opening_time, self.closing_time
+        if hours.is_closed:
+            return None
+        return hours.opens_at, hours.closes_at
+
+
+class WorkingHours(models.Model):
+    """Per-weekday opening hours.
+
+    A single ``opening_time``/``closing_time`` pair on the shop cannot express
+    "closed on Sunday, and only until 6pm on Saturday", which is how most shops
+    actually run. This is the on/off control the provider sets.
+    """
+
+    provider = models.ForeignKey(ProviderProfile, on_delete=models.CASCADE, related_name="hours")
+    WEEKDAYS = (
+        (0, "Monday"),
+        (1, "Tuesday"),
+        (2, "Wednesday"),
+        (3, "Thursday"),
+        (4, "Friday"),
+        (5, "Saturday"),
+        (6, "Sunday"),
+    )
+
+    weekday = models.PositiveSmallIntegerField(
+        choices=WEEKDAYS,
+        validators=[MinValueValidator(0), MaxValueValidator(6)],
+        help_text="0 = Monday. Django's date.weekday() convention.",
+    )
+    is_closed = models.BooleanField(default=False)
+    opens_at = models.TimeField(default="09:00")
+    closes_at = models.TimeField(default="20:00")
+
+    class Meta:
+        db_table = "providers_workinghours"
+        ordering = ["weekday"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "weekday"], name="providers_hours_provider_weekday_uniq"
+            ),
+            # A shift that ends before it starts is a typo, not an all-nighter.
+            models.CheckConstraint(
+                condition=Q(is_closed=True) | Q(opens_at__lt=F("closes_at")),
+                name="providers_hours_closes_after_opens",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        day = self.get_weekday_display()
+        if self.is_closed:
+            return f"{day}: closed"
+        return f"{day}: {self.opens_at:%H:%M}-{self.closes_at:%H:%M}"
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "weekday": self.weekday,
+            "weekday_label": self.get_weekday_display(),
+            "is_closed": self.is_closed,
+            "opens_at": self.opens_at.strftime("%H:%M"),
+            "closes_at": self.closes_at.strftime("%H:%M"),
+        }
 
 
 class Service(TimeStampedModel):

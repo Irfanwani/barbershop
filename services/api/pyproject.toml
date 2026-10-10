@@ -29,6 +29,7 @@ dependencies = [
     # --- config -------------------------------------------------------------
     "python-dotenv>=1.0",
     "django-cleanup>=9.0",
+    "celery[redis]>=5.4",
 ]
 
 [dependency-groups]

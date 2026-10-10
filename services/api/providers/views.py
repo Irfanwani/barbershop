@@ -6,8 +6,11 @@ right now". It is one PostGIS query, not a loop over coordinates in Python.
 
 from __future__ import annotations
 
+from datetime import time
+
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -21,7 +24,12 @@ from bookings.models import next_free_slot, slot_grid
 from core.pagination import DefaultPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
-from providers.models import ProviderProfile, Service
+from providers.hours_serializers import (
+    AvailabilityToggleSerializer,
+    WorkingHoursSerializer,
+    WorkingHoursWriteSerializer,
+)
+from providers.models import ProviderProfile, Service, WorkingHours
 from providers.serializers import (
     PayoutSerializer,
     ProviderDetailSerializer,
@@ -375,6 +383,100 @@ class MyPayoutView(APIView):
 
         register_fund_account(payout)
         return Response({**PayoutSerializer(payout).data, "payout_registered": True})
+
+
+@extend_schema(
+    tags=["providers"],
+    summary="Your service menu",
+    description="Prices are in the smallest currency unit (paise): 25000 is ₹250.00.",
+    request=ServiceSerializer,
+    responses={
+        200: ServiceSerializer(many=True),
+        201: ServiceSerializer,
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+        403: FORBIDDEN,
+    },
+)
+class MyWorkingHoursView(APIView):
+    """The provider's own weekly schedule — the open/closed control.
+
+    The old app had no per-day control at all: one opening time and one closing
+    time for all seven days, so a shop closed on Sunday still showed Sunday.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    def _provider(self, request) -> ProviderProfile:
+        return get_object_or_404(ProviderProfile, user=request.user)
+
+    @extend_schema(
+        operation_id="providers_hours_list",
+        summary="Your opening hours",
+        description=(
+            "Read your weekly schedule. Days with no row fall back to the shop's "
+            "default hours; Sunday is treated as closed."
+        ),
+        responses={200: WorkingHoursSerializer(many=True), 403: FORBIDDEN, 404: NOT_FOUND},
+    )
+    def get(self, request):
+        profile = self._provider(request)
+        return Response(WorkingHoursSerializer(profile.hours.all(), many=True).data)
+
+    @extend_schema(
+        operation_id="providers_hours_write",
+        summary="Set your opening hours",
+        description=(
+            "Replace the days you list. Closing a weekday removes its slots from the "
+            "booking calendar straight away, and opening it puts them back."
+        ),
+        request=WorkingHoursWriteSerializer,
+        responses={200: WorkingHoursSerializer(many=True), 400: BAD_REQUEST},
+    )
+    def put(self, request):
+        profile = self._provider(request)
+        serializer = WorkingHoursWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            for day in serializer.validated_data["days"]:
+                WorkingHours.objects.update_or_create(
+                    provider=profile,
+                    weekday=day["weekday"],
+                    defaults={
+                        "is_closed": day.get("is_closed", False),
+                        "opens_at": day.get("opens_at", time(9, 0)),
+                        "closes_at": day.get("closes_at", time(20, 0)),
+                    },
+                )
+
+        return Response(WorkingHoursSerializer(profile.hours.all(), many=True).data)
+
+
+class BookingToggleView(APIView):
+    """The one switch that makes a shop findable again."""
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="providers_set_accepting_bookings",
+        summary="Turn bookings on or off",
+        description=(
+            "Whether customers can book you at all. Turning it off does not cancel "
+            "appointments already taken — it only stops new ones."
+        ),
+        request=AvailabilityToggleSerializer,
+        responses={200: ProviderSelfSerializer, 400: BAD_REQUEST, 404: NOT_FOUND},
+    )
+    def post(self, request):
+        profile = get_object_or_404(ProviderProfile, user=request.user)
+        serializer = AvailabilityToggleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        profile.is_accepting_bookings = serializer.validated_data["is_accepting_bookings"]
+        profile.save(update_fields=["is_accepting_bookings", "updated_at"])
+
+        return Response(ProviderSelfSerializer(profile, context={"request": request}).data)
 
 
 @extend_schema(

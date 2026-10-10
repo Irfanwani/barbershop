@@ -3916,6 +3916,271 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/hours/:
+    get:
+      operationId: providers_hours_list
+      description: Read your weekly schedule. Days with no row fall back to the shop's
+        default hours; Sunday is treated as closed.
+      summary: Your opening hours
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkingHours'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+    put:
+      operationId: providers_hours_write
+      description: Replace the days you list. Closing a weekday removes its slots
+        from the booking calendar straight away, and opening it puts them back.
+      summary: Set your opening hours
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkingHoursWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkingHoursWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkingHoursWriteRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkingHours'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+  /api/v1/providers/me/accepting-bookings/:
+    post:
+      operationId: providers_set_accepting_bookings
+      description: Whether customers can book you at all. Turning it off does not
+        cancel appointments already taken — it only stops new ones.
+      summary: Turn bookings on or off
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityToggleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AvailabilityToggleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvailabilityToggleRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderSelf'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/providers/{id}/:
     get:
       operationId: providers_retrieve
@@ -6176,6 +6441,19 @@ components:
       description: |-
         * `savings` - Savings
         * `current` - Current
+    AvailabilityToggleRequest:
+      type: object
+      description: |-
+        Accepting bookings, or not.
+
+        Separate from the shop serializer because turning this off is the single
+        most consequential thing a provider can do from the app, and it deserves an
+        explicit, self-describing call.
+      properties:
+        is_accepting_bookings:
+          type: boolean
+      required:
+      - is_accepting_bookings
     BlankEnum:
       enum:
       - ''
@@ -6363,6 +6641,7 @@ components:
       - cancelled_by_provider
       - no_show
       - refunded
+      - expired
       type: string
       description: |-
         * `pending_payment` - Awaiting payment
@@ -6373,6 +6652,7 @@ components:
         * `cancelled_by_provider` - Cancelled by provider
         * `no_show` - No show
         * `refunded` - Refunded
+        * `expired` - Expired
     BusinessTypeEnum:
       enum:
       - individual
@@ -7542,6 +7822,107 @@ components:
       - razorpay_order_id
       - razorpay_payment_id
       - razorpay_signature
+    WeekdayEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      type: integer
+      description: |-
+        * `0` - Monday
+        * `1` - Tuesday
+        * `2` - Wednesday
+        * `3` - Thursday
+        * `4` - Friday
+        * `5` - Saturday
+        * `6` - Sunday
+    WorkingHours:
+      type: object
+      description: One weekday of opening hours.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          description: |-
+            0 = Monday. Django's date.weekday() convention.
+
+            * `0` - Monday
+            * `1` - Tuesday
+            * `2` - Wednesday
+            * `3` - Thursday
+            * `4` - Friday
+            * `5` - Saturday
+            * `6` - Sunday
+          minimum: 0
+          maximum: 6
+        weekday_label:
+          type: string
+          readOnly: true
+        is_closed:
+          type: boolean
+        opens_at:
+          type: string
+          format: time
+        closes_at:
+          type: string
+          format: time
+      required:
+      - closes_at
+      - id
+      - opens_at
+      - weekday
+      - weekday_label
+    WorkingHoursRequest:
+      type: object
+      description: One weekday of opening hours.
+      properties:
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          description: |-
+            0 = Monday. Django's date.weekday() convention.
+
+            * `0` - Monday
+            * `1` - Tuesday
+            * `2` - Wednesday
+            * `3` - Thursday
+            * `4` - Friday
+            * `5` - Saturday
+            * `6` - Sunday
+          minimum: 0
+          maximum: 6
+        is_closed:
+          type: boolean
+        opens_at:
+          type: string
+          format: time
+        closes_at:
+          type: string
+          format: time
+      required:
+      - closes_at
+      - opens_at
+      - weekday
+    WorkingHoursWriteRequest:
+      type: object
+      description: |-
+        The whole week in one request.
+
+        A provider setting hours wants to set the week, not to make seven requests.
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkingHoursRequest'
+      required:
+      - days
   securitySchemes:
     cookieAuth:
       type: apiKey

@@ -350,7 +350,7 @@ class TestBooking:
         assert item.unit_price == 25000
 
     def test_total_display(self):
-        assert factories.make_booking().total_display == "₹275.00"
+        assert factories.make_booking().total_display == "₹252.50"
 
     @pytest.mark.parametrize(
         "status,expected",

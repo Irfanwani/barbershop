@@ -4,6 +4,10 @@
 #   docker compose up -d db          # database only, API on your host (hot reload)
 #   docker compose up --build api    # the API in a container
 #   docker compose run --rm api python manage.py migrate
+#
+# The `worker` and `beat` services are what send booking reminders and expire
+# stale appointments. Without them the API works perfectly and silently sends
+# nobody anything.
 # ---------------------------------------------------------------------------
 
 name: barbershop
@@ -62,6 +66,63 @@ services:
       db:
         condition: service_healthy
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Persisted so a queued reminder survives a Redis restart.
+    command: redis-server --appendonly yes
+    volumes:
+      - barbershop-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    command: celery -A config.celery worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    restart: unless-stopped
+    command: celery -A config.celery beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   # One-off helper: `docker compose run --rm api pytest`
   # Kept as a profile so `docker compose up` does not start it.
   test:
@@ -87,3 +148,4 @@ volumes:
   barbershop-db:
   barbershop-media:
   barbershop-static:
+  barbershop-redis:

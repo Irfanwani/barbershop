@@ -27,7 +27,7 @@ setup-api: ## Install backend dependencies (uv sync)
 	@cd $(API_DIR) && uv sync --all-extras
 
 setup-app: ## Install app dependencies
-	@cd $(APP_DIR) && yarn install
+	@cd $(APP_DIR) && npm install
 
 # --- development ------------------------------------------------------------
 
@@ -35,7 +35,7 @@ dev-api: ## Run the API with autoreload on :8000
 	@cd $(API_DIR) && uv run python manage.py runserver
 
 dev-app: ## Start the Expo dev server
-	@cd $(APP_DIR) && yarn start
+	@cd $(APP_DIR) && npm start
 
 api-shell: ## Open a Python shell with the Django context loaded
 	@cd $(API_DIR) && uv run python manage.py shell
@@ -66,7 +66,7 @@ test-api: ## Run the backend test suite
 	@cd $(API_DIR) && uv run pytest
 
 test-app: ## Run the app test suite
-	@cd $(APP_DIR) && yarn test
+	@cd $(APP_DIR) && npm test
 
 lint: lint-api lint-app ## Lint every service
 
@@ -74,7 +74,7 @@ lint-api: ## Lint the backend with ruff
 	@cd $(API_DIR) && uv run ruff check . && uv run ruff format --check .
 
 lint-app: ## Lint the app with eslint
-	@cd $(APP_DIR) && yarn lint
+	@cd $(APP_DIR) && npm run lint
 
 typecheck: ## Typecheck every service
 
@@ -82,7 +82,7 @@ typecheck-api:
 	@cd $(API_DIR) && uv run mypy .
 
 typecheck-app:
-	@cd $(APP_DIR) && yarn typecheck
+	@cd $(APP_DIR) && npm run typecheck
 
 format: ## Auto-format the backend
 	@cd $(API_DIR) && uv run ruff format . && uv run ruff check --fix .

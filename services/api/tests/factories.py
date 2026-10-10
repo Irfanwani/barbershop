@@ -14,6 +14,7 @@ import itertools
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
+from django.conf import settings as django_settings
 from django.contrib.gis.geos import Point
 from django.utils import timezone
 
@@ -121,6 +122,7 @@ def make_booking(
     provider: ProviderProfile | None = None,
     service: Service | None = None,
     starts_at: datetime | None = None,
+    ends_at: datetime | None = None,
     status: str = BookingStatus.CONFIRMED,
     subtotal: int | None = None,
     platform_fee: int | None = None,
@@ -134,10 +136,14 @@ def make_booking(
         service = service or make_service(provider)
 
     starts_at = starts_at or next_slot()
-    ends_at = starts_at + timedelta(minutes=service.duration_minutes)
+    ends_at = ends_at or starts_at + timedelta(minutes=service.duration_minutes)
 
     subtotal = service.price if subtotal is None else subtotal
-    platform_fee = compute_platform_fee(subtotal, 10) if platform_fee is None else platform_fee
+    platform_fee = (
+        compute_platform_fee(subtotal, django_settings.PLATFORM_FEE_PERCENT)
+        if platform_fee is None
+        else platform_fee
+    )
 
     booking = Booking.objects.create(
         customer=customer,

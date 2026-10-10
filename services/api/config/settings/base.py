@@ -292,6 +292,28 @@ PLATFORM_FEE_PERCENT = env.get_int("PLATFORM_FEE_PERCENT", 1)
 PUSH_NOTIFICATION_URL = env.get("PUSH_NOTIFICATION_URL", "")
 
 # ---------------------------------------------------------------------------
+# Celery — scheduled work
+# ---------------------------------------------------------------------------
+#
+# Reminders and expiry run on a worker, not in a request. Redis is both broker
+# and result backend; a deployment that only runs the API and not a worker will
+# serve requests fine and silently send no reminders, so the healthcheck below
+# is what makes that visible.
+
+CELERY_BROKER_URL = env.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = env.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = env.get_bool("CELERY_TASK_ALWAYS_EAGER", default=False)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = env.get("CELERY_TIMEZONE", "UTC")
+CELERY_ENABLE_UTC = True
+# A reminder that fails twice will not succeed on a third try minutes later;
+# anything worth retrying is retried by the caller instead.
+CELERY_TASK_ACKS_LATE = True
+
+# ---------------------------------------------------------------------------
 # Field-level encryption for provider bank details.
 # Losing this key means losing access to stored account numbers. There is
 # deliberately no default: production refuses to boot without it.

@@ -622,3 +622,196 @@ class TestAvailability:
         response = client.get(f"{PROVIDERS}{other.id}/availability/", **auth_header(token))
 
         assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Opening hours — the open/closed control
+# ---------------------------------------------------------------------------
+
+
+class TestWorkingHoursApi:
+    def test_reads_your_own_week(self, client):
+        user, _ = as_provider()
+        client.force_login(user)
+
+        response = client.get(f"{PROVIDERS}me/hours/")
+
+        assert response.status_code == 200
+
+    def test_saves_a_week_in_one_request(self, client):
+        user, profile = as_provider()
+        client.force_login(user)
+
+        response = client.put(
+            f"{PROVIDERS}me/hours/",
+            {
+                "days": [
+                    {"weekday": 0, "is_closed": False, "opens_at": "09:00", "closes_at": "18:00"},
+                    {"weekday": 6, "is_closed": True, "opens_at": "09:00", "closes_at": "18:00"},
+                ]
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200, response.content
+        assert profile.hours.filter(weekday=0, is_closed=False).exists()
+        assert profile.hours.filter(weekday=6, is_closed=True).exists()
+
+    def test_a_later_write_replaces_rather_than_duplicates(self, client):
+        user, profile = as_provider()
+        client.force_login(user)
+        body = {
+            "days": [{"weekday": 0, "is_closed": False, "opens_at": "09:00", "closes_at": "18:00"}]
+        }
+
+        client.put(f"{PROVIDERS}me/hours/", body, content_type="application/json")
+        client.put(f"{PROVIDERS}me/hours/", body, content_type="application/json")
+
+        assert profile.hours.filter(weekday=0).count() == 1
+
+    def test_rejects_a_day_listed_twice(self, client):
+        user, _ = as_provider()
+        client.force_login(user)
+
+        response = client.put(
+            f"{PROVIDERS}me/hours/",
+            {
+                "days": [
+                    {"weekday": 0, "is_closed": False, "opens_at": "09:00", "closes_at": "18:00"},
+                    {"weekday": 0, "is_closed": True, "opens_at": "09:00", "closes_at": "18:00"},
+                ]
+            },
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+
+    def test_rejects_a_shift_that_ends_before_it_starts(self, client):
+        user, _ = as_provider()
+        client.force_login(user)
+
+        response = client.put(
+            f"{PROVIDERS}me/hours/",
+            {
+                "days": [
+                    {"weekday": 0, "is_closed": False, "opens_at": "18:00", "closes_at": "09:00"}
+                ]
+            },
+            content_type="application/json",
+        )
+
+        # A 500 here would tell the provider nothing about what to fix.
+        assert response.status_code == 400
+        details = response.json()["error"]["details"]
+        assert "Closing time must be later than opening time." in str(details)
+
+    def test_a_customer_cannot_set_shop_hours(self, client):
+        from tests.factories import logged_in
+
+        _, token = logged_in(make_user())
+
+        response = client.get(f"{PROVIDERS}me/hours/", **auth_header(token))
+
+        assert response.status_code == 403
+
+    def test_the_write_always_targets_your_own_shop(self, client):
+        """There is no id in the path, so there is nothing to point elsewhere.
+
+        The old shop endpoints took a bare id and rewrote whatever it pointed
+        at. "Your own" is the whole safety property, and it is structural.
+        """
+        from tests.factories import logged_in
+
+        _, colleague = as_provider()
+        _, token = logged_in(colleague.user)
+
+        client.put(
+            f"{PROVIDERS}me/hours/",
+            {
+                "days": [
+                    {"weekday": 3, "is_closed": True, "opens_at": "09:00", "closes_at": "18:00"}
+                ]
+            },
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert colleague.hours.filter(weekday=3).exists()
+
+
+# ---------------------------------------------------------------------------
+# The bookings on/off switch
+# ---------------------------------------------------------------------------
+
+
+class TestAcceptingBookingsToggle:
+    def test_turns_bookings_off(self, client):
+        user, profile = as_provider()
+        from tests.factories import logged_in
+
+        _, token = logged_in(user)
+
+        response = client.post(
+            f"{PROVIDERS}me/accepting-bookings/",
+            {"is_accepting_bookings": False},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 200, response.content
+        profile.refresh_from_db()
+        assert profile.is_accepting_bookings is False
+        assert profile.is_bookable is False
+
+    def test_turns_bookings_back_on(self, client):
+        user, profile = as_provider(is_accepting_bookings=False)
+        from tests.factories import logged_in
+
+        _, token = logged_in(user)
+
+        client.post(
+            f"{PROVIDERS}me/accepting-bookings/",
+            {"is_accepting_bookings": True},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        profile.refresh_from_db()
+        assert profile.is_accepting_bookings is True
+
+    def test_does_not_cancel_appointments_already_taken(self, client):
+        """Turning the switch off stops new bookings; it must not cancel the
+        ones a customer already paid for."""
+        from tests.factories import logged_in, make_booking
+
+        user, profile = as_provider()
+        make_booking(provider=profile)
+        _, token = logged_in(user)
+
+        client.post(
+            f"{PROVIDERS}me/accepting-bookings/",
+            {"is_accepting_bookings": False},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        from bookings.models import Booking
+
+        assert Booking.objects.filter(provider=profile).count() == 1
+
+    def test_a_customer_cannot_flip_someone_elses_switch(self, client):
+        from tests.factories import logged_in
+
+        _, other = as_provider()
+        _, token = logged_in(make_user())
+
+        response = client.post(
+            f"{PROVIDERS}me/accepting-bookings/",
+            {"is_accepting_bookings": False},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code in (403, 404)
+        other.refresh_from_db()
+        assert other.is_accepting_bookings is True

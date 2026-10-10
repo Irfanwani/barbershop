@@ -60,6 +60,7 @@ class BookingStatus(models.TextChoices):
     CANCELLED_BY_PROVIDER = "cancelled_by_provider", "Cancelled by provider"
     NO_SHOW = "no_show", "No show"
     REFUNDED = "refunded", "Refunded"
+    EXPIRED = "expired", "Expired"
 
     @property
     def is_terminal(self) -> bool:
@@ -69,6 +70,7 @@ class BookingStatus(models.TextChoices):
             BookingStatus.CANCELLED_BY_PROVIDER,
             BookingStatus.NO_SHOW,
             BookingStatus.REFUNDED,
+            BookingStatus.EXPIRED,
         }
 
     @property
@@ -126,6 +128,12 @@ class Booking(TimeStampedModel):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancellation_reason = models.CharField(max_length=200, blank=True, default="")
     completed_at = models.DateTimeField(null=True, blank=True)
+    expired_at = models.DateTimeField(null=True, blank=True)
+
+    # Set by the reminder task. Without it, the task cannot tell "not reminded
+    # yet" from "reminded and the user ignored it", so it would send the same
+    # reminder every fifteen minutes for a week.
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "bookings_booking"
@@ -134,6 +142,8 @@ class Booking(TimeStampedModel):
             models.Index(fields=["provider", "starts_at"]),
             models.Index(fields=["customer", "-starts_at"]),
             models.Index(fields=["status"]),
+            # Drives the reminder scan: confirmed, unsent, starting soon.
+            models.Index(fields=["status", "starts_at", "reminder_sent_at"]),
             models.Index(fields=["provider", "status", "starts_at"]),
         ]
         constraints = [
@@ -163,6 +173,8 @@ class Booking(TimeStampedModel):
             BookingStatus.CANCELLED_BY_CUSTOMER,
             BookingStatus.CANCELLED_BY_PROVIDER,
             BookingStatus.REFUNDED,
+            BookingStatus.EXPIRED,
+            BookingStatus.NO_SHOW,
         }
 
     @property
@@ -341,13 +353,26 @@ def next_free_slot(provider: ProviderProfile) -> datetime | None:
 def is_within_working_hours(
     provider: ProviderProfile, starts_at: datetime, ends_at: datetime
 ) -> bool:
+    """Whether this shop is open for the whole interval.
+
+    Consults the per-weekday hours first and falls back to the shop's single
+    opening/closing pair when it has none. A closed weekday produces no slots at
+    all, which is the point of the toggle: the shop is off.
+    """
     local_start = timezone.localtime(starts_at)
     local_end = timezone.localtime(ends_at)
-    return (
-        provider.opening_time <= local_start.time()
-        and local_end.time() <= provider.closing_time
-        and local_start.date() == local_end.date()
-    )
+
+    # A booking that runs over midnight is not a haircut; it is a bug in whatever
+    # produced it, and admitting it would show the shop as open for 24 hours.
+    if local_start.date() != local_end.date():
+        return False
+
+    bounds = provider.day_bounds(local_start.weekday())
+    if bounds is None:
+        return False
+    opens_at, closes_at = bounds
+
+    return opens_at <= local_start.time() and local_end.time() <= closes_at
 
 
 AUTH_USER_MODEL = settings.AUTH_USER_MODEL

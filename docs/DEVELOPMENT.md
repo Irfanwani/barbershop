@@ -106,9 +106,9 @@ Then press `a` for Android, `i` for iOS, or scan the QR code with Expo Go.
 
 ```bash
 cd apps/mobile
-yarn typecheck     # tsc --noEmit
-yarn lint          # eslint
-yarn test          # jest
+npm run typecheck     # tsc --noEmit
+npm run lint          # eslint
+npm test          # jest
 ```
 
 ## Using Docker
@@ -122,10 +122,30 @@ make api-migrate
 make dev-api
 ```
 
-To run the API itself in a container:
+To run the API itself in a container, with the background workers:
 
 ```bash
-docker compose up --build api
+docker compose up --build api worker beat
+```
+
+The `worker` and `beat` services are not optional in practice. They are what
+send booking reminders and expire appointments nobody turned up for. Without
+them the API serves every request perfectly and quietly sends nobody anything,
+which is the worst kind of bug to have.
+
+To check the schedule is wired up before you rely on it:
+
+```bash
+uv run python -c "import django; django.setup(); \
+  from config.celery import app; app.loader.import_default_modules(); \
+  missing = {c['task'] for c in app.conf.beat_schedule.values()} - set(app.tasks); \
+  print('missing tasks:', missing or 'none')"
+```
+
+Run a scheduled job by hand:
+
+```bash
+uv run celery -A config.celery call bookings.reminders.expire_stale_bookings
 ```
 
 ## Troubleshooting
@@ -141,6 +161,6 @@ its own `test_barbershop` database; you need permission to create databases.
 your firewall allows port 8000. `adb reverse tcp:8000 tcp:8000` also works for
 Android over USB.
 
-**`Unsupported class field` / native build errors after `yarn install`** — stale native
-state. `cd apps/mobile && yarn start -c` resets the Metro cache; delete
+**`Unsupported class field` / native build errors after `npm install`** — stale native
+state. `cd apps/mobile && npm start -- -c` resets the Metro cache; delete
 `ios/`+`android/` and run `npx expo prebuild` if native files are out of sync.

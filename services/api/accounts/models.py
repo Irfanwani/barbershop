@@ -102,7 +102,28 @@ class User(AbstractUser):
         self.verified_at = timezone.now()
 
 
-class CustomerProfile(TimeStampedModel):
+class ReminderPreferencesMixin(models.Model):
+    """Which notifications this account has agreed to receive.
+
+    Lives on the account rather than the device: a user who switches reminders
+    off on one phone should stop getting them on every phone, and a user who
+    reinstalls should not get everything back by default.
+    """
+
+    reminders_enabled = models.BooleanField(
+        default=True,
+        help_text="Appointment reminders. Turning this off stops booking reminders only.",
+    )
+    marketing_enabled = models.BooleanField(
+        default=False,
+        help_text="Offers and news. Opt-in: nobody wants an app that opts them in.",
+    )
+
+    class Meta:
+        abstract = True
+
+
+class CustomerProfile(ReminderPreferencesMixin, TimeStampedModel):
     """A customer's own details.
 
     Optional — a customer can browse without one. But "providers near me" needs
