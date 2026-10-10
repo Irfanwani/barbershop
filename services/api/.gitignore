@@ -1,0 +1,9 @@
+.env 
+Procfile.windows
+staticfiles
+poetry.lock
+
+.vscode/
+__pycache__/
+media/
+
