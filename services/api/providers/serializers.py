@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from django.contrib.gis.geos import Point
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from accounts.serializers import PointFieldSerializer, PublicUserSerializer
@@ -41,6 +42,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         return value
 
 
+@extend_schema_serializer(component_name="ProviderList")
 class ProviderListSerializer(serializers.ModelSerializer):
     """A provider as a customer browsing sees them.
 
@@ -328,13 +330,6 @@ class PayoutSerializer(serializers.ModelSerializer):
         return instance
 
 
-class AvailabilitySlotSerializer(serializers.Serializer):
-    starts_at = serializers.DateTimeField()
-    ends_at = serializers.DateTimeField()
-    is_available = serializers.BooleanField()
-    price = serializers.IntegerField(required=False)
-
-
 class ProviderSummarySerializer(serializers.ModelSerializer):
     """The smallest useful provider shape — for embedding in a booking."""
 
@@ -342,11 +337,6 @@ class ProviderSummarySerializer(serializers.ModelSerializer):
         model = ProviderProfile
         fields = ["id", "display_name", "service_type", "photo", "rating_average"]
         read_only_fields = fields
-
-
-class ServiceTypeSerializer(serializers.Serializer):
-    value = serializers.CharField()
-    label = serializers.CharField()
 
 
 def service_type_choices() -> list[dict]:

@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -27,10 +28,12 @@ from rest_framework.views import APIView
 
 from bookings.models import Booking, BookingStatus
 from core.exceptions import BusinessRuleViolation
+from core.schema import BAD_REQUEST, NOT_FOUND, UNAUTHORIZED
 from payments.models import Payment, PaymentStatus
 from payments.serializers import (
     CreateOrderSerializer,
     PaymentSerializer,
+    PaymentWebhookSerializer,
     VerifyPaymentSerializer,
 )
 from payments.services import (
@@ -44,6 +47,38 @@ from payments.services import (
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(
+    tags=["payments"],
+    summary="Start a payment",
+    description=(
+        "Creates a Razorpay order for the booking's total. The amount is the "
+        "server-computed figure and cannot be supplied by the caller."
+    ),
+    request=CreateOrderSerializer,
+    responses={
+        201: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "payment": {"$ref": "#/components/schemas/Payment"},
+                    "razorpay": {
+                        "type": "object",
+                        "properties": {
+                            "key_id": {"type": "string"},
+                            "order_id": {"type": "string"},
+                            "amount": {"type": "integer"},
+                            "currency": {"type": "string"},
+                        },
+                    },
+                    "amount_display": {"type": "string", "example": "₹252.50"},
+                },
+            },
+            "An order to hand to the Razorpay checkout",
+        ),
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+    },
+)
 class CreateOrderView(APIView):
     """Create a Razorpay order for one of the caller's bookings.
 
@@ -51,6 +86,7 @@ class CreateOrderView(APIView):
     supplied by the caller.
     """
 
+    @extend_schema(operation_id="payments_create_order")
     def post(self, request):
         serializer = CreateOrderSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
@@ -97,6 +133,17 @@ class CreateOrderView(APIView):
         )
 
 
+@extend_schema(
+    tags=["payments"],
+    summary="Confirm a checkout the customer just made",
+    description=(
+        "Verifies Razorpay's signature, then **asks Razorpay what actually happened** "
+        "before recording anything. This confirms a payment; it never creates one. A "
+        "client cannot mark its own booking paid by asserting success."
+    ),
+    request=VerifyPaymentSerializer,
+    responses={200: PaymentSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED},
+)
 class VerifyPaymentView(APIView):
     """Confirm a checkout the customer just made.
 
@@ -105,6 +152,7 @@ class VerifyPaymentView(APIView):
     400, not a free haircut.
     """
 
+    @extend_schema(operation_id="payments_verify")
     def post(self, request):
         serializer = VerifyPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -142,6 +190,31 @@ class VerifyPaymentView(APIView):
         return Response(PaymentSerializer(payment).data)
 
 
+@extend_schema(
+    tags=["payments"],
+    summary="Razorpay's confirmation callback",
+    description=(
+        "Unauthenticated by necessity — Razorpay signs the request rather than "
+        "carrying a token — so authenticity comes entirely from an HMAC over the raw "
+        "body, checked before the body is parsed. Events that are not acted on are "
+        "acknowledged rather than refused, because a non-2xx makes Razorpay retry "
+        "forever."
+    ),
+    request=PaymentWebhookSerializer,
+    responses={
+        200: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "handled": {"type": "boolean"},
+                    "event": {"type": "string"},
+                },
+            },
+            "Acknowledged",
+        ),
+        400: OpenApiResponse({"type": "object"}, "Bad or missing signature"),
+    },
+)
 class PaymentWebhookView(APIView):
     """Razorpay's confirmation callback.
 
@@ -154,6 +227,7 @@ class PaymentWebhookView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(operation_id="payments_webhook")
     def post(self, request):
         signature = request.headers.get("X-Razorpay-Signature", "")
 
@@ -194,9 +268,16 @@ class PaymentWebhookView(APIView):
         return Response({"handled": True})
 
 
+@extend_schema(
+    tags=["payments"],
+    summary="One payment, by Razorpay order id",
+    request=None,
+    responses={200: PaymentSerializer, 401: UNAUTHORIZED, 404: NOT_FOUND},
+)
 class PaymentDetailView(APIView):
     """Read one payment, by its Razorpay order id."""
 
+    @extend_schema(operation_id="payments_retrieve")
     def get(self, request, order_id: str):
         payment = get_object_or_404(
             Payment.objects.select_related("booking")

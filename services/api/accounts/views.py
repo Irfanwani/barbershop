@@ -10,6 +10,7 @@ import logging
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from knox.models import AuthToken
 from knox.views import (
     LoginView as KnoxLoginView,
@@ -50,6 +51,13 @@ from accounts.serializers import (
 )
 from core.exceptions import BusinessRuleViolation, Conflict, Unprocessable
 from core.permissions import IsProvider
+from core.schema import (
+    BAD_REQUEST,
+    FORBIDDEN,
+    NOT_FOUND,
+    THROTTLED,
+    UNAUTHORIZED,
+)
 from core.tokens import (
     MAX_ATTEMPTS,
     codes_match,
@@ -143,6 +151,33 @@ def _token_payload(user: User, token: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Create an account",
+    description=(
+        "Registers a customer or provider and emails a verification code. A token is "
+        "returned straight away so the app can show the verification screen without a "
+        "second round trip, but it grants little: anything sensitive requires a "
+        "verified address."
+    ),
+    request=RegisterSerializer,
+    responses={
+        201: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "token": {"type": "string"},
+                    "user": {"type": "object"},
+                    "verification_required": {"type": "boolean", "example": True},
+                    "verification_email_sent": {"type": "boolean", "example": True},
+                },
+            },
+            "Account created",
+        ),
+        400: BAD_REQUEST,
+        429: THROTTLED,
+    },
+)
 class RegisterView(APIView):
     """Create an account and email a verification code.
 
@@ -155,6 +190,7 @@ class RegisterView(APIView):
     throttle_scope = "auth"
 
     @transaction.atomic
+    @extend_schema(operation_id="auth_register")
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -176,6 +212,29 @@ class RegisterView(APIView):
         )
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Sign in",
+    description=(
+        "Accepts a username or an email address. An unknown account and a wrong password "
+        "produce the same answer, so this cannot be used to discover who has an account."
+    ),
+    request=LoginSerializer,
+    responses={
+        200: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "token": {"type": "string"},
+                    "user": {"type": "object"},
+                },
+            },
+            "A token and the account's current state",
+        ),
+        400: BAD_REQUEST,
+        429: THROTTLED,
+    },
+)
 class LoginView(KnoxLoginView):
     """Username or email plus password, returning a token and the account state.
 
@@ -189,6 +248,7 @@ class LoginView(KnoxLoginView):
 
     serializer_class = LoginSerializer
 
+    @extend_schema(operation_id="auth_login")
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
@@ -200,11 +260,23 @@ class LoginView(KnoxLoginView):
         return Response(_token_payload(user, token))
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Confirm the email address",
+    description="POST with the emailed code to verify; GET to have another one sent.",
+    request=VerifyEmailSerializer,
+    responses={
+        200: OpenApiResponse({"type": "object"}, "Verified, or a new code on its way"),
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+    },
+)
 class VerifyEmailView(APIView):
     """Confirm an address with the emailed code."""
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="auth_verify_email_post")
     def post(self, request):
         serializer = VerifyEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -224,6 +296,7 @@ class VerifyEmailView(APIView):
             }
         )
 
+    @extend_schema(operation_id="auth_verify_email_get")
     def get(self, request):
         """Re-send the code, or report that the address is already confirmed."""
         if request.user.is_verified:
@@ -246,14 +319,35 @@ class VerifyEmailView(APIView):
         )
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Send another verification code",
+    request=None,
+    responses={200: OpenApiResponse({"type": "object"}, "Sent"), 401: UNAUTHORIZED, 429: THROTTLED},
+)
 class ResendVerificationView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "auth"
 
+    @extend_schema(operation_id="auth_resend_verification")
     def post(self, request):
         return VerifyEmailView().get(request)
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Request a password reset code",
+    description=(
+        "Always answers 200, whether or not the address is registered. An endpoint that "
+        'says "no such account" is an account-enumeration oracle.'
+    ),
+    request=PasswordResetRequestSerializer,
+    responses={
+        200: OpenApiResponse({"type": "object"}, "Accepted"),
+        400: BAD_REQUEST,
+        429: THROTTLED,
+    },
+)
 class PasswordResetRequestView(APIView):
     """Send a reset code.
 
@@ -265,6 +359,7 @@ class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     throttle_scope = "password_reset"
 
+    @extend_schema(operation_id="auth_password_reset_request")
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -285,12 +380,27 @@ class PasswordResetRequestView(APIView):
         )
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Set a new password with a reset code",
+    description=(
+        "Revokes every existing session on success. Whoever triggered the reset may not "
+        "be the account holder, so nobody keeps a live token through it."
+    ),
+    request=PasswordResetConfirmSerializer,
+    responses={
+        200: OpenApiResponse({"type": "object"}, "Password changed, new token issued"),
+        400: BAD_REQUEST,
+        429: THROTTLED,
+    },
+)
 class PasswordResetConfirmView(APIView):
     """Exchange a reset code for a new password and a session."""
 
     permission_classes = [AllowAny]
     throttle_scope = "password_reset"
 
+    @extend_schema(operation_id="auth_password_reset_confirm")
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -331,18 +441,31 @@ class PasswordResetConfirmView(APIView):
 # ---------------------------------------------------------------------------
 
 
+@extend_schema(
+    tags=["me"],
+    summary="The signed-in account",
+    description=(
+        "Returns the account plus every flag the app routes on: role, verification, "
+        "whether a profile exists, and whether onboarding is finished."
+    ),
+    request=UpdateProfileSerializer,
+    responses={200: AccountStateSerializer, 401: UNAUTHORIZED, 400: BAD_REQUEST},
+)
 class MeView(APIView):
     """The authenticated account, and everything the app needs to route."""
 
+    @extend_schema(operation_id="me_retrieve")
     def get(self, request):
         return Response(AccountStateSerializer(request.user).data)
 
+    @extend_schema(operation_id="me_update")
     def patch(self, request):
         serializer = UpdateProfileSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(AccountStateSerializer(request.user).data)
 
+    @extend_schema(operation_id="me_delete")
     def delete(self, request):
         """Delete the account.
 
@@ -355,7 +478,19 @@ class MeView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Change your password",
+    description="Keeps the calling session, revokes every other one.",
+    request=ChangePasswordSerializer,
+    responses={
+        200: OpenApiResponse({"type": "object"}, "Changed"),
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+    },
+)
 class ChangePasswordView(APIView):
+    @extend_schema(operation_id="me_change_password")
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
@@ -371,6 +506,13 @@ class ChangePasswordView(APIView):
         return Response({"message": "Password updated."})
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Your customer profile",
+    description="Where the app searches from. Created on first write.",
+    request=CustomerProfileSerializer,
+    responses={200: CustomerProfileSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED},
+)
 class CustomerProfileView(APIView):
     """The caller's own customer profile, created on first write."""
 
@@ -378,6 +520,7 @@ class CustomerProfileView(APIView):
         profile, _ = CustomerProfile.objects.get_or_create(user=user)
         return profile
 
+    @extend_schema(operation_id="me_customer_profile_get")
     def get(self, request):
         profile = getattr(request.user, "customer_profile", None)
         if profile is None:
@@ -393,6 +536,7 @@ class CustomerProfileView(APIView):
             )
         return Response(CustomerProfileSerializer(profile).data)
 
+    @extend_schema(operation_id="me_customer_profile_put")
     def put(self, request):
         profile = self._profile(request.user)
         serializer = CustomerProfileSerializer(profile, data=request.data, partial=True)
@@ -401,6 +545,18 @@ class CustomerProfileView(APIView):
         return Response(CustomerProfileSerializer(profile).data)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Your shop profile",
+    request=ProviderWriteSerializer,
+    responses={
+        200: ProviderWriteSerializer,
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+        403: FORBIDDEN,
+        404: NOT_FOUND,
+    },
+)
 class ProviderProfileView(APIView):
     """The caller's own shop profile."""
 
@@ -412,9 +568,11 @@ class ProviderProfileView(APIView):
             raise Unprocessable("Create your shop profile first.")
         return profile
 
+    @extend_schema(operation_id="me_shop_get")
     def get(self, request):
         return Response(ProviderWriteSerializer(self._profile(request.user)).data)
 
+    @extend_schema(operation_id="me_shop_put")
     def put(self, request):
         profile = self._profile(request.user)
         serializer = ProviderWriteSerializer(
@@ -425,12 +583,25 @@ class ProviderProfileView(APIView):
         return Response(ProviderWriteSerializer(profile).data)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Turn this account into a provider account",
+    description="Creates the shop and sets the role in one call.",
+    request=ProviderWriteSerializer,
+    responses={
+        201: ProviderWriteSerializer,
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+        409: OpenApiResponse(None, "You already have a shop"),
+    },
+)
 class ProviderProfileCreateView(APIView):
     """Turn a customer account into a provider account by creating the shop."""
 
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
+    @extend_schema(operation_id="me_create_shop")
     def post(self, request):
         if hasattr(request.user, "provider_profile"):
             raise Conflict("You already have a shop profile.")
@@ -450,6 +621,22 @@ class ProviderProfileCreateView(APIView):
         )
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Register this device for push notifications",
+    description=(
+        "Re-posting an existing token moves it to whoever is signed in now, so "
+        "re-installing the app on a shared device does not leave the previous "
+        "account holding it."
+    ),
+    request=PushTokenSerializer,
+    responses={
+        200: PushTokenSerializer(many=True),
+        201: PushTokenSerializer,
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+    },
+)
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def push_tokens(request):
@@ -475,6 +662,12 @@ def push_tokens(request):
     return Response(PushTokenSerializer(obj).data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Stop sending to this device",
+    request=None,
+    responses={204: None, 401: UNAUTHORIZED, 404: NOT_FOUND},
+)
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def push_token_detail(request, token_id):
@@ -483,6 +676,13 @@ def push_token_detail(request, token_id):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Recent sign-ins",
+    description="So a user can spot an account they do not recognise.",
+    request=None,
+    responses={200: LoginAuditSerializer(many=True), 401: UNAUTHORIZED},
+)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def login_history(request):
@@ -491,6 +691,12 @@ def login_history(request):
     return Response(LoginAuditSerializer(audits, many=True).data)
 
 
+@extend_schema(
+    tags=["me"],
+    summary="Stop sending to every device",
+    request=None,
+    responses={204: None, 401: UNAUTHORIZED},
+)
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def delete_push_tokens(request):
@@ -506,9 +712,21 @@ def delete_push_tokens(request):
 # ---------------------------------------------------------------------------
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Sign out of this device",
+    request=None,
+    responses={204: None, 401: UNAUTHORIZED},
+)
 class LogoutView(KnoxLogoutView):
     """Revoke the token used to make this request."""
 
 
+@extend_schema(
+    tags=["auth"],
+    summary="Sign out everywhere",
+    request=None,
+    responses={204: None, 401: UNAUTHORIZED},
+)
 class LogoutAllView(KnoxLogoutAllView):
     """Revoke every token for the account, on every device."""

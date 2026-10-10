@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from core.exceptions import BusinessRuleViolation
@@ -11,6 +12,7 @@ from providers.models import ProviderProfile
 from reviews.models import MAX_RATING, MIN_RATING, Review
 
 
+@extend_schema_serializer(component_name="Review")
 class ReviewSerializer(serializers.ModelSerializer):
     """A review as it is read."""
 

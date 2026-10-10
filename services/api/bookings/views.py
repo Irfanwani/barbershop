@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
@@ -31,6 +32,7 @@ from bookings.serializers import (
 from core.exceptions import BusinessRuleViolation
 from core.money import compute_platform_fee, format_minor
 from core.pagination import CompactPagination
+from core.schema import BAD_REQUEST, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from providers.models import ProviderProfile, Service
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,37 @@ def visible_bookings(user) -> Q:
     return Q(customer=user)
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="List bookings",
+    description=(
+        "A customer sees their own; a provider sees the ones booked at their shop. "
+        "`upcoming=true` and `past=true` are mutually exclusive."
+    ),
+    parameters=[
+        OpenApiParameter("status", str, description="Comma-separated statuses."),
+        OpenApiParameter("upcoming", bool),
+        OpenApiParameter("past", bool),
+        OpenApiParameter("page", int),
+        OpenApiParameter("page_size", int),
+    ],
+    responses={
+        200: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer"},
+                    "next": {"type": "string", "nullable": True},
+                    "previous": {"type": "string", "nullable": True},
+                    "results": {"type": "array", "items": {"$ref": "#/components/schemas/Booking"}},
+                    "role": {"type": "string", "enum": ["customer", "provider"]},
+                },
+            },
+            "A page of bookings",
+        ),
+        401: UNAUTHORIZED,
+    },
+)
 class BookingListView(APIView):
     """List bookings.
 
@@ -86,6 +119,7 @@ class BookingListView(APIView):
 
         return list(queryset.order_by("-starts_at"))
 
+    @extend_schema(operation_id="bookings_list")
     def get(self, request):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(self.get_queryset(), request, view=self)
@@ -96,6 +130,12 @@ class BookingListView(APIView):
         return response
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="One booking",
+    description="Addressable by numeric id or by the customer-facing reference.",
+    responses={200: BookingSerializer, 401: UNAUTHORIZED, 404: NOT_FOUND},
+)
 class BookingDetailView(APIView):
     """One booking, by id or by its customer-facing reference."""
 
@@ -109,11 +149,23 @@ class BookingDetailView(APIView):
             reference,
         )
 
+    @extend_schema(operation_id="bookings_retrieve")
     def get(self, request, reference: str):
         booking = self.get_object(request, reference)
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="Book an appointment",
+    description=(
+        "Send the provider, the **service ids** and a start time. Do not send a price: "
+        "the server looks the services up and decides what it costs. A total in the "
+        "body is ignored, and the server's clock is used rather than the phone's."
+    ),
+    request=BookingCreateSerializer,
+    responses={201: BookingSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED, 429: THROTTLED},
+)
 class BookingCreateView(APIView):
     """Book an appointment.
 
@@ -124,6 +176,7 @@ class BookingCreateView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_scope = "booking"
 
+    @extend_schema(operation_id="bookings_create")
     def post(self, request):
         if request.user.is_provider:
             raise BusinessRuleViolation(
@@ -150,6 +203,13 @@ class BookingCreateView(APIView):
         )
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="Cancel a booking",
+    description="Either the customer or the provider it was booked with may cancel.",
+    request=CancelBookingSerializer,
+    responses={200: BookingSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED, 404: NOT_FOUND},
+)
 class BookingCancelView(APIView):
     """Cancel a booking.
 
@@ -160,6 +220,7 @@ class BookingCancelView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="bookings_cancel")
     def post(self, request, reference: str):
         booking = lookup_booking(
             Booking.objects.filter(visible_bookings(request.user)).select_related(
@@ -191,6 +252,16 @@ class BookingCancelView(APIView):
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="Move a booking along",
+    description=(
+        "Provider-only. `action` is one of accept, decline, complete, no-show. Each is "
+        "only valid from certain states and is refused otherwise."
+    ),
+    request=None,
+    responses={200: BookingSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED, 404: NOT_FOUND},
+)
 class BookingStatusView(APIView):
     """Advance a booking's lifecycle.
 
@@ -219,6 +290,7 @@ class BookingStatusView(APIView):
         ),
     }
 
+    @extend_schema(operation_id="bookings_transition")
     def post(self, request, reference: str, action: str):
         if action not in self.ALLOWED:
             raise NotFound(f"There is no such booking action: {action}.")
@@ -245,6 +317,40 @@ class BookingStatusView(APIView):
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 
+@extend_schema(
+    tags=["bookings"],
+    summary="What would this booking cost?",
+    description=(
+        "Call this before checkout so the customer agrees to the server's number. The "
+        "quote and the booking use the same pricing code, so they cannot disagree."
+    ),
+    request=QuoteRequestSerializer,
+    responses={
+        200: OpenApiResponse(
+            {
+                "type": "object",
+                "properties": {
+                    "currency": {"type": "string", "example": "INR"},
+                    "subtotal": {"type": "integer"},
+                    "platform_fee": {"type": "integer"},
+                    "total": {"type": "integer"},
+                    "subtotal_display": {"type": "string", "example": "₹250.00"},
+                    "platform_fee_display": {"type": "string", "example": "₹2.50"},
+                    "total_display": {"type": "string", "example": "₹252.50"},
+                    "duration_minutes": {"type": "integer"},
+                    "starts_at": {"type": "string", "format": "date-time"},
+                    "ends_at": {"type": "string", "format": "date-time"},
+                    "items": {"type": "array", "items": {"type": "object"}},
+                    "is_available": {"type": "boolean"},
+                },
+            },
+            "The server's price for this booking",
+        ),
+        400: BAD_REQUEST,
+        401: UNAUTHORIZED,
+        404: NOT_FOUND,
+    },
+)
 class QuoteView(APIView):
     """What would this booking cost?
 
@@ -254,9 +360,11 @@ class QuoteView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="bookings_quote_get")
     def get(self, request):
         return self._quote(request.query_params)
 
+    @extend_schema(operation_id="bookings_quote_post")
     def post(self, request):
         return self._quote(request.data)
 

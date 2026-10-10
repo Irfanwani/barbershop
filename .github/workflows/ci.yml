@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: barbershop
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      POSTGRES_DB: barbershop
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      TEST_POSTGRES_DB: test_barbershop
+      SECRET_KEY: ci-secret-key-not-used-against-real-data
+      FIELD_ENCRYPTION_KEY: ci-encryption-key
+      USE_PYTHON_VERSION: "3.13"
+
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/api/uv.lock
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --locked --group ci
+
+      - name: Check the lockfile is current
+        # A stale lockfile means CI is not testing what will ship.
+        run: uv lock --check
+
+      - name: Django system check
+        run: uv run python manage.py check --deploy --fail-level ERROR
+          || uv run python manage.py check
+
+      - name: Migrations are in sync with the models
+        run: uv run python manage.py makemigrations --check --dry-run
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Pytest
+        run: uv run pytest --cov-report=xml --cov-report=term-missing
+
+      - name: Coverage is uploaded
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-coverage
+          path: services/api/htmlcov
+          retention-days: 7
+
+  app:
+    name: Mobile app
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: apps/mobile/yarn.lock
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Tests
+        run: yarn test --ci
+
+  schema:
+    name: OpenAPI contract
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: services/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/api/uv.lock
+
+      - run: uv python install
+      - run: uv sync --locked --group ci
+
+      - name: Generate the schema
+        # Does not need a database: schema generation imports URLs, not rows.
+        run: uv run python manage.py spectacular --fail-on-warn --file /tmp/schema.yml
+
+      - name: The committed schema matches what the code produces
+        run: |
+          if ! diff -u docs/openapi.yml /tmp/schema.yml; then
+            echo ""
+            echo "::error::services/api/docs/openapi.yml is out of date."
+            echo "Regenerate it with:"
+            echo "  cd services/api && uv run python manage.py spectacular --file docs/openapi.yml"
+            exit 1
+          fi

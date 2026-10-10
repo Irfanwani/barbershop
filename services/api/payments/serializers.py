@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from bookings.models import Booking, BookingStatus
 from payments.models import Payment, PaymentStatus  # noqa: F401
 
 
+@extend_schema_serializer(component_name="Payment")
 class PaymentSerializer(serializers.ModelSerializer):
     """A payment, as read.
 
@@ -82,17 +84,22 @@ class VerifyPaymentSerializer(serializers.Serializer):
     razorpay_signature = serializers.CharField()
 
 
-class WebhookSerializer(serializers.Serializer):
+class PaymentWebhookSerializer(serializers.Serializer):
     """Razorpay's webhook envelope.
 
-    The body is validated against ``RAZORPAY_WEBHOOK_SECRET`` before any of it
-    is read — the signature covers the raw bytes, so it is checked first and in
-    full, not after parsing.
+    Documented here for the schema, but **not used to validate the request**.
+    The signature covers the raw bytes, so it is verified first and in full —
+    before this shape is parsed, and before any of it is trusted. Parsing an
+    unverified payload and then checking a signature over the re-serialised
+    version would be a different check, and a weaker one.
     """
 
-    event = serializers.CharField()
+    event = serializers.CharField(
+        help_text="`payment.captured` or `payment.failed`; anything else is acknowledged and ignored."
+    )
     payload = serializers.DictField()
 
-    def validated_payment_entity(self) -> dict | None:
-        entity = self.validated_data.get("payload", {}).get("payment", {}).get("entity", {})
-        return entity or None
+    @staticmethod
+    def payment_entity(body: dict) -> dict:
+        """The payment entity out of a *verified* webhook body."""
+        return (body.get("payload", {}).get("payment", {}) or {}).get("entity", {}) or {}

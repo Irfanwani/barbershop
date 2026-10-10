@@ -13,6 +13,7 @@ from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from bookings.models import (
@@ -56,6 +57,7 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return format_minor(obj.unit_price)
 
 
+@extend_schema_serializer(component_name="Booking")
 class BookingSerializer(serializers.ModelSerializer):
     items = BookingItemSerializer(many=True, read_only=True)
     provider = ProviderSummarySerializer(read_only=True)
