@@ -80,6 +80,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/bookings/new/",
     "/api/v1/bookings/{reference}/",
     "/api/v1/bookings/{reference}/cancel/",
+    "/api/v1/bookings/{reference}/collect/",
     "/api/v1/bookings/{reference}/{action}/",
     # reviews
     "/api/v1/reviews/",

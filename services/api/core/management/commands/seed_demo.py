@@ -237,18 +237,25 @@ class Command(BaseCommand):
             customer = random.choice(customers)
             service = random.choice(list(provider.services.all()))
 
-            # Spread across the last fortnight and the next week.
-            starts_at = now + timedelta(
-                days=random.randint(-14, 7),
-                hours=random.choice([10, 11, 12, 15, 16, 17, 18]),
-                minutes=random.choice([0, 30]),
-            )
+            # Pick a day, then a slot *inside* that shop's opening hours.
+            #
+            # This used to be `now + timedelta(days=..., hours=10..18)`, which
+            # adds the hour on top of the current one: run it at 14:00 and an
+            # 18:00 offset lands at 08:00 the next day, outside every shop's
+            # hours. Whether the seed produced any bookings at all depended on
+            # what time of day you ran it.
+            day = now + timedelta(days=random.randint(-14, 7))
+            slot_hour = random.choice([10, 11, 12, 15, 16, 17, 18])
+            slot_minute = random.choice([0, 30])
+            if not (provider.opening_time <= time(slot_hour, slot_minute) <= provider.closing_time):
+                continue
+
+            starts_at = day.replace(hour=slot_hour, minute=slot_minute, second=0, microsecond=0)
             ends_at = starts_at + timedelta(minutes=service.duration_minutes)
-            if (
-                not provider.opening_time
-                <= timezone.localtime(starts_at).time()
-                <= provider.closing_time
-            ):
+
+            # A booking that runs past closing time is one the shop would never
+            # have taken.
+            if timezone.localtime(ends_at).time() > provider.closing_time:
                 continue
 
             in_the_past = starts_at < now

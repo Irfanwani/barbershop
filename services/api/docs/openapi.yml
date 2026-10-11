@@ -5304,6 +5304,152 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/bookings/{reference}/collect/:
+    post:
+      operationId: bookings_collect
+      description: |-
+        Record what the customer paid at the counter.
+
+        Provider-only, and deliberately not a booking *transition*: taking the money
+        and marking the appointment finished are two different decisions, and a
+        customer who paid and then walked out has still been paid.
+      summary: Record a payment taken in the shop
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectBalanceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CollectBalanceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CollectBalanceRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/bookings/{reference}/{action}/:
     post:
       operationId: bookings_transition
@@ -7510,6 +7656,36 @@ components:
       required:
       - current_password
       - new_password
+    CollectBalanceMethodEnum:
+      enum:
+      - cash
+      - upi
+      - card
+      type: string
+      description: |-
+        * `cash` - cash
+        * `upi` - upi
+        * `card` - card
+    CollectBalanceRequest:
+      type: object
+      description: |-
+        Take the balance in the shop.
+
+        Amount is optional and defaults to everything outstanding, because that is
+        what happens in practice: the customer settles up in full.
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: Defaults to the full outstanding balance.
+        method:
+          allOf:
+          - $ref: '#/components/schemas/CollectBalanceMethodEnum'
+          default: cash
+        note:
+          type: string
+          default: ''
+          maxLength: 200
     CreateOrderRequest:
       type: object
       description: |-
@@ -7650,14 +7826,6 @@ components:
       required:
       - identifier
       - password
-    MethodEnum:
-      enum:
-      - razorpay
-      - cash
-      type: string
-      description: |-
-        * `razorpay` - Razorpay
-        * `cash` - Cash at the shop
     Order:
       type: object
       properties:
@@ -7964,7 +8132,7 @@ components:
           default: created
         method:
           allOf:
-          - $ref: '#/components/schemas/MethodEnum'
+          - $ref: '#/components/schemas/PaymentMethodEnum'
           readOnly: true
         is_captured:
           type: boolean
@@ -7997,6 +8165,14 @@ components:
       - razorpay_order_id
       - razorpay_payment_id
       - status
+    PaymentMethodEnum:
+      enum:
+      - razorpay
+      - cash
+      type: string
+      description: |-
+        * `razorpay` - Razorpay
+        * `cash` - Cash at the shop
     PaymentStatusEnum:
       enum:
       - created

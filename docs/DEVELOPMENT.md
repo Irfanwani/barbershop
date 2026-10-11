@@ -150,6 +150,13 @@ uv run celery -A config.celery call bookings.reminders.expire_stale_bookings
 
 ## Troubleshooting
 
+**A test passes locally but fails in CI after you edited a migration** — pytest
+runs with `--reuse-db`, so a changed migration is not applied to the existing
+test database and the tests run against the schema you had before. `make
+test-api` reuses the database; run `uv run pytest --create-db` once after
+touching a migration.
+
+
 **`ImproperlyConfigured: settings.SECRET_KEY`** — you skipped `cp .env.example .env`.
 
 **`connection to server at "localhost", port 5432 failed`** — Postgres is not running,

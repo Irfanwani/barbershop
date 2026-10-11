@@ -61,7 +61,20 @@ class CreateOrderSerializer(serializers.Serializer):
             # Same answer for "does not exist" and "not yours": a payment
             # endpoint is a fine place to enumerate other people's bookings.
             raise serializers.ValidationError("No such booking on your account.")
-        if booking.status != BookingStatus.PENDING_PAYMENT:
+        kind = self.context.get("kind")
+
+        # A balance is paid on arrival, which means the booking is by then
+        # confirmed. Refusing it here would make the balance unpayable online
+        # the moment a deposit moved the booking forward — which is exactly
+        # what a deposit does.
+        payable_statuses = {BookingStatus.PENDING_PAYMENT}
+        if kind == PaymentKind.BALANCE:
+            payable_statuses |= {
+                BookingStatus.CONFIRMED,
+                BookingStatus.COMPLETED,
+            }
+
+        if booking.status not in payable_statuses:
             raise serializers.ValidationError(
                 f"This booking is {booking.get_status_display().lower()} and no longer "
                 f"needs paying."

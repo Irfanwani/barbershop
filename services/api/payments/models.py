@@ -80,12 +80,14 @@ class Payment(TimeStampedModel):
             models.Index(fields=["booking", "kind", "status"]),
         ]
         constraints = [
-            # One live charge per part. A second deposit attempt is made by
-            # cancelling the first, not by adding a row beside it.
+            # At most one *captured* charge per part. Several attempts may
+            # exist at once — a customer who abandons checkout and comes back
+            # needs to be able to try again — but only one of them can ever
+            # have taken the money.
             models.UniqueConstraint(
                 fields=["booking", "kind"],
-                condition=models.Q(status__in=["created", "attempted", "captured"]),
-                name="payments_one_live_charge_per_kind",
+                condition=models.Q(status="captured"),
+                name="payments_one_captured_charge_per_kind",
             )
         ]
 

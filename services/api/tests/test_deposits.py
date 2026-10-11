@@ -23,6 +23,7 @@ from tests.factories import (
     auth_header,
     logged_in,
     make_profile,
+    make_provider_user,
     make_service,
     make_user,
     next_slot,
@@ -519,7 +520,31 @@ class TestConstraints:
         assert body["deposit"] == body["total"]
         assert body["balance"] == 0
 
-    def test_two_live_charges_of_the_same_kind_are_impossible(self):
+    def test_two_captured_charges_of_the_same_kind_are_impossible(self):
+        booking, *_ = booking_with_deposit()
+        Payment.objects.create(
+            booking=booking,
+            kind=PaymentKind.DEPOSIT,
+            razorpay_order_id="order_1",
+            amount=booking.deposit,
+            status=PaymentStatus.CAPTURED,
+        )
+
+        from django.db.utils import IntegrityError
+
+        # Only one of them can ever have taken the money.
+        with pytest.raises(IntegrityError):
+            Payment.objects.create(
+                booking=booking,
+                kind=PaymentKind.DEPOSIT,
+                razorpay_order_id="order_2",
+                amount=booking.deposit,
+                status=PaymentStatus.CAPTURED,
+            )
+
+    def test_an_abandoned_checkout_can_be_retried(self):
+        # A customer who opens the payment sheet and walks away has taken no
+        # money, so a second attempt must be allowed.
         booking, *_ = booking_with_deposit()
         Payment.objects.create(
             booking=booking,
@@ -529,16 +554,13 @@ class TestConstraints:
             status=PaymentStatus.CREATED,
         )
 
-        from django.db.utils import IntegrityError
-
-        with pytest.raises(IntegrityError):
-            Payment.objects.create(
-                booking=booking,
-                kind=PaymentKind.DEPOSIT,
-                razorpay_order_id="order_2",
-                amount=booking.deposit,
-                status=PaymentStatus.CREATED,
-            )
+        Payment.objects.create(
+            booking=booking,
+            kind=PaymentKind.DEPOSIT,
+            razorpay_order_id="order_2",
+            amount=booking.deposit,
+            status=PaymentStatus.CREATED,
+        )
 
     def test_a_refunded_charge_does_not_block_a_new_one(self):
         # A deposit that was refunded and then retaken is a real sequence; the
@@ -562,3 +584,276 @@ class TestConstraints:
             amount=booking.deposit,
             status=PaymentStatus.CREATED,
         )
+
+
+# ---------------------------------------------------------------------------
+# Collecting the balance at the counter
+# ---------------------------------------------------------------------------
+
+
+class TestCollectingTheBalance:
+    """Balances are settled in the chair, mostly in cash."""
+
+    @pytest.fixture(autouse=True)
+    def _razorpay(self, monkeypatch):
+        from payments import views
+
+        monkeypatch.setattr(views, "credentials_configured", lambda: True)
+        monkeypatch.setattr(
+            views,
+            "create_order",
+            lambda **kwargs: {
+                "id": "order_abc",
+                "key_id": "rzp_test",
+                "amount": kwargs["amount"],
+                "currency": kwargs["currency"],
+            },
+        )
+
+    def _paid_deposit(self, booking):
+        Payment.objects.create(
+            booking=booking,
+            kind=PaymentKind.DEPOSIT,
+            razorpay_order_id="order_dep",
+            amount=booking.deposit,
+            status=PaymentStatus.CAPTURED,
+        )
+        booking.refresh_from_db()
+        return booking
+
+    def test_the_provider_can_take_the_balance(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        response = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 200, response.content
+        booking.refresh_from_db()
+        assert booking.amount_paid == booking.total
+        assert booking.is_paid is True
+
+    def test_taking_the_balance_does_not_complete_the_booking(self, client):
+        # Payment and "the appointment is over" are two different decisions. A
+        # customer who paid and then walked out has still been paid.
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        booking.refresh_from_db()
+        assert booking.status == BookingStatus.CONFIRMED
+        assert booking.completed_at is None
+
+    def test_a_partial_amount_is_recorded_as_a_partial_payment(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"amount": booking.balance // 2, "method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        booking.refresh_from_db()
+        assert booking.is_paid is False
+        assert booking.amount_paid == booking.deposit + booking.balance // 2
+
+    def test_over_collecting_is_refused(self, client):
+        # A typo at the counter that over-records is harder to undo than one
+        # that is refused.
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        response = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"amount": booking.balance * 2, "method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 400
+        booking.refresh_from_db()
+        assert booking.amount_paid == booking.deposit
+
+    def test_collecting_twice_refuses_the_second_time(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        first = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+        second = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 400
+
+    def test_a_customer_cannot_mark_themselves_paid(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        customer_client, token = logged_in(booking.customer)
+
+        response = customer_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code in (403, 404)
+        booking.refresh_from_db()
+        assert booking.amount_paid == booking.deposit
+
+    def test_one_provider_cannot_collect_on_another_shops_booking(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        # A provider with a real shop, so this exercises cross-shop isolation
+        # rather than the "not a provider at all" check in front of it.
+        stranger = make_provider_user()
+        make_profile(stranger)
+        stranger_client, token = logged_in(stranger)
+
+        response = stranger_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 404
+
+    def test_nothing_can_be_collected_from_a_cancelled_booking(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CANCELLED_BY_CUSTOMER
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        response = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 400
+
+    def test_the_cash_payment_is_tagged_as_cash(self, client):
+        # So a provider can tell what was taken at the till from what came
+        # through the gateway.
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+        provider_client, token = logged_in(booking.provider.user)
+
+        provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        balance = booking.payments.get(kind=PaymentKind.BALANCE)
+        assert balance.method == "cash"
+        assert balance.is_captured is True
+
+    def test_the_balance_can_also_be_paid_online(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        customer_client, token = logged_in(booking.customer)
+
+        response = customer_client.post(
+            f"{PAYMENTS}orders/?kind=balance",
+            {"booking": booking.reference},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 201
+        payment = booking.payments.get(kind=PaymentKind.BALANCE)
+        assert payment.method == "razorpay"
+        assert payment.amount == booking.balance
+
+    def test_the_same_cannot_be_collected_in_cash_and_online(self, client):
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+
+        customer_client, customer_token = logged_in(booking.customer)
+        customer_client.post(
+            f"{PAYMENTS}orders/?kind=balance",
+            {"booking": booking.reference},
+            content_type="application/json",
+            **auth_header(customer_token),
+        )
+        # Capture it. An order that was created and never paid leaves the
+        # balance genuinely outstanding, so taking it in cash is correct.
+        online = Payment.objects.filter(booking=booking, kind=PaymentKind.BALANCE).first()
+        assert online is not None
+        online.status = PaymentStatus.CAPTURED
+        online.save(update_fields=["status"])
+
+        provider_client, provider_token = logged_in(booking.provider.user)
+        response = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"amount": booking.balance, "method": "cash"},
+            content_type="application/json",
+            **auth_header(provider_token),
+        )
+
+        assert response.status_code == 400
+        booking.refresh_from_db()
+        assert booking.amount_paid == booking.total
+
+    def test_an_unpaid_online_order_leaves_the_balance_collectable_in_cash(self, client):
+        # The customer opened a checkout and walked away. The money never moved,
+        # so the provider is right to take it at the till.
+        booking = self._paid_deposit(booking_with_deposit()[0])
+        booking.status = BookingStatus.CONFIRMED
+        booking.save()
+
+        customer_client, customer_token = logged_in(booking.customer)
+        customer_client.post(
+            f"{PAYMENTS}orders/?kind=balance",
+            {"booking": booking.reference},
+            content_type="application/json",
+            **auth_header(customer_token),
+        )
+
+        provider_client, provider_token = logged_in(booking.provider.user)
+        response = provider_client.post(
+            f"{BOOKINGS}{booking.reference}/collect/",
+            {"method": "cash"},
+            content_type="application/json",
+            **auth_header(provider_token),
+        )
+
+        assert response.status_code == 200

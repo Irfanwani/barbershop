@@ -15,7 +15,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -32,7 +32,9 @@ from bookings.serializers import (
 from core.exceptions import BusinessRuleViolation
 from core.money import compute_deposit, compute_platform_fee, format_minor
 from core.pagination import CompactPagination
-from core.schema import BAD_REQUEST, NOT_FOUND, THROTTLED, UNAUTHORIZED
+from core.permissions import IsProvider
+from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
+from payments.due import amount_due, default_kind
 from providers.models import ProviderProfile, Service
 
 logger = logging.getLogger(__name__)
@@ -249,6 +251,72 @@ class BookingCancelView(APIView):
 
         notify_other_party(booking, cancelled_by=request.user)
 
+        return Response(BookingSerializer(booking, context={"request": request}).data)
+
+
+class CollectBalanceSerializer(serializers.Serializer):
+    """Take the balance in the shop.
+
+    Amount is optional and defaults to everything outstanding, because that is
+    what happens in practice: the customer settles up in full.
+    """
+
+    amount = serializers.IntegerField(
+        required=False, min_value=1, help_text="Defaults to the full outstanding balance."
+    )
+    method = serializers.ChoiceField(choices=["cash", "upi", "card"], default="cash")
+    note = serializers.CharField(required=False, allow_blank=True, default="", max_length=200)
+
+
+class BookingCollectView(APIView):
+    """Record what the customer paid at the counter.
+
+    Provider-only, and deliberately not a booking *transition*: taking the money
+    and marking the appointment finished are two different decisions, and a
+    customer who paid and then walked out has still been paid.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="bookings_collect",
+        summary="Record a payment taken in the shop",
+        request=CollectBalanceSerializer,
+        responses={
+            200: BookingSerializer,
+            400: BAD_REQUEST,
+            403: FORBIDDEN,
+            404: NOT_FOUND,
+        },
+    )
+    def post(self, request, reference: str):
+        from bookings.collect import NothingToCollect, collect_cash
+
+        booking = lookup_booking(
+            Booking.objects.filter(provider__user=request.user).select_related(
+                "provider__user", "customer"
+            ),
+            reference,
+        )
+
+        serializer = CollectBalanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        amount = serializer.validated_data.get("amount") or amount_due(
+            booking, default_kind(booking)
+        )
+
+        try:
+            collect_cash(
+                booking,
+                amount,
+                method=serializer.validated_data["method"],
+                note=serializer.validated_data.get("note", ""),
+            )
+        except NothingToCollect as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        booking.refresh_from_db()
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 

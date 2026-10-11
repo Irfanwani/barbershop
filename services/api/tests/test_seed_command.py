@@ -57,6 +57,34 @@ class TestSeed:
             assert booking.items.exists()
             assert booking.items.first().unit_price > 0
 
+    def test_the_seed_produces_bookings_at_any_hour(self, monkeypatch):
+        """Regression: the seed used to depend on the time of day it ran.
+
+        It built slots by adding an hour offset to *now*, so running it at
+        14:00 put most candidates outside every shop's opening hours and it
+        produced nothing at all. A demo that works only before lunchtime is not
+        a demo.
+        """
+        from django.utils import timezone as dj_timezone
+
+        late_evening = dj_timezone.now() + dj_timezone.timedelta(hours=9)
+        monkeypatch.setattr(dj_timezone, "now", lambda: late_evening)
+        # `now` is read once at the top of _create_bookings.
+        monkeypatch.setattr("django.utils.timezone.now", lambda: late_evening, raising=True)
+
+        seed(customers=6, bookings=40)
+
+        assert Booking.objects.count() == 40
+
+    def test_no_seeded_booking_runs_past_closing_time(self):
+        from django.utils import timezone as dj_timezone
+
+        seed(customers=6, bookings=40)
+
+        for booking in Booking.objects.all():
+            local_end = dj_timezone.localtime(booking.ends_at).time()
+            assert local_end <= booking.provider.closing_time
+
     def test_recent_past_bookings_are_marked_finished(self):
         """Expired appointments are kept and tagged, not deleted."""
         seed(customers=6, bookings=40)
