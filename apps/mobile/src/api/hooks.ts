@@ -17,7 +17,9 @@ import {
 import {
   bookingsApi,
   meApi,
+  ordersApi,
   paymentsApi,
+  productsApi,
   providersApi,
   reviewsApi,
   type ProviderSearch,
@@ -361,3 +363,116 @@ export function useVerifyPayment() {
 }
 
 export type { BookingPage, ProviderPage, ReviewPage, Availability, Payout, User };
+// ---------------------------------------------------------------------------
+// Products and orders
+// ---------------------------------------------------------------------------
+
+export function useProducts(params: { category?: string; brand?: string; search?: string }) {
+  return useQuery({
+    queryKey: keys.products(params),
+    queryFn: () => productsApi.browse(params),
+  });
+}
+
+export function usePopularProducts() {
+  return useQuery({ queryKey: keys.popular, queryFn: productsApi.popular });
+}
+
+export function useProductCategories() {
+  // The category list is fixed by the API version; no need to refetch it.
+  return useQuery({
+    queryKey: keys.categories,
+    queryFn: productsApi.categories,
+    staleTime: Infinity,
+  });
+}
+
+export function useShopShelf(
+  providerId: number | null,
+  params: { search?: string; category?: string } = {},
+) {
+  return useQuery({
+    queryKey: keys.shopShelf(providerId ?? 'none', params),
+    queryFn: () => productsApi.shopShelf(providerId as number, params),
+    enabled: providerId !== null,
+  });
+}
+
+export function useMyShelf() {
+  return useQuery({ queryKey: keys.myShelf, queryFn: productsApi.myShelf });
+}
+
+export function useSetStock() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ product, quantity }: { product: number; quantity: number }) =>
+      productsApi.setStock(product, quantity),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.myShelf });
+    },
+  });
+}
+
+export function useMyOrders(params: { status?: string } = {}) {
+  return useQuery({ queryKey: keys.myOrders(params), queryFn: () => ordersApi.my(params) });
+}
+
+export function useShopOrders(params: { status?: string } = {}) {
+  return useQuery({
+    queryKey: keys.shopOrders(params),
+    queryFn: () => productsApi.shopOrders(params),
+  });
+}
+
+export function useOrder(reference: string | null) {
+  return useQuery({
+    queryKey: keys.order(reference ?? 'none'),
+    queryFn: () => ordersApi.get(reference as string),
+    enabled: Boolean(reference),
+  });
+}
+
+export function useOrderQuote(
+  providerId: number | null,
+  basket: { product: number; quantity: number }[],
+) {
+  return useQuery({
+    // Keyed on the basket too, not just the shop: the quote changes when the
+    // quantities do, and caching it per-shop would show a stale total.
+    queryKey: [...keys.orderQuote(providerId ?? 0), basket],
+    queryFn: () => ordersApi.quote({ provider: providerId as number, items: basket }),
+    // Nothing to quote for an empty basket; the server could only say so.
+    enabled: providerId !== null && basket.length > 0,
+  });
+}
+
+export function useCreateProductOrder() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ordersApi.create,
+    onSuccess: (order) => {
+      void client.invalidateQueries({ queryKey: ['orders'] });
+      void client.invalidateQueries({ queryKey: ['products'] });
+      client.setQueryData(keys.order(order.reference), order);
+    },
+  });
+}
+
+export function useOrderAction() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      reference,
+      action,
+    }: {
+      reference: string;
+      action: 'cancel' | 'ready' | 'collect';
+    }) => ordersApi.act(reference, action),
+    onSuccess: (order) => {
+      client.setQueryData(keys.order(order.reference), order);
+      void client.invalidateQueries({ queryKey: ['orders'] });
+      // Cancelling puts the units back on the shelf.
+      void client.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+}

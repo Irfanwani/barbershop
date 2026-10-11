@@ -130,6 +130,7 @@ type IconButtonProps = {
   color?: string;
   label: string;
   className?: string;
+  disabled?: boolean;
 };
 
 export function IconButton({
@@ -139,14 +140,21 @@ export function IconButton({
   color,
   label,
   className,
+  disabled = false,
 }: IconButtonProps) {
   const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      className={cn('h-10 w-10 items-center justify-center rounded-full active:opacity-70', className)}>
+      accessibilityState={{ disabled }}
+      className={cn(
+        'h-10 w-10 items-center justify-center rounded-full active:opacity-70',
+        disabled && 'opacity-40',
+        className,
+      )}>
       <Ionicons name={name} size={size} color={color ?? colors.text} />
     </Pressable>
   );
@@ -171,7 +179,9 @@ export function Card({ children, className, onPress }: CardProps) {
   );
 }
 
-type BadgeProps = { children: ReactNode; tone?: 'neutral' | 'accent' | 'success' | 'danger' };
+type BadgeTone = 'neutral' | 'accent' | 'success' | 'danger' | 'warning';
+
+type BadgeProps = { children: ReactNode; tone?: BadgeTone };
 
 export function Badge({ children, tone = 'neutral' }: BadgeProps) {
   const colors = useColors();
@@ -180,6 +190,8 @@ export function Badge({ children, tone = 'neutral' }: BadgeProps) {
     accent: { background: colors.accent, color: colors.accentText },
     success: { background: colors.success, color: '#FFFFFF' },
     danger: { background: colors.danger, color: '#FFFFFF' },
+    // Amber reads as "not yet" without reading as an error.
+    warning: { background: colors.warning, color: '#FFFFFF' },
   };
   const selected = tones[tone];
   return (

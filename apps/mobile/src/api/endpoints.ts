@@ -17,7 +17,12 @@ import type {
   ProviderDetail,
   ProviderPage,
   ProviderSelf,
+  OrderQuote,
+  Product,
+  ProductCategory,
+  ProductOrder,
   Payout,
+  ShopProduct,
   Quote,
   Review,
   ReviewPage,
@@ -291,6 +296,49 @@ export function destinationFor(user: User | null, seenWelcome: boolean): Destina
   if (!user.onboarding_complete) return 'onboarding';
   return user.role === 'provider' ? 'provider' : 'customer';
 }
+
+export const productsApi = {
+  browse: (params: { category?: string; brand?: string; search?: string } = {}) =>
+    api.get<{ count: number; results: Product[] }>('/products/', params as QueryParams),
+
+  popular: () => api.get<Product[]>('/products/popular/'),
+
+  categories: () => api.get<{ value: ProductCategory; label: string }[]>('/products/types/'),
+
+  detail: (id: number) => api.get<Product>(`/products/${id}/`),
+
+  /** What one shop is actually selling, with that shop's stock. */
+  shopShelf: (providerId: number, params: { search?: string; category?: string } = {}) =>
+    api.get<ShopProduct[]>(`/products/shops/${providerId}/`, params as QueryParams),
+
+  myShelf: () => api.get<{ id: number; product: Product; quantity: number; is_available: boolean }[]>('/products/me/inventory/'),
+
+  setStock: (productId: number, quantity: number, isAvailable = true) =>
+    api.post('/products/me/inventory/', {
+      product: productId,
+      quantity,
+      is_available: isAvailable,
+    }),
+
+  shopOrders: (params: { status?: string } = {}) =>
+    api.get<{ count: number; results: ProductOrder[] }>('/products/me/shop-orders/', params as QueryParams),
+};
+
+export const ordersApi = {
+  my: (params: { status?: string } = {}) =>
+    api.get<{ count: number; results: ProductOrder[] }>('/products/me/orders/', params as QueryParams),
+
+  quote: (body: { provider: number; items: { product: number; quantity: number }[] }) =>
+    api.post<OrderQuote>('/products/orders/quote/', body),
+
+  create: (body: { provider: number; items: { product: number; quantity: number }[]; notes?: string }) =>
+    api.post<ProductOrder>('/products/orders/new/', body),
+
+  get: (reference: string) => api.get<ProductOrder>(`/products/orders/${reference}/`),
+
+  act: (reference: string, action: 'cancel' | 'ready' | 'collect') =>
+    api.post<ProductOrder>(`/products/orders/${reference}/action/`, { action }),
+};
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   pending_payment: 'Awaiting payment',

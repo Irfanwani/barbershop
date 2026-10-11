@@ -28,6 +28,12 @@ export default function ProfileScreen() {
 
   const rows: SettingsRow[] = [
     {
+      icon: 'bag-handle-outline',
+      title: 'My orders',
+      subtitle: 'Products you have bought and their status',
+      onPress: () => router.push('/orders'),
+    },
+    {
       icon: 'location-outline',
       title: 'Saved location',
       subtitle: 'Where the browse list searches from',

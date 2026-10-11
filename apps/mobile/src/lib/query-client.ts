@@ -51,4 +51,15 @@ export const keys = {
   booking: (reference: string) => ['bookings', 'detail', reference] as const,
   reviews: (params?: unknown) => ['reviews', 'list', params ?? {}] as const,
   quote: ['bookings', 'quote'] as const,
+  products: (params?: unknown) => ['products', 'list', params ?? {}] as const,
+  product: (id: number | string) => ['products', 'detail', id] as const,
+  popular: ['products', 'popular'] as const,
+  categories: ['products', 'types'] as const,
+  shopShelf: (id: number | string, params?: unknown) =>
+    ['products', 'shelf', id, params ?? {}] as const,
+  myShelf: ['products', 'my-shelf'] as const,
+  myOrders: (params?: unknown) => ['orders', 'mine', params ?? {}] as const,
+  shopOrders: (params?: unknown) => ['orders', 'shop', params ?? {}] as const,
+  order: (reference: string) => ['orders', 'detail', reference] as const,
+  orderQuote: (provider: number) => ['orders', 'quote', provider] as const,
 };

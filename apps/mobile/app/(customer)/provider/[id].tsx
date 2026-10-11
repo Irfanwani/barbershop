@@ -177,18 +177,26 @@ export default function ProviderDetailScreen() {
       </ScrollView>
 
       <View
-        className="absolute inset-x-0 bottom-0 border-t px-4 py-3"
+        className="absolute inset-x-0 bottom-0 flex-row gap-2 border-t px-4 py-3"
         style={{ backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }}>
-        <Button
-          onPress={() => setBooking(true)}
-          disabled={!canBook}
-          testID="provider-book">
-          {canBook
-            ? `Book · from ${shop.starting_price_display ?? ''}`
-            : shop.services.length === 0
-              ? 'No services yet'
-              : 'Not taking bookings'}
-        </Button>
+        <IconButton
+          name="bag-handle-outline"
+          label="See what this shop sells"
+          onPress={() => router.push(`/provider/${id}/products`)}
+          className="h-12 w-12 rounded-xl border"
+        />
+        <View className="flex-1">
+          <Button
+            onPress={() => setBooking(true)}
+            disabled={!canBook}
+            testID="provider-book">
+            {canBook
+              ? `Book · from ${shop.starting_price_display ?? ''}`
+              : shop.services.length === 0
+                ? 'No services yet'
+                : 'Not taking bookings'}
+          </Button>
+        </View>
       </View>
 
       <BookingSheet

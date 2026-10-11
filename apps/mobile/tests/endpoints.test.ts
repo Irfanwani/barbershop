@@ -13,7 +13,9 @@ import {
   bookingsApi,
   destinationFor,
   meApi,
+  ordersApi,
   paymentsApi,
+  productsApi,
   providersApi,
   reviewsApi,
 } from '@/api/endpoints';
@@ -321,6 +323,35 @@ describe('provider endpoints', () => {
     expect(last().body).toEqual({ is_accepting_bookings: true });
   });
 
+  it('lists what a shop is actually selling', async () => {
+    await productsApi.shopShelf(42);
+
+    expect(pathOf(last())).toContain('/products/shops/42/');
+  });
+
+  it('searches a shelf without the catalogue', async () => {
+    await productsApi.shopShelf(42, { search: 'wax', category: 'styling' });
+
+    const path = pathOf(last());
+    expect(path).toContain('search=wax');
+    expect(path).toContain('category=styling');
+  });
+
+  it('reads your own shelf', async () => {
+    await productsApi.myShelf();
+
+    expect(pathOf(last())).toContain('/products/me/inventory/');
+  });
+
+  it('sets stock by product id and quantity, and nothing else', async () => {
+    await productsApi.setStock(7, 12);
+
+    // No price: stock is not a way to reprice somebody else's catalogue.
+    expect(last().method).toBe('POST');
+    expect(pathOf(last())).toContain('/products/me/inventory/');
+    expect(last().body).toEqual({ product: 7, quantity: 12, is_available: true });
+  });
+
   it('paginates the shop list', async () => {
     await providersApi.search({ page: 3, page_size: 10 });
 
@@ -458,6 +489,70 @@ describe('payment endpoints', () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe('product order endpoints', () => {
+  it('quotes a basket before charging for it', async () => {
+    await ordersApi.quote({
+      provider: 42,
+      items: [
+        { product: 7, quantity: 2 },
+        { product: 9, quantity: 1 },
+      ],
+    });
+
+    expect(pathOf(last())).toContain('/products/orders/quote/');
+    expect(last().body).toEqual({
+      provider: 42,
+      items: [
+        { product: 7, quantity: 2 },
+        { product: 9, quantity: 1 },
+      ],
+    });
+  });
+
+  it('sends only product ids and quantities, never prices', async () => {
+    // The shape is the safety property: there is no field for a client to send
+    // a price in, so there is no price for a client to get wrong.
+    await ordersApi.quote({ provider: 42, items: [{ product: 7, quantity: 2 }] });
+
+    const sent = last().body as { items: Record<string, unknown>[] };
+    expect(Object.keys(sent.items[0] ?? {}).sort()).toEqual(['product', 'quantity']);
+  });
+
+  it('creates an order', async () => {
+    respondWith = () => ({ reference: 'OR-7QK4M2', status: 'pending' });
+    const order = await ordersApi.create({
+      provider: 42,
+      items: [{ product: 7, quantity: 1 }],
+    });
+
+    expect(order.reference).toBe('OR-7QK4M2');
+    expect(pathOf(last())).toContain('/products/orders/new/');
+  });
+
+  it('reads an order by reference', async () => {
+    await ordersApi.get('OR-7QK4M2');
+
+    expect(pathOf(last())).toContain('/products/orders/OR-7QK4M2/');
+  });
+
+  it('moves an order through a named action, not a raw status', async () => {
+    // The old appointments API accepted a status string the caller could write
+    // anything into. The permitted set is an enum the server checks.
+    for (const action of ['cancel', 'ready', 'collect'] as const) {
+      await ordersApi.act('OR-7QK4M2', action);
+      expect(last().body).toEqual({ action });
+    }
+  });
+
+  it('lists your own orders and your shop\'s orders separately', async () => {
+    await ordersApi.my({ status: 'ready' });
+    expect(pathOf(last())).toContain('/products/me/orders/');
+
+    await productsApi.shopOrders({ status: 'paid' });
+    expect(pathOf(last())).toContain('/products/me/shop-orders/');
+  });
+});
 
 describe('review endpoints', () => {
   it('only lets a completed booking be reviewed', async () => {

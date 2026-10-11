@@ -41,6 +41,12 @@ export default function ProviderProfile() {
 
   const rows: SettingsRow[] = [
     {
+      icon: 'bag-handle-outline',
+      title: 'Product orders',
+      subtitle: 'Paid, ready and collected',
+      onPress: () => router.push('/(provider)/shop-orders'),
+    },
+    {
       icon: 'card-outline',
       title: 'Payout account',
       subtitle: payout.data?.payout_registered

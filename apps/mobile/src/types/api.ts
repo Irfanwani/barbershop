@@ -190,6 +190,72 @@ export interface WorkingHours {
   closes_at: string;
 }
 
+export type ProductCategory = 'haircare' | 'tools' | 'styling' | 'skincare' | 'other';
+
+export interface Product {
+  id: number;
+  name: string;
+  description: string;
+  brand: string;
+  category: ProductCategory;
+  price: number;
+  price_display: string;
+  compare_at_price: number | null;
+  compare_at_price_display: string | null;
+  is_discounted: boolean;
+  photo: string | null;
+  is_active: boolean;
+}
+
+export interface ShopProduct {
+  id: number;
+  product: Product;
+  quantity: number;
+  is_in_stock: boolean;
+}
+
+export interface BasketLine {
+  product: number;
+  quantity: number;
+}
+
+export interface OrderQuote {
+  lines: {
+    product: number;
+    name: string;
+    unit_price: number;
+    quantity: number;
+    line_total: number;
+  }[];
+  subtotal: number;
+  platform_fee: number;
+  total: number;
+  total_display: string;
+  currency: string;
+}
+
+export type OrderStatus = 'pending' | 'paid' | 'ready' | 'collected' | 'cancelled' | 'refunded';
+
+export interface ProductOrder {
+  id: number;
+  reference: string;
+  provider: { id: number; display_name: string; address: string };
+  status: OrderStatus;
+  lines: { product: number; name: string; unit_price: number; quantity: number; line_total: number }[];
+  subtotal: number;
+  platform_fee: number;
+  total: number;
+  total_display: string;
+  currency: string;
+  notes: string;
+  paid_at: string | null;
+  collected_at: string | null;
+  cancelled_at: string | null;
+  can_be_paid: boolean;
+  can_be_collected: boolean;
+  created_at: string;
+}
+
 export interface BookingItem {
   id: number;
   service: number | null;
