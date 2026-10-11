@@ -75,6 +75,29 @@ def verify_payment_signature(order_id: str, payment_id: str, signature: str) -> 
     return hmac.compare_digest(expected, signature)
 
 
+def create_refund(*, payment_id: str, amount: int, notes: dict | None = None) -> dict:
+    """Ask Razorpay for money back.
+
+    Returns whatever the gateway accepted. A refund is asynchronous, so this
+    being successful means "asked", not "done" — the final state arrives by
+    webhook.
+    """
+    response = requests.post(
+        f"{RAZORPAY_API}/payments/{payment_id}/refund",
+        auth=_auth(),
+        json={"amount": amount, "notes": notes or {}},
+        timeout=TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_refund(refund_id: str) -> dict:
+    response = requests.get(f"{RAZORPAY_API}/refunds/{refund_id}", auth=_auth(), timeout=TIMEOUT)
+    response.raise_for_status()
+    return response.json()
+
+
 def fetch_payment(payment_id: str) -> dict:
     response = requests.get(f"{RAZORPAY_API}/payments/{payment_id}", auth=_auth(), timeout=TIMEOUT)
     response.raise_for_status()

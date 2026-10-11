@@ -6509,6 +6509,152 @@ paths:
               schema:
                 type: object
           description: Bad or missing signature
+  /api/v1/payments/bookings/{reference}/refund/:
+    post:
+      operationId: payments_refund_booking
+      description: |-
+        Give a customer's money back.
+
+        Provider-only. The shop holds the money, so it is the shop that returns it —
+        the platform never keeps a booking's balance, and this endpoint refuses to
+        pretend otherwise.
+      summary: Refund a booking
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundBookingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefundBookingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefundBookingRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/payments/{order_id}/:
     get:
       operationId: payments_retrieve
@@ -8899,6 +9045,18 @@ components:
       - provider
       - services
       - starts_at
+    RefundBookingRequest:
+      type: object
+      description: Refund what the customer paid towards a booking.
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: Defaults to everything paid.
+        reason:
+          type: string
+          default: ''
+          maxLength: 200
     RegisterRequest:
       type: object
       description: |-

@@ -71,6 +71,9 @@ class Payment(TimeStampedModel):
     failure_reason = models.CharField(max_length=255, blank=True, default="")
     refunded_at = models.DateTimeField(null=True, blank=True)
     refund_id = models.CharField(max_length=64, blank=True, default="")
+    #: Running total. A refund can be partial, and a second one is legal, so a
+    #: boolean is not enough to know what has gone back.
+    refunded_amount = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = "payments_payment"

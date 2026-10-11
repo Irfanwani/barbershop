@@ -6,6 +6,7 @@ from payments.views import (
     CreateOrderView,
     PaymentDetailView,
     PaymentWebhookView,
+    RefundBookingView,
     VerifyPaymentView,
 )
 
@@ -15,5 +16,6 @@ urlpatterns = [
     path("orders/", CreateOrderView.as_view(), name="create-order"),
     path("verify/", VerifyPaymentView.as_view(), name="verify"),
     path("webhook/", PaymentWebhookView.as_view(), name="webhook"),
+    path("bookings/<str:reference>/refund/", RefundBookingView.as_view(), name="refund-booking"),
     path("<str:order_id>/", PaymentDetailView.as_view(), name="detail"),
 ]

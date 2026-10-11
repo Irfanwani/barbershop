@@ -207,6 +207,15 @@ class Booking(TimeStampedModel):
         return self.amount_paid >= self.total
 
     @property
+    def amount_due(self) -> int:
+        """What is still outstanding, in the smallest currency unit.
+
+        Derived rather than stored, so it cannot drift from what was actually
+        captured. Never negative: a booking cannot owe the customer money.
+        """
+        return max(self.total - self.amount_paid, 0)
+
+    @property
     def requires_deposit(self) -> bool:
         return self.deposit > 0 and not self.has_captured_deposit
 

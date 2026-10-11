@@ -35,6 +35,7 @@ from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from payments.due import amount_due, default_kind
+from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
 from providers.models import ProviderProfile, Service
 
 logger = logging.getLogger(__name__)
@@ -255,6 +256,18 @@ class BookingCancelView(APIView):
             reason=reason_serializer.validated_data["reason"],
         )
 
+        # Move the money now, not later. The cancellation succeeded either
+        # way; a gateway that refuses to refund should not make it look like it
+        # did not happen.
+        try:
+            refund_booking_deposit(booking, forfeited=outcome.deposit_forfeited)
+            if not outcome.deposit_refundable:
+                refund_booking_payment(booking, reason="Deposit forfeited, late cancellation")
+        except RefundError as exc:
+            logger.warning("Could not settle the refund for %s: %s", booking.reference, exc)
+            outcome.message += " We could not start the refund automatically."
+
+        booking.refresh_from_db()
         notify_other_party(booking, cancelled_by=request.user)
 
         # What happened to the money, in words. A customer who loses part of a

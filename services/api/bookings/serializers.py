@@ -69,7 +69,7 @@ class BookingSerializer(serializers.ModelSerializer):
     can_be_cancelled = serializers.BooleanField(read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
     amount_paid = serializers.IntegerField(read_only=True)
-    amount_due = serializers.SerializerMethodField()
+    amount_due = serializers.IntegerField(read_only=True)
     requires_deposit = serializers.BooleanField(read_only=True)
     cancellation_deadline = serializers.DateTimeField(read_only=True)
     is_late_cancellation = serializers.SerializerMethodField()
@@ -128,9 +128,6 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_late_cancel_fee_display(self, obj: Booking) -> str:
         return format_minor(obj.late_cancel_fee, obj.currency)
-
-    def get_amount_due(self, obj: Booking) -> int:
-        return max(obj.total - obj.amount_paid, 0)
 
     def get_deposit_display(self, obj: Booking) -> str:
         return format_minor(obj.deposit, obj.currency)

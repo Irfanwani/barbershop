@@ -21,14 +21,16 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework import serializers, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bookings.models import Booking, BookingStatus
+from bookings.serializers import BookingSerializer
 from core.exceptions import BusinessRuleViolation
-from core.schema import BAD_REQUEST, NOT_FOUND, UNAUTHORIZED
+from core.permissions import IsProvider
+from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
 from payments.due import amount_due, default_kind, requested_kind
 from payments.models import Payment, PaymentStatus
 from payments.serializers import (
@@ -297,6 +299,63 @@ class PaymentWebhookView(APIView):
             payment.save(update_fields=["status", "failure_reason", "updated_at"])
 
         return Response({"handled": True})
+
+
+class RefundBookingSerializer(serializers.Serializer):
+    """Refund what the customer paid towards a booking."""
+
+    amount = serializers.IntegerField(
+        required=False, min_value=1, help_text="Defaults to everything paid."
+    )
+    reason = serializers.CharField(required=False, allow_blank=True, default="", max_length=200)
+
+
+class RefundBookingView(APIView):
+    """Give a customer's money back.
+
+    Provider-only. The shop holds the money, so it is the shop that returns it —
+    the platform never keeps a booking's balance, and this endpoint refuses to
+    pretend otherwise.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="payments_refund_booking",
+        summary="Refund a booking",
+        request=RefundBookingSerializer,
+        responses={
+            200: BookingSerializer,
+            400: BAD_REQUEST,
+            403: FORBIDDEN,
+            404: NOT_FOUND,
+        },
+    )
+    def post(self, request, reference: str):
+        from bookings.models import Booking as BookingModel
+        from payments.refunds import RefundError, refund_booking_payment
+
+        booking = get_object_or_404(
+            BookingModel.objects.filter(provider__user=request.user).select_related(
+                "provider__user", "customer"
+            ),
+            reference=reference.upper(),
+        )
+
+        serializer = RefundBookingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            refund_booking_payment(
+                booking,
+                amount=serializer.validated_data.get("amount"),
+                reason=serializer.validated_data.get("reason", ""),
+            )
+        except RefundError as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        booking.refresh_from_db()
+        return Response(BookingSerializer(booking, context={"request": request}).data)
 
 
 @extend_schema(

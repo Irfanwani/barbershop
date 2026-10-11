@@ -92,6 +92,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/payments/orders/",
     "/api/v1/payments/verify/",
     "/api/v1/payments/webhook/",
+    "/api/v1/payments/bookings/{reference}/refund/",
     "/api/v1/payments/{order_id}/",
 }
 

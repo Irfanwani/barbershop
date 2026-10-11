@@ -176,7 +176,7 @@ booking made before the change.
 
 ## P1.3 Refunds
 
-**Status:** todo
+**Status:** done
 
 The scaffolding is complete and inert: `PaymentStatus.REFUNDED`,
 `Payment.refunded_at`, `Payment.refund_id` and `BookingStatus.REFUNDED` all
@@ -188,8 +188,24 @@ way to give the money back except an out-of-band manual one.
 - Webhook reconciliation, since a refund is asynchronous
 - Refunds blocked once a booking is `completed` — the service was had
 
-**Acceptance:** a paid booking can be refunded by the provider; a completed
-one cannot; the Razorpay refund id lands on the payment row.
+**Done.** `payments/refunds.py` with partial refunds, a running
+`refunded_amount`, and webhook reconciliation.
+
+Cancelling now moves the money in the same request: the deposit is refunded to
+the amount the frozen policy promised, and when a late cancellation forfeits the
+whole deposit the balance is refunded instead, because that is where the money
+the customer wants back actually is.
+
+A gateway outage does not undo the cancellation — the booking is cancelled
+either way, and the response says the refund could not be started rather than
+letting a slow Razorpay look like a cancellation that did not happen.
+
+**Acceptance:** a refund can never exceed what was taken (a shop must not be
+able to mint money out of a cancellation); a completed appointment cannot be
+refunded silently; cash is settled without asking the gateway; partial refunds
+accumulate and leave the payment captured while money is still owed.
+
+27 tests, including the two that protect the shop's money.
 
 ## P1.4 Provider payout ledger and withdrawal
 
