@@ -30,6 +30,7 @@ from providers.hours_serializers import (
     WorkingHoursWriteSerializer,
 )
 from providers.models import ProviderProfile, Service, WorkingHours
+from providers.pricing import MIN_SAMPLE_FOR_CONFIDENCE
 from providers.serializers import (
     PayoutSerializer,
     ProviderDetailSerializer,
@@ -642,3 +643,76 @@ class AvailabilityView(APIView):
                 "slots": slots,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Price intelligence
+# ---------------------------------------------------------------------------
+
+
+@extend_schema(
+    tags=["providers"],
+    summary="What shops around here charge",
+    description=(
+        "Aggregated prices for each shop type. Prices outside a plausible band are "
+        "excluded, and a band built from fewer than three shops is marked `is_thin` "
+        "so the app can say so rather than presenting a coin flip as a median."
+    ),
+    parameters=[OpenApiParameter("service_type", str, description="Limit to one shop type.")],
+    responses={200: None},
+)
+class PriceInsightView(APIView):
+    """Typical prices, aggregated across shops.
+
+    Public: this is the page someone reads before they have decided where to go,
+    which is before they have an account.
+    """
+
+    permission_classes = []
+
+    @extend_schema(operation_id="providers_price_insights")
+    def get(self, request):
+        from providers.models import ServiceType
+        from providers.pricing import plausible_prices, price_band
+
+        services = Service.objects.select_related("provider")
+
+        wanted = request.query_params.get("service_type")
+        types = ServiceType.choices
+        if wanted and wanted != "all":
+            types = tuple((value, label) for value, label in types if value == wanted)
+
+        bands = []
+        for value, label in types:
+            rows = services.filter(provider__service_type=value)
+            if not plausible_prices(rows).exists():
+                # Omit types nobody offers rather than showing an empty row.
+                continue
+            bands.append(price_band(value, label, rows).as_dict())
+
+        return Response({"bands": bands, "minimum_sample": MIN_SAMPLE_FOR_CONFIDENCE})
+
+
+@extend_schema(
+    tags=["providers"],
+    summary="What a service usually costs",
+    description="Median price per service name, for names several shops actually offer.",
+    parameters=[OpenApiParameter("limit", int)],
+    responses={200: None},
+)
+class ServicePriceIndexView(APIView):
+    """Comparable prices for common service names."""
+
+    permission_classes = []
+
+    @extend_schema(operation_id="providers_service_prices")
+    def get(self, request):
+        from providers.pricing import service_name_bands
+
+        services = Service.objects.select_related("provider")
+
+        raw_limit = request.query_params.get("limit")
+        limit = int(raw_limit) if raw_limit and raw_limit.isdigit() else 10
+        limit = max(1, min(limit, 50))
+
+        return Response({"services": service_name_bands(services, limit=limit)})

@@ -815,3 +815,87 @@ class TestAcceptingBookingsToggle:
         assert response.status_code in (403, 404)
         other.refresh_from_db()
         assert other.is_accepting_bookings is True
+
+
+# ---------------------------------------------------------------------------
+# Price insights
+# ---------------------------------------------------------------------------
+
+
+class TestPriceInsights:
+    def test_is_readable_without_an_account(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), price=price)
+
+        # Someone comparing prices has not chosen a shop yet, which is exactly
+        # when they most want the number.
+        assert client.get(f"{PROVIDERS}prices/").status_code == 200
+
+    def test_reports_a_median_across_shops(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), price=price)
+
+        body = client.get(f"{PROVIDERS}prices/").data
+        barbers = next(b for b in body["bands"] if b["service_type"] == "barbershop")
+
+        assert barbers["median"] == 30000
+        assert barbers["median_display"] == "₹300.00"
+        assert barbers["is_thin"] is False
+
+    def test_says_so_when_there_are_too_few_shops(self, client):
+        make_service(make_profile(), price=20000)
+
+        body = client.get(f"{PROVIDERS}prices/").data
+        barbers = next(b for b in body["bands"] if b["service_type"] == "barbershop")
+
+        # One shop's price is not a median; presenting it as one is how a
+        # customer ends up surprised.
+        assert barbers["is_thin"] is True
+
+    def test_ignores_a_placeholder_price(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), price=price)
+        make_service(make_profile(), price=1)
+
+        body = client.get(f"{PROVIDERS}prices/").data
+        barbers = next(b for b in body["bands"] if b["service_type"] == "barbershop")
+
+        assert barbers["median"] == 30000
+        assert barbers["sample_size"] == 3
+
+    def test_leaves_out_shop_types_nobody_offers(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), price=price)
+
+        offered = {band["service_type"] for band in client.get(f"{PROVIDERS}prices/").data["bands"]}
+
+        assert "spa" not in offered
+
+    def test_can_be_limited_to_one_shop_type(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), price=price)
+
+        body = client.get(f"{PROVIDERS}prices/?service_type=barbershop").data
+
+        assert [band["service_type"] for band in body["bands"]] == ["barbershop"]
+
+
+class TestServicePriceIndex:
+    def test_indexes_names_several_shops_use(self, client):
+        for price in (20000, 30000, 40000):
+            make_service(make_profile(), name="Haircut", price=price)
+
+        body = client.get(f"{PROVIDERS}prices/services/").data
+
+        assert body["services"][0]["name"] == "Haircut"
+        assert body["services"][0]["median_display"] == "₹300.00"
+
+    def test_ignores_a_name_one_shop_uses(self, client):
+        make_service(make_profile(), name="Scalp massage ritual", price=90000)
+
+        assert client.get(f"{PROVIDERS}prices/services/").data["services"] == []
+
+    def test_caps_a_silly_limit(self, client):
+        response = client.get(f"{PROVIDERS}prices/services/?limit=99999")
+
+        assert response.status_code == 200

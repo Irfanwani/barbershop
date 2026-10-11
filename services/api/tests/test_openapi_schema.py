@@ -53,6 +53,8 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/providers/me/",
     "/api/v1/providers/me/services/",
     "/api/v1/providers/me/services/{id}/",
+    "/api/v1/providers/prices/",
+    "/api/v1/providers/prices/services/",
     "/api/v1/providers/me/payout/",
     "/api/v1/providers/me/hours/",
     "/api/v1/providers/me/accepting-bookings/",

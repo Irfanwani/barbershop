@@ -10,8 +10,10 @@ from providers.views import (
     MyServiceDetailView,
     MyServiceView,
     MyWorkingHoursView,
+    PriceInsightView,
     ProviderDetailView,
     ProviderListView,
+    ServicePriceIndexView,
     ServiceTypeListView,
 )
 
@@ -20,6 +22,8 @@ app_name = "providers"
 urlpatterns = [
     path("", ProviderListView.as_view(), name="list"),
     path("types/", ServiceTypeListView.as_view(), name="types"),
+    path("prices/", PriceInsightView.as_view(), name="prices"),
+    path("prices/services/", ServicePriceIndexView.as_view(), name="service-prices"),
     path("me/", MyProviderView.as_view(), name="me"),
     path("me/services/", MyServiceView.as_view(), name="my-services"),
     path("me/services/<int:pk>/", MyServiceDetailView.as_view(), name="my-service-detail"),

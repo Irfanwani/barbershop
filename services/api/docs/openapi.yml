@@ -2316,6 +2316,46 @@ paths:
                       type: string
                       example: Barber shop
           description: The provider categories
+  /api/v1/providers/prices/:
+    get:
+      operationId: providers_price_insights
+      description: Aggregated prices for each shop type. Prices outside a plausible
+        band are excluded, and a band built from fewer than three shops is marked
+        `is_thin` so the app can say so rather than presenting a coin flip as a median.
+      summary: What shops around here charge
+      parameters:
+      - in: query
+        name: service_type
+        schema:
+          type: string
+        description: Limit to one shop type.
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/providers/prices/services/:
+    get:
+      operationId: providers_service_prices
+      description: Median price per service name, for names several shops actually
+        offer.
+      summary: What a service usually costs
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/providers/me/:
     get:
       operationId: providers_me_retrieve
