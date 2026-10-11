@@ -179,3 +179,35 @@ def timezone_now():
 
 def now_timestamp() -> int:
     return int(time.time())
+
+
+def create_payout(
+    *, account_id: str, amount: int, reference: str, notes: dict | None = None
+) -> dict:
+    """Send money to a provider's bank account.
+
+    A Razorpay transfer needs an absolute amount in paise, so a provider cannot
+    be paid out in anything else.
+    """
+    response = requests.post(
+        f"{RAZORPAY_API}/payouts",
+        auth=_auth(),
+        json={
+            "account_number": account_id,
+            "amount": amount,
+            "currency": "INR",
+            "mode": "IMPS",
+            "purpose": "settlement",
+            "reference_id": reference,
+            "notes": notes or {},
+        },
+        timeout=TIMEOUT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_payout(payout_id: str) -> dict:
+    response = requests.get(f"{RAZORPAY_API}/payouts/{payout_id}", auth=_auth(), timeout=TIMEOUT)
+    response.raise_for_status()
+    return response.json()

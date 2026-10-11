@@ -209,7 +209,7 @@ accumulate and leave the payment captured while money is still owed.
 
 ## P1.4 Provider payout ledger and withdrawal
 
-**Status:** todo
+**Status:** done (backend); app screen outstanding
 
 The most serious gap in the whole codebase. A provider can save bank details
 and they are registered with Razorpay, and then... there is no balance, no
@@ -222,9 +222,28 @@ marketplace cannot get paid through the product at all.
 - Withdrawal request + history in the provider app
 - Refunds and chargebacks debit the ledger
 
-**Acceptance:** a completed booking credits the provider; a withdrawal request
-moves the balance and creates a payout record; the balance is always the sum
-of the ledger.
+**Done.** `LedgerEntry`, append-only and immutable, with the balance derived
+from it rather than stored. `GET /providers/me/balance/`,
+`GET /providers/me/ledger/`, `POST /providers/me/withdraw/`.
+
+A completed booking credits two lines — the price and the platform's share
+negatively — so a shop asking "why is this 19,800 not 20,000" has a row that
+answers it. A cancellation or a no-show credits nothing; earnings are credited
+on completion because a booking can still be refunded.
+
+A withdrawal may never exceed the *cleared* balance: pending earnings are not
+payable because the appointment has not happened yet. An unverified bank
+account is refused whatever the balance. A gateway outage still moves the
+balance, because the money has left ours either way and leaving it would let a
+provider withdraw the same money twice.
+
+**Thirty-one tests.** Writing them found three bugs in the first
+implementation: the earning line recorded the fee amount so the two cancelled to
+zero; a failed transfer added a positive line that doubled the balance; and the
+payout entry was keyed by the gateway's transfer id rather than ours, so the
+settlement callback could never find it.
+
+**Still to do:** the app has no balance or payout screen.
 
 ---
 

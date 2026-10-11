@@ -4214,6 +4214,286 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/balance/:
+    get:
+      operationId: providers_balance
+      description: What you have earned and what has been paid out. Derived from an
+        append-only ledger, so every figure can be explained line by line.
+      summary: Your balance
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/ledger/:
+    get:
+      operationId: providers_ledger
+      description: Append-only. Entries are never edited or deleted.
+      summary: Your earnings, line by line
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/withdraw/:
+    post:
+      operationId: providers_withdraw
+      description: Requests a transfer to your registered bank account. The balance
+        drops immediately because the money has left ours either way; it is settled
+        when the bank confirms.
+      summary: Withdraw your balance
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WithdrawalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WithdrawalRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/providers/{id}/:
     get:
       operationId: providers_retrieve
@@ -9338,6 +9618,19 @@ components:
         * `4` - Friday
         * `5` - Saturday
         * `6` - Sunday
+    WithdrawalRequest:
+      type: object
+      description: |-
+        Ask for money to go to the bank.
+
+        Amount is optional and defaults to everything cleared, which is what
+        providers want 95% of the time.
+      properties:
+        amount:
+          type: integer
+          minimum: 1
+          description: Defaults to everything cleared. Pending earnings cannot be
+            paid early.
     WorkingHours:
       type: object
       description: One weekday of opening hours.

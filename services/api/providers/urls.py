@@ -2,6 +2,11 @@
 
 from django.urls import path
 
+from providers.payout_views import (
+    ProviderBalanceView,
+    ProviderLedgerView,
+    WithdrawalView,
+)
 from providers.views import (
     AvailabilityView,
     BookingToggleView,
@@ -32,6 +37,9 @@ urlpatterns = [
     path("me/hours/", MyWorkingHoursView.as_view(), name="my-hours"),
     path("suggest/", ServiceSuggestionView.as_view(), name="suggest"),
     path("me/accepting-bookings/", BookingToggleView.as_view(), name="my-accepting-bookings"),
+    path("me/balance/", ProviderBalanceView.as_view(), name="my-balance"),
+    path("me/ledger/", ProviderLedgerView.as_view(), name="my-ledger"),
+    path("me/withdraw/", WithdrawalView.as_view(), name="my-withdraw"),
     path("<int:pk>/", ProviderDetailView.as_view(), name="detail"),
     path("<int:pk>/availability/", AvailabilityView.as_view(), name="availability"),
 ]

@@ -405,6 +405,18 @@ class BookingStatusView(APIView):
         booking.status = next(iter(outcomes))
         booking.save(update_fields=["status", "completed_at", "updated_at"])
 
+        if action == "complete":
+            # The appointment happened, so the shop has earned its share. Credited
+            # on completion rather than on booking because a booking can still be
+            # cancelled or turn into a no-show.
+            from payments.ledger import credit_earning
+
+            credit_earning(
+                booking.provider,
+                gross=booking.subtotal,
+                booking_reference=booking.reference,
+            )
+
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 

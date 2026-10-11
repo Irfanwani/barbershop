@@ -27,6 +27,70 @@ class PaymentStatus(models.TextChoices):
     REFUNDED = "refunded", "Refunded"
 
 
+class LedgerEntry(TimeStampedModel):
+    """One line in a provider's financial history.
+
+    Append-only and immutable. The balance a provider sees is the sum of these,
+    never a stored figure, so it cannot drift from what happened and it can
+    always be explained line by line. A correction is a new, opposite entry.
+
+    Sign convention: **positive means the provider is owed money.** A payout is
+    negative, because so is everything else that leaves their balance.
+    """
+
+    class Status(models.TextChoices):
+        #: Earned, but the booking has not finished, so it could still be
+        #: refunded or turn into a no-show.
+        PENDING = "pending", "Pending"
+        #: Earned and no longer at risk.
+        CLEARED = "cleared", "Cleared"
+        #: Sent to the provider's bank.
+        PAID_OUT = "paid_out", "Paid out"
+        #: A withdrawal that was requested and never happened. The row is kept
+        #: — it is the record that the request was made and why it failed — but
+        #: it is excluded from every balance. Deleting it would leave no trace
+        #: that we asked a bank to pay out at all.
+        VOIDED = "voided", "Voided"
+
+    provider = models.ForeignKey(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="ledger"
+    )
+
+    kind = models.CharField(max_length=32)
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.CLEARED, db_index=True
+    )
+
+    amount = models.IntegerField(help_text="Positive is owed to the provider.")
+    currency = models.CharField(max_length=3, default=CURRENCY)
+
+    #: A booking reference, a payout id, or anything else this line refers to.
+    reference = models.CharField(max_length=64, blank=True, default="")
+    description = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        db_table = "payments_ledger_entry"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["provider", "-created_at"]),
+            models.Index(fields=["provider", "status"]),
+            models.Index(fields=["reference"]),
+        ]
+        constraints = [
+            # A zero line explains nothing and only adds noise to a statement.
+            models.CheckConstraint(
+                condition=~models.Q(amount=0), name="payments_ledger_amount_nonzero"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider.display_name} {self.kind} {format_minor(self.amount)}"
+
+    @property
+    def amount_display(self) -> str:
+        return format_minor(self.amount, self.currency)
+
+
 class Payment(TimeStampedModel):
     """One charge against a booking.
 
