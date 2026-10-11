@@ -27,3 +27,4 @@ What was decided, in the present tense.
 ## Consequences
 What this makes easy. What it makes hard. What we give up.
 ```
+| [0006](./0006-vite-and-react-for-the-marketing-site.md) | Vite and React for the marketing site | Accepted |

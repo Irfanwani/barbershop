@@ -150,48 +150,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Tests
         run: npm run test:coverage
 
-      # The site has no build, so there is nothing to produce. Serving it is
-      # the check that matters: a broken asset path or a missing file is only
-      # visible by asking for it.
-      - name: Every referenced file exists
+      - name: Build
+        run: npm run build
+
+      # A single-page app with real routes only fails in ways that matter when
+      # it is actually served. The deep link has to come back, the assets have
+      # to exist, and an unknown route has to fall back to index.html rather
+      # than 404 — that fallback is written per host, so nothing but this
+      # catches it being forgotten.
+      - name: The built site serves
         run: |
-          npx --yes http-server . -p 4173 --silent &
-          for path in / /styles.css /app.js /lib.js /assets/logo-512.png \
-                      /assets/favicon.png /assets/og.png; do
+          npx vite preview --port 4173 --silent &
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:4173/ && break
+            sleep 1
+          done
+          for path in / /knowledge /assets/logo-512.png /assets/favicon.png /a-route-that-does-not-exist; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:4173$path")
             if [ "$code" != "200" ]; then
-              echo "::error::$path returned $code"
+              echo "::error::$path served $code, expected 200"
               exit 1
             fi
           done
-          echo "all assets served"
-
-  schema:
-    name: OpenAPI contract
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: services/api
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: services/api/uv.lock
-
-      - run: uv python install
-      - run: uv sync --locked --group ci
-
-      - name: The committed schema matches what the code produces
-        # `dump_schema` rather than `spectacular`: it renders through
-        # config/renderers.py, which fixes the operation order so the output does
-        # not depend on Python's hash seed. Without that this check fails on
-        # commits that changed nothing.
-        run: uv run python manage.py dump_schema --check

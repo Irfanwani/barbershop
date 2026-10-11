@@ -1,60 +1,63 @@
-# The marketing site
+# Marketing site
 
-Static HTML, CSS and JavaScript. No framework, no build step, no bundler.
-
-That is a deliberate constraint rather than an accident of a small page. The
-site deploys to anything that serves files, cannot rot because a dependency had
-a major release, and the files a browser downloads are the files in this
-directory.
-
-## Running it
+The public site and the product knowledge base. Vite + React + TypeScript.
 
 ```bash
-npm install          # only needed for the tests
-npm start            # serves on :4173
-```
-
-Open <http://localhost:4173>. The page reads the live API; start the backend
-first (`make dev-api` from the repository root) or the price and shop lists
-will say so rather than appearing empty.
-
-To point the page at a backend on another host, set `window.BARBERSHOP_API_URL`
-before `app.js` loads. With no override it uses `/api/v1` on the same origin,
-except on `localhost`, where it uses `http://localhost:8000/api/v1`.
-
-## Tests
-
-```bash
+npm ci
+npm run dev        # http://localhost:5173
 npm test
-npm run test:coverage
+npm run build      # typechecks, then builds to dist/
+npm run preview    # serves dist/ on :4173
 ```
 
-Jest runs the same ES modules the browser runs. Nothing is transpiled —
-`transform: {}` in `jest.config.js` hands the source to Node untouched — so a
-file that works in a test works in a browser.
-
-The DOM tests run against the real `index.html` rather than a hand-built fake.
-A stub DOM drifts from the page until the tests pass and the page is broken;
-the real markup cannot.
-
-## Layout
-
-| File         | What it is                                                    |
-| ------------ | ------------------------------------------------------------- |
-| `index.html` | The page. Also the fixture the DOM tests run against.          |
-| `styles.css` | All of it. Dark mode via `prefers-color-scheme`.               |
-| `lib.js`     | Pure functions: formatting, escaping, rendering. No fetch.     |
-| `app.js`     | The wiring: fetch, listeners, and the wiring between them.     |
-
-Splitting `lib.js` out is what makes the interesting half testable. Every
-number the site shows is formatted or rendered in one place, and none of it
-touches the network.
+The dev server proxies nothing. In development the site talks to
+`http://localhost:8000/api/v1` and to `/api/v1` everywhere else; see
+`API_BASE` in `src/lib/api.ts`. Override it at runtime with
+`window.BARBERSHOP_API_URL` if you need to point at something else.
 
 ## Deploying
 
-Serve the directory. `dist/` is not needed.
+`npm run build` writes `dist/`. `base` is `./`, so `dist/` can be served from
+a domain root, a subpath, or a CDN without rebuilding.
 
-The only requirement is that `/api/v1` either resolves on the same origin or is
-set through `window.BARBERSHOP_API_URL` before `app.js` loads. If the API is
-unreachable the page still renders — it says the prices and shops are not
-loading, rather than showing an empty grid or an error box.
+**The server must fall back to `index.html` for unknown paths.** The site is a
+single-page app with real routes, so `/knowledge` is not a file — it is the
+same `index.html` served for every path. `vite preview` does this for you; a
+production host does not, unless you tell it to.
+
+```nginx
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+```apache
+FallbackResource /index.html
+```
+
+For S3 or any static host, set the error document to `index.html` and keep the
+error status a 200.
+
+Without that rule every deep link and every refresh of `/knowledge` is a 404.
+The CI job checks the built output over HTTP precisely because nothing else
+catches it.
+
+## Testing
+
+45 tests over Vitest and Testing Library. They check the things that actually
+break a site: that the page renders when the API is down, that a missing price
+renders `—` and not `₹0.00`, that a thin price sample is not labelled
+"typical", and that the knowledge base has no duplicate anchors.
+
+The knowledge base content is data (`src/content/knowledge.ts`), and its
+structure is asserted rather than assumed — every entry needs an id for
+anchors to link, and any answer describing something unshipped has to say so.
+
+## Adding to the knowledge base
+
+Add an entry to `src/content/knowledge.ts`. Give it an `id` (it becomes the
+anchor), a question phrased the way someone would ask it, and an answer that
+says what happens rather than what the feature is called. `keywords` exist so
+searching "money back" finds "How do refunds work?".
+
+Coverage thresholds are set in `vitest.config.ts`.

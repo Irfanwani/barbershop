@@ -22,7 +22,7 @@ This repository is a **monorepo** containing every part of the product:
 barbershop/
 ├── apps/
 │   ├── mobile/        React Native app (Expo SDK 54) — customers *and* providers
-│   └── web/           The marketing site — static HTML, no build step
+│   └── web/           The marketing site and knowledge base — Vite + React
 ├── services/
 │   └── api/           Django + DRF REST API
 ├── docs/              Architecture notes, ADRs, development and migration guides
@@ -41,7 +41,7 @@ role at sign-up and the navigation, dashboard and data all reshape around it.
 | Path               | What it is                                                    | Stack                                    |
 | ------------------ | ------------------------------------------------------------- | ---------------------------------------- |
 | `apps/mobile`      | The mobile app for customers and service providers            | Expo SDK 54 · RN 0.81 · expo-router · TS |
-| `apps/web`         | The public marketing site                                     | Static HTML · CSS · ES modules · no build |
+| `apps/web`         | The public marketing site and knowledge base                   | Vite · React · TypeScript · Vitest |
 | `services/api`     | REST API, business logic, geospatial barber search, payments  | Django 5.2 · DRF · PostGIS · PostgreSQL  |
 | `docs`             | Architecture decisions, API usage, development and migration   | Markdown                                 |
 
@@ -69,7 +69,7 @@ PostgreSQL · Razorpay · Gunicorn · WhiteNoise · drf-spectacular
 **Mobile** — Expo SDK 54 · React Native 0.81 · expo-router · TypeScript ·
 TanStack Query · Zustand · NativeWind · expo-secure-store
 
-**Website** — static HTML and CSS, native ES modules, no framework and no build
+**Website** — Vite and React, with a searchable knowledge base covering the whole product
 step. Deployable to anything that serves files.
 
 ## Quality gates

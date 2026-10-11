@@ -640,3 +640,21 @@ absence of observability to hurt.
 - **Multi-location.** Real, and genuinely a large piece of work, but every shop
   today has exactly one profile and none have asked. Revisit when one does.
 - **Native POS hardware integration.** Razorpay handles the card side.
+
+## Knowledge base page
+
+**Status:** done
+
+A searchable documentation page at `/knowledge`, covering the whole product for
+both audiences: booking and paying, deposits and the balance, cancellation and
+refund policy, products, and — for providers — working hours, taking payments,
+earnings, the 1% fee and withdrawals.
+
+Written as data rather than markup, and asserted rather than assumed: every
+entry has an id so anchors link, ids are unique, and an answer describing
+something unshipped has to say so. That last check exists because a
+knowledge base that documents the roadmap in the present tense is worse than
+having none. Rescheduling is the one thing it has to decline.
+
+Search matches on what people type rather than what the docs say — "money
+back" finds "How do refunds work?", "did not turn up" finds the no-show fee.

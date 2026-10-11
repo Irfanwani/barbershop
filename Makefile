@@ -30,7 +30,7 @@ setup-api: ## Install backend dependencies (uv sync)
 setup-app: ## Install app dependencies
 	@cd $(APP_DIR) && npm install
 
-setup-web: ## Install website dependencies (tests only; the site has no build)
+setup-web: ## Install website dependencies
 	@cd $(WEB_DIR) && npm install
 
 # --- development ------------------------------------------------------------
