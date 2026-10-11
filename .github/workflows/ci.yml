@@ -130,6 +130,45 @@ jobs:
       - name: Bundle
         run: npx expo export --platform all --output-dir dist
 
+  web:
+    name: Marketing site
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Tests
+        run: npm run test:coverage
+
+      # The site has no build, so there is nothing to produce. Serving it is
+      # the check that matters: a broken asset path or a missing file is only
+      # visible by asking for it.
+      - name: Every referenced file exists
+        run: |
+          npx --yes http-server . -p 4173 --silent &
+          for path in / /styles.css /app.js /lib.js /assets/logo-512.png \
+                      /assets/favicon.png /assets/og.png; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:4173$path")
+            if [ "$code" != "200" ]; then
+              echo "::error::$path returned $code"
+              exit 1
+            fi
+          done
+          echo "all assets served"
+
   schema:
     name: OpenAPI contract
     runs-on: ubuntu-latest

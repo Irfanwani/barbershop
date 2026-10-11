@@ -10,6 +10,7 @@ SHELL := /bin/bash
 
 API_DIR := services/api
 APP_DIR := apps/mobile
+WEB_DIR := apps/web
 
 help: ## Show this help
 	@echo ""
@@ -29,6 +30,9 @@ setup-api: ## Install backend dependencies (uv sync)
 setup-app: ## Install app dependencies
 	@cd $(APP_DIR) && npm install
 
+setup-web: ## Install website dependencies (tests only; the site has no build)
+	@cd $(WEB_DIR) && npm install
+
 # --- development ------------------------------------------------------------
 
 dev-api: ## Run the API with autoreload on :8000
@@ -36,6 +40,9 @@ dev-api: ## Run the API with autoreload on :8000
 
 dev-app: ## Start the Expo dev server
 	@cd $(APP_DIR) && npm start
+
+dev-web: ## Serve the marketing site on :4173
+	@cd $(WEB_DIR) && npm start
 
 api-shell: ## Open a Python shell with the Django context loaded
 	@cd $(API_DIR) && uv run python manage.py shell
@@ -64,6 +71,9 @@ test: test-api test-app ## Run every test suite
 
 test-api: ## Run the backend test suite
 	@cd $(API_DIR) && uv run pytest
+
+test-web: ## Run the website test suite
+	@cd $(WEB_DIR) && npm test
 
 test-app: ## Run the app test suite
 	@cd $(APP_DIR) && npm test
