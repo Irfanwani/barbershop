@@ -174,6 +174,22 @@ export interface ProviderSelf {
   updated_at: string;
 }
 
+/**
+ * One weekday of a provider's opening hours.
+ *
+ * `weekday` follows Django's convention: 0 is Monday, 6 is Sunday. Using
+ * Sunday as 0 would silently shift every day by one, which is the kind of bug
+ * that shows up as "closed on the wrong day" and takes a week to trace.
+ */
+export interface WorkingHours {
+  id: number;
+  weekday: number;
+  weekday_label: string;
+  is_closed: boolean;
+  opens_at: string;
+  closes_at: string;
+}
+
 export interface BookingItem {
   id: number;
   service: number | null;

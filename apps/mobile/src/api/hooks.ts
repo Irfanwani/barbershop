@@ -150,6 +150,44 @@ export function useCreateShop() {
   });
 }
 
+export function useMyHours() {
+  return useQuery({
+    queryKey: keys.hours,
+    queryFn: providersApi.hours,
+    // The hours are the source of truth for whether anything is bookable, so a
+    // stale copy means a provider sets Sunday's hours against last week's.
+    staleTime: 0,
+  });
+}
+
+export function useSaveHours() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: providersApi.saveHours,
+    onSuccess: (days) => {
+      client.setQueryData(keys.hours, days);
+      // Opening hours decide which slots exist, so the calendar and the shop's
+      // own summary are both now wrong.
+      void client.invalidateQueries({ queryKey: ['providers'] });
+      void client.invalidateQueries({ queryKey: ['providers', 'detail'] });
+    },
+  });
+}
+
+export function useSetAcceptingBookings() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: providersApi.setAcceptingBookings,
+    onSuccess: (shop: ProviderSelf) => {
+      client.setQueryData(keys.shop, shop);
+      // A shop that just closed must disappear from the browse list.
+      void client.invalidateQueries({ queryKey: ['providers'] });
+      void client.invalidateQueries({ queryKey: ['providers', 'detail'] });
+      void client.invalidateQueries({ queryKey: keys.me });
+    },
+  });
+}
+
 export function useMyServices() {
   return useQuery({ queryKey: keys.services, queryFn: providersApi.myServices });
 }

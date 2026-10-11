@@ -282,6 +282,45 @@ describe('provider endpoints', () => {
     expect(pathOf(last())).toContain('/providers/me/');
   });
 
+  it('reads your own opening hours', async () => {
+    await providersApi.hours();
+
+    expect(pathOf(last())).toContain('/providers/me/hours/');
+  });
+
+  it('sends the whole week in one request', async () => {
+    await providersApi.saveHours([
+      { weekday: 0, is_closed: false, opens_at: '09:00', closes_at: '18:00' },
+      { weekday: 6, is_closed: true, opens_at: '09:00', closes_at: '18:00' },
+    ]);
+
+    expect(last().method).toBe('PUT');
+    expect(pathOf(last())).toContain('/providers/me/hours/');
+    // One PUT for the week, not seven PATCHes: a provider setting hours wants to
+    // set hours, not to fire seven requests and watch for partial failure.
+    expect(last().body).toEqual({
+      days: [
+        { weekday: 0, is_closed: false, opens_at: '09:00', closes_at: '18:00' },
+        { weekday: 6, is_closed: true, opens_at: '09:00', closes_at: '18:00' },
+      ],
+    });
+  });
+
+  it('turns bookings off through its own endpoint', async () => {
+    await providersApi.setAcceptingBookings(false);
+
+    // Not a field inside updateShop: this is the one setting whose failure
+    // means a provider quietly disappears from search.
+    expect(pathOf(last())).toContain('/providers/me/accepting-bookings/');
+    expect(last().body).toEqual({ is_accepting_bookings: false });
+  });
+
+  it('turns bookings back on', async () => {
+    await providersApi.setAcceptingBookings(true);
+
+    expect(last().body).toEqual({ is_accepting_bookings: true });
+  });
+
   it('paginates the shop list', async () => {
     await providersApi.search({ page: 3, page_size: 10 });
 

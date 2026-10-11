@@ -24,6 +24,7 @@ const palette = {
     accentText: '#FFFFFF',
     danger: '#DC2626',
     success: '#059669',
+    warning: '#B45309',
   },
   dark: {
     background: '#0F172A',
@@ -37,6 +38,7 @@ const palette = {
     accentText: '#0F172A',
     danger: '#F87171',
     success: '#34D399',
+    warning: '#FBBF24',
   },
 };
 

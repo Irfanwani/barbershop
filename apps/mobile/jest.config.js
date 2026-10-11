@@ -35,6 +35,7 @@ module.exports = {
     'src/api/endpoints.ts',
     'src/lib/cn.ts',
     'src/lib/secure-store.ts',
+    'src/lib/weekdays.ts',
     'src/store/**/*.ts',
   ],
   coverageThreshold: {

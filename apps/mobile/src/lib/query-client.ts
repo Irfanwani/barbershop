@@ -40,6 +40,7 @@ export const keys = {
   customerProfile: ['me', 'customer-profile'] as const,
   shop: ['providers', 'me'] as const,
   services: ['providers', 'me', 'services'] as const,
+  hours: ['providers', 'me', 'hours'] as const,
   payout: ['providers', 'me', 'payout'] as const,
   serviceTypes: ['providers', 'types'] as const,
   providers: (params?: unknown) => ['providers', 'list', params ?? {}] as const,

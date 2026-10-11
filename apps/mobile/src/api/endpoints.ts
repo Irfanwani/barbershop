@@ -24,6 +24,7 @@ import type {
   Service,
   ServiceTypeOption,
   User,
+  WorkingHours,
 } from '@/types/api';
 
 export const authApi = {
@@ -191,6 +192,27 @@ export const providersApi = {
     api.patch<Service>(`/providers/me/services/${id}/`, body),
 
   deleteService: (id: number) => api.delete(`/providers/me/services/${id}/`),
+
+  hours: () => api.get<WorkingHours[]>('/providers/me/hours/'),
+
+  saveHours: (days: {
+    weekday: number;
+    is_closed: boolean;
+    opens_at: string;
+    closes_at: string;
+  }[]) => api.put<WorkingHours[]>('/providers/me/hours/', { days }),
+
+  /**
+   * The switch that decides whether a shop can be booked at all.
+   *
+   * Separate from `updateShop` because turning this off is the single most
+   * consequential thing a provider does from the app, and it deserves its own
+   * explicit call rather than a field inside a big settings patch.
+   */
+  setAcceptingBookings: (isAcceptingBookings: boolean) =>
+    api.post<ProviderSelf>('/providers/me/accepting-bookings/', {
+      is_accepting_bookings: isAcceptingBookings,
+    }),
 
   myPayout: () => api.get<Payout>('/providers/me/payout/'),
 
