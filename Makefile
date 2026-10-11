@@ -22,7 +22,7 @@ help: ## Show this help
 
 # --- setup ------------------------------------------------------------------
 
-setup: setup-api setup-app ## Install dependencies for every service
+setup: setup-api setup-app setup-web ## Install dependencies for every service
 
 setup-api: ## Install backend dependencies (uv sync)
 	@cd $(API_DIR) && uv sync --all-extras
@@ -67,7 +67,7 @@ api-schema-check: ## Fail if the committed OpenAPI schema is stale
 
 # --- quality ----------------------------------------------------------------
 
-test: test-api test-app ## Run every test suite
+test: test-api test-app test-web ## Run every test suite
 
 test-api: ## Run the backend test suite
 	@cd $(API_DIR) && uv run pytest
@@ -78,7 +78,7 @@ test-web: ## Run the website test suite
 test-app: ## Run the app test suite
 	@cd $(APP_DIR) && npm test
 
-lint: lint-api lint-app ## Lint every service
+lint: lint-api lint-app ## Lint the backend and the app
 
 lint-api: ## Lint the backend with ruff
 	@cd $(API_DIR) && uv run ruff check . && uv run ruff format --check .
