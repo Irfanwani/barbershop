@@ -28,7 +28,7 @@ from core import references
 from core.models import TimeStampedModel
 from core.money import CURRENCY, format_minor
 from payments.choices import PaymentKind
-from providers.models import ProviderProfile, Service
+from providers.models import ProviderProfile, Service, Staff
 
 REFERENCE_PREFIX = references.BOOKING
 
@@ -103,6 +103,19 @@ class Booking(TimeStampedModel):
         limit_choices_to={"role": "customer"},
     )
     provider = models.ForeignKey(ProviderProfile, on_delete=models.CASCADE, related_name="bookings")
+
+    #: Which person does this booking, when the shop has named its staff.
+    #: Nullable because a shop with no staff rows can still take bookings, and
+    #: because PROTECT is the wrong instinct for history: a booking made six
+    #: months ago must keep naming the person who did it. Staff are
+    #: deactivated, never deleted, so this FK is never cascaded.
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.PROTECT,
+        related_name="bookings",
+        null=True,
+        blank=True,
+    )
 
     starts_at = models.DateTimeField(db_index=True)
     ends_at = models.DateTimeField()
@@ -328,6 +341,7 @@ def has_room(
     ends_at: datetime,
     *,
     exclude_booking: int | None = None,
+    staff: Staff | None = None,
 ) -> bool:
     """Whether the provider can take one more booking over this interval.
 
@@ -335,6 +349,9 @@ def has_room(
     bookings, so "does this overlap anything?" is not the question. Half-open
     intervals, so a booking ending exactly when the next begins is not a
     conflict — which is what a customer expects when booking back-to-back.
+
+    Naming a staff member adds a second, stricter question. The shop having a
+    free chair is not enough if it is *their* chair they would be sitting in.
     """
     overlapping = Booking.objects.filter(
         provider=provider,
@@ -344,7 +361,19 @@ def has_room(
     )
     if exclude_booking:
         overlapping = overlapping.exclude(pk=exclude_booking)
-    return overlapping.count() < max(provider.employee_count, 1)
+    if overlapping.count() >= provider.headcount():
+        return False
+
+    if staff is None:
+        return True
+
+    return not Booking.objects.filter(
+        provider=provider,
+        staff=staff,
+        status__in=BLOCKING_STATUSES,
+        starts_at__lt=ends_at,
+        ends_at__gt=starts_at,
+    ).exists()
 
 
 def is_slot_available(
@@ -387,7 +416,7 @@ def provider_has_capacity(
         starts_at__lt=ends_at,
         ends_at__gt=starts_at,
     ).count()
-    return overlapping < max(provider.employee_count, 1)
+    return overlapping < provider.headcount()
 
 
 def slot_grid(provider: ProviderProfile, days: int = 14) -> list[tuple[datetime, datetime]]:
@@ -442,7 +471,7 @@ def next_free_slot(
     Pass ``busy`` when you already have the taken intervals — a caller working
     through several providers should fetch them once and reuse.
     """
-    capacity = max(provider.employee_count, 1)
+    capacity = provider.headcount()
     taken = busy_intervals(provider, days=days) if busy is None else busy
 
     for starts_at, ends_at in slot_grid(provider, days=days):

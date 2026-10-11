@@ -12,12 +12,14 @@ from datetime import time
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -30,7 +32,7 @@ from providers.hours_serializers import (
     WorkingHoursSerializer,
     WorkingHoursWriteSerializer,
 )
-from providers.models import ProviderProfile, Service, WorkingHours
+from providers.models import ProviderProfile, Service, Staff, WorkingHours
 from providers.pricing import MIN_SAMPLE_FOR_CONFIDENCE
 from providers.queries import starting_price_subquery
 from providers.serializers import (
@@ -40,6 +42,8 @@ from providers.serializers import (
     ProviderSelfSerializer,
     ProviderWriteSerializer,
     ServiceSerializer,
+    StaffSerializer,
+    StaffWriteSerializer,
     annotate_next_free_slots,
     service_type_choices,
 )
@@ -153,6 +157,25 @@ class ProviderListView(APIView):
                 service_count=Count("services", filter=Q(services__is_active=True), distinct=True)
             )
             .annotate(_starting_price_annotated=starting_price_subquery())
+            # Subquery rather than a Count join: a second aggregate over the
+            # same rows would multiply them and break pagination. One extra
+            # column beats one COUNT per provider.
+            #
+            # Coalesced to 0 because a subquery with no matching rows returns
+            # NULL, not 0 — and `headcount()` cannot tell "not annotated" from
+            # "annotated as null", so it would fall back to a COUNT per row and
+            # put back the N+1 this was meant to remove.
+            .annotate(
+                named_staff=Coalesce(
+                    Subquery(
+                        Staff.objects.filter(provider=OuterRef("pk"), is_active=True)
+                        .values("provider")
+                        .annotate(total=Count("id"))
+                        .values("total")[:1]
+                    ),
+                    Value(0),
+                )
+            )
         )
 
         radius_km = min(_m(request.query_params.get("radius_km")) or 25, 100)
@@ -825,3 +848,124 @@ class ServiceSuggestionView(APIView):
                 "candidates_considered": len(candidates),
             }
         )
+
+
+class StaffViewSet(viewsets.ModelViewSet):
+    """The people who work at a shop.
+
+    Readable by anyone — the booking screen needs it. Writable only by the
+    shop they belong to, which is checked against the row itself rather than
+    against a URL the client could have put someone else's id in.
+    """
+
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    # A shop has a handful of staff, not a directory of them. Paginating a
+    # list that fits on a screen also made the provider's endpoint and the
+    # public one return different shapes for the same data, which is a trap for
+    # the client rather than a feature.
+    pagination_class = None
+
+    WRITES = {"create", "update", "partial_update", "destroy"}
+
+    def get_permissions(self):
+        # Reads are public — a customer needs the staff list to book anyone.
+        # Writes are not, and a shop's own queryset already scopes them to
+        # the requesting user, so this is about *whose* staff, not *which*.
+        if getattr(self, "action", None) in self.WRITES:
+            return [IsAuthenticated(), IsProvider()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        return (
+            Staff.objects.filter(provider__user=self.request.user)
+            .prefetch_related("hours")
+            .order_by("name", "id")
+        )
+
+    @extend_schema(
+        operation_id="providers_my_staff_create",
+        summary="Add a staff member",
+        description=(
+            "Creates a person who works at your shop. They appear immediately on "
+            "your public staff list and in the customer's booking flow."
+        ),
+        request=StaffWriteSerializer,
+        responses={201: StaffSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_staff_update",
+        summary="Edit a staff member",
+        description=(
+            "Updates their name, bio, photo or hours. Sending `hours` replaces "
+            "the whole week, so include every day you want to keep."
+        ),
+        request=StaffWriteSerializer,
+        responses={200: StaffSerializer},
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_staff_retire",
+        summary="Remove a staff member",
+        description=(
+            "Removes them from your bookable list. Their past bookings keep "
+            "their name — a customer who was given a haircut by Ravi in March "
+            "should still see that in July."
+        ),
+        responses={204: None},
+    )
+    def destroy(self, request, *args, **kwargs):
+        staff = self.get_object()
+        # Never deleted: the bookings are the record, and PROTECT on the FK
+        # would turn "this person left" into a 500.
+        staff.is_active = False
+        staff.save(update_fields=["is_active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        operation_id="providers_my_staff_detail",
+        summary="One of your staff",
+        responses={200: StaffSerializer, 404: NOT_FOUND},
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(provider=ProviderProfile.objects.get(user=self.request.user))
+
+    @extend_schema(
+        operation_id="providers_my_staff_list",
+        summary="Your staff",
+        description=(
+            "Everyone who works at your shop, active or not. Inactive members are "
+            "kept so their past bookings still name them, and so your capacity "
+            "reflects the people actually in the chairs."
+        ),
+        responses={200: StaffSerializer(many=True)},
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_public_staff_list",
+        summary="A shop's staff",
+        description="The people a customer can book with. Inactive members are not returned.",
+        responses={200: StaffSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"], url_path="staff")
+    def public_staff(self, request, pk=None):
+        queryset = Staff.objects.filter(provider_id=pk, is_active=True).prefetch_related("hours")
+        return Response(StaffSerializer(queryset, many=True).data)
+
+    def get_serializer_class(self):
+        if self.action in {"create", "update", "partial_update"}:
+            return StaffWriteSerializer
+        return StaffSerializer
+
+
+staff = StaffViewSet.as_view({"get": "list"})

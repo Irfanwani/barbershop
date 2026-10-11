@@ -4494,6 +4494,183 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/staff/:
+    get:
+      operationId: providers_my_staff_list
+      description: Everyone who works at your shop, active or not. Inactive members
+        are kept so their past bookings still name them, and so your capacity reflects
+        the people actually in the chairs.
+      summary: Your staff
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Staff'
+          description: ''
+    post:
+      operationId: providers_my_staff_create
+      description: Creates a person who works at your shop. They appear immediately
+        on your public staff list and in the customer's booking flow.
+      summary: Add a staff member
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffWriteRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
+  /api/v1/providers/me/staff/{id}/:
+    get:
+      operationId: providers_my_staff_detail
+      description: |-
+        The people who work at a shop.
+
+        Readable by anyone — the booking screen needs it. Writable only by the
+        shop they belong to, which is checked against the row itself rather than
+        against a URL the client could have put someone else's id in.
+      summary: One of your staff
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+    patch:
+      operationId: providers_my_staff_update
+      description: Updates their name, bio, photo or hours. Sending `hours` replaces
+        the whole week, so include every day you want to keep.
+      summary: Edit a staff member
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffWriteRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Staff'
+          description: ''
+    delete:
+      operationId: providers_my_staff_retire
+      description: Removes them from your bookable list. Their past bookings keep
+        their name — a customer who was given a haircut by Ravi in March should still
+        see that in July.
+      summary: Remove a staff member
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/providers/{id}/:
     get:
       operationId: providers_retrieve
@@ -4825,6 +5002,44 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/{id}/staff/:
+    get:
+      operationId: providers_public_staff_list
+      description: The people a customer can book with. Inactive members are not returned.
+      summary: A shop's staff
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Staff'
+          description: ''
   /api/v1/bookings/:
     get:
       operationId: bookings_list
@@ -7825,6 +8040,10 @@ components:
           allOf:
           - $ref: '#/components/schemas/ProviderSummary'
           readOnly: true
+        staff:
+          allOf:
+          - $ref: '#/components/schemas/StaffSummary'
+          readOnly: true
         customer:
           type: object
           additionalProperties: {}
@@ -7962,6 +8181,7 @@ components:
       - provider
       - reference
       - requires_deposit
+      - staff
       - starts_at
       - status
       - subtotal
@@ -7982,6 +8202,9 @@ components:
       properties:
         provider:
           type: integer
+        staff:
+          type: integer
+          nullable: true
         services:
           type: array
           items:
@@ -8524,6 +8747,25 @@ components:
         is_active:
           type: boolean
           description: Retired services stay on old bookings but cannot be booked.
+    PatchedStaffWriteRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        bio:
+          type: string
+        photo:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffWorkingHoursRequest'
     PatchedUpdateProfileRequest:
       type: object
       properties:
@@ -9568,6 +9810,111 @@ components:
       - is_in_stock
       - product
       - quantity
+    Staff:
+      type: object
+      description: |-
+        A person at a shop.
+
+        Written for the booking screen, so it says whether this person is taking
+        bookings right now rather than making the client work it out.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        bio:
+          type: string
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+          readOnly: true
+        is_placeholder:
+          type: boolean
+          readOnly: true
+          description: Created from the old employee_count. Name it to clear the prompt.
+        is_open_today:
+          type: boolean
+          readOnly: true
+        hours:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+      required:
+      - hours
+      - id
+      - is_active
+      - is_open_today
+      - is_placeholder
+      - name
+    StaffSummary:
+      type: object
+      description: |-
+        Who is doing the job, on a booking.
+
+        Frozen with the rest of the booking. If the person later leaves the shop
+        their name stays on the appointment they worked.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        photo:
+          type: string
+          format: uri
+          nullable: true
+      required:
+      - id
+      - name
+    StaffWorkingHoursRequest:
+      type: object
+      properties:
+        weekday:
+          type: integer
+          maximum: 6
+          minimum: 0
+        is_closed:
+          type: boolean
+          default: false
+        opens_at:
+          type: string
+          format: time
+          default: 09:00:00
+        closes_at:
+          type: string
+          format: time
+          default: '20:00:00'
+      required:
+      - weekday
+    StaffWriteRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        bio:
+          type: string
+        photo:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
+        hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffWorkingHoursRequest'
+      required:
+      - name
     VerifyEmailRequest:
       type: object
       properties:

@@ -25,7 +25,7 @@ from bookings.models import (
 )
 from core.exceptions import BusinessRuleViolation
 from core.money import CURRENCY, compute_deposit, compute_platform_fee, format_minor
-from providers.models import ProviderProfile, Service
+from providers.models import ProviderProfile, Service, Staff
 from providers.serializers import ProviderSummarySerializer
 
 
@@ -57,10 +57,23 @@ class BookingItemSerializer(serializers.ModelSerializer):
         return format_minor(obj.unit_price)
 
 
+class StaffSummarySerializer(serializers.ModelSerializer):
+    """Who is doing the job, on a booking.
+
+    Frozen with the rest of the booking. If the person later leaves the shop
+    their name stays on the appointment they worked.
+    """
+
+    class Meta:
+        model = Staff
+        fields = ["id", "name", "photo"]
+
+
 @extend_schema_serializer(component_name="Booking")
 class BookingSerializer(serializers.ModelSerializer):
     items = BookingItemSerializer(many=True, read_only=True)
     provider = ProviderSummarySerializer(read_only=True)
+    staff = StaffSummarySerializer(read_only=True)
     customer = serializers.SerializerMethodField()
     total_display = serializers.CharField(read_only=True)
     subtotal_display = serializers.SerializerMethodField()
@@ -84,6 +97,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "id",
             "reference",
             "provider",
+            "staff",
             "customer",
             "status",
             "starts_at",
@@ -198,6 +212,9 @@ class BookingCreateSerializer(serializers.Serializer):
     """
 
     provider = serializers.IntegerField()
+    #: Optional. A shop that has not named its staff takes bookings with this
+    #: null, which is the same as it always was.
+    staff = serializers.IntegerField(required=False, allow_null=True)
     services = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     starts_at = serializers.DateTimeField()
     notes = serializers.CharField(required=False, allow_blank=True, max_length=500, default="")
@@ -253,10 +270,35 @@ class BookingCreateSerializer(serializers.Serializer):
 
         # Capacity, not bare overlap: a shop with four barbers can run four
         # simultaneous bookings.
-        if not has_room(provider, starts_at, ends_at):
+        staff = None
+        if attrs.get("staff") is not None:
+            # Scoped to this provider on purpose. "That staff member does not
+            # exist" and "that staff member is not ours" have to be the same
+            # answer, or the endpoint confirms which shops someone works for.
+            staff = Staff.objects.filter(
+                pk=attrs["staff"], provider=provider, is_active=True
+            ).first()
+            if staff is None:
+                raise BusinessRuleViolation("That staff member is not available at this shop.")
+
+            if not staff.is_open_on(starts_at.weekday()):
+                raise BusinessRuleViolation(f"{staff.name} does not work that day.")
+
+            bounds = staff.day_bounds(starts_at.weekday())
+            if bounds is None:
+                raise BusinessRuleViolation(f"{staff.name} is not working that day.")
+            opens_at, closes_at = bounds
+            local = timezone.localtime(starts_at)
+            if not (opens_at <= local.time() and local.time() < closes_at):
+                raise BusinessRuleViolation(
+                    f"{staff.name} works {opens_at:%H:%M} to {closes_at:%H:%M} on that day."
+                )
+
+        if not has_room(provider, starts_at, ends_at, staff=staff):
             raise BusinessRuleViolation("That slot is already taken. Pick another time.")
 
         attrs["provider_obj"] = provider
+        attrs["staff_obj"] = staff
         attrs["service_objs"] = services
         attrs["ends_at"] = ends_at
         return attrs
@@ -293,6 +335,7 @@ class BookingCreateSerializer(serializers.Serializer):
             booking = Booking.objects.create(
                 customer=self.context["request"].user,
                 provider=provider,
+                staff=self.validated_data.get("staff_obj"),
                 starts_at=starts_at,
                 ends_at=ends_at,
                 status=status,

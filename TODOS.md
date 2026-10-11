@@ -254,7 +254,7 @@ statement are a support ticket.
 
 ## P2.1 Individual staff members
 
-**Status:** todo
+**Status:** done (backend); app screens outstanding
 
 The single biggest structural gap. `employee_count` is an integer, so a shop
 with four barbers is "capacity 4" and no booking ever names a barber. Every
@@ -267,8 +267,48 @@ competitor handles this, and it is the first thing a customer asks for:
 - Availability becomes per-staff, and the shop's grid is the union
 - A shop's `employee_count` becomes derived from its staff rows
 
+**Done.** `Staff` with a name, bio, photo and their own weekly hours; capacity
+derived from the active rows; bookings name a person; per-weekday hours
+narrow their availability.
+
 **Acceptance:** two barbers can hold simultaneous bookings; the customer can
-choose between them; choosing one who is closed that day offers nothing
+choose between them; choosing one who is closed that day offers nothing —
+all three tested.
+
+**Deliberately not derived from `employee_count` any more.** Capacity is
+`Staff.objects.filter(is_active=True).count()`, falling back to the old integer
+only while a shop has named nobody. Two sources of truth for capacity is how
+three simultaneous bookings become four.
+
+**A data migration carries existing headcount over**, one placeholder row per
+unit of `employee_count`. Without it, a shop with four barbers drops to capacity
+one the moment it ships — a silent regression that no test would catch, because
+the tests build their own providers.
+
+**Retired, never deleted.** A booking made in March still names the person who
+did it in July. `DELETE` sets `is_active=False`; `PROTECT` on the FK makes a
+hard delete impossible by accident.
+
+Writing the tests found five bugs:
+
+- **A new staff member was created inactive.** A multipart form cannot express
+  an absent checkbox and DRF turns "absent" into `False`, so a provider posting
+  a plain form got someone who was silently unbookable. `is_active` is now
+  forced on create.
+- **The public staff list was gated behind `IsProvider`** — customers, the
+  people who need it, could not read it.
+- **A staff member with no hours of their own was treated as closed** whenever
+  the shop had set any, rather than following the shop.
+- **Capacity reintroduced an N+1.** One `COUNT` per provider on the search page,
+  which is the exact regression that once turned a 20-row page into 1,600
+  queries. It needed a `Coalesce` around the subquery: a subquery with no
+  matching rows returns NULL, not 0, and `headcount()` cannot tell "not
+  annotated" from "annotated as null".
+- **The provider's staff list paginated and the public one did not**, so the
+  same data had two shapes for the client to handle.
+
+**Still to do:** no app screen — a provider cannot add staff, and a customer
+cannot pick one.
 rather than silently falling back to the shop.
 
 ## P2.2 Waitlist, with automatic fill on cancellation

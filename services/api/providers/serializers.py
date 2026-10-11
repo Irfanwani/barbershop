@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import time
+
 from django.contrib.gis.geos import Point
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from accounts.serializers import PointFieldSerializer, PublicUserSerializer
 from bookings.models import BLOCKING_STATUSES, Booking
-from providers.models import ProviderPayout, ProviderProfile, Service, ServiceType
+from providers.models import (
+    ProviderPayout,
+    ProviderProfile,
+    Service,
+    ServiceType,
+    Staff,
+    StaffWorkingHours,
+)
 
 # Coarse enough to be useful for "is this near me", fine enough that a walk-in
 # does not land at the wrong shop. The old API returned exact coordinates from
@@ -401,3 +411,105 @@ class ProviderSummarySerializer(serializers.ModelSerializer):
 
 def service_type_choices() -> list[dict]:
     return [{"value": value, "label": label} for value, label in ServiceType.choices]
+
+
+class StaffWorkingHoursSerializer(serializers.Serializer):
+    weekday = serializers.IntegerField(min_value=0, max_value=6)
+    is_closed = serializers.BooleanField(default=False)
+    opens_at = serializers.TimeField(default=time(9, 0))
+    closes_at = serializers.TimeField(default=time(20, 0))
+
+
+class StaffSerializer(serializers.ModelSerializer):
+    """A person at a shop.
+
+    Written for the booking screen, so it says whether this person is taking
+    bookings right now rather than making the client work it out.
+    """
+
+    is_open_today = serializers.SerializerMethodField()
+    hours = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Staff
+        fields = [
+            "id",
+            "name",
+            "bio",
+            "photo",
+            "is_active",
+            "is_placeholder",
+            "is_open_today",
+            "hours",
+        ]
+        read_only_fields = ["is_active", "is_placeholder"]
+
+    def get_is_open_today(self, obj: Staff) -> bool:
+        # The shop's own definition of "open today" — a person's hours when
+        # they set any, the shop's otherwise. Two different notions of "today"
+        # on one screen is the kind of thing a customer reports as a bug.
+        return obj.is_open_on(timezone.localtime().weekday())
+
+    def get_hours(self, obj: Staff) -> list[dict]:
+        rows = obj.hours.all()
+        return [
+            {
+                "weekday": row.weekday,
+                "weekday_label": row.get_weekday_display(),
+                "is_closed": row.is_closed,
+                "opens_at": row.opens_at.strftime("%H:%M"),
+                "closes_at": row.closes_at.strftime("%H:%M"),
+            }
+            for row in rows
+        ]
+
+
+class StaffWriteSerializer(serializers.ModelSerializer):
+    hours = StaffWorkingHoursSerializer(many=True, required=False)
+
+    class Meta:
+        model = Staff
+        fields = ["id", "name", "bio", "photo", "is_active", "hours"]
+
+    def validate_name(self, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError("A staff member needs a name.")
+        return cleaned
+
+    def create(self, validated_data):
+        hours = validated_data.pop("hours", [])
+        # Someone you have just added is, by definition, working. It is also
+        # read-only to the client on the way in: a multipart form has no way to
+        # express an absent checkbox, and DRF turns "absent" into False, so a
+        # provider posting a plain form got a staff member who was silently
+        # inactive and not bookable.
+        validated_data.pop("is_active", None)
+        staff = Staff.objects.create(is_active=True, **validated_data)
+        self._write_hours(staff, hours)
+        return staff
+
+    def update(self, instance, validated_data):
+        hours = validated_data.pop("hours", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+        if hours is not None:
+            instance.hours.all().delete()
+            self._write_hours(instance, hours)
+        return instance
+
+    @staticmethod
+    def _write_hours(staff: Staff, hours: list[dict]) -> None:
+        StaffWorkingHours.objects.bulk_create(
+            [
+                StaffWorkingHours(
+                    staff=staff,
+                    weekday=row["weekday"],
+                    is_closed=row.get("is_closed", False),
+                    opens_at=row.get("opens_at", time(9, 0)),
+                    closes_at=row.get("closes_at", time(20, 0)),
+                )
+                for row in hours
+            ]
+        )

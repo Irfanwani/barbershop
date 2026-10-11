@@ -208,6 +208,25 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
             return weekday != 6
         return not hours.is_closed
 
+    def headcount(self) -> int:
+        """How many people can be in the chairs at once.
+
+        Derived from the staff rows, with the old ``employee_count`` as the
+        fallback for a shop that has not set any up. Two sources of truth for
+        capacity is how two simultaneous bookings become three, so the rows
+        win as soon as any exist.
+
+        Reads a ``named_staff`` annotation when the queryset supplied one. A
+        list view computing "next available" per row would otherwise issue one
+        COUNT per shop — the exact N+1 that turned a 20-row page into 1600
+        queries once already. Annotate it rather than letting the fallback
+        fire per row.
+        """
+        named = getattr(self, "named_staff", None)
+        if named is None:
+            named = self.staff.filter(is_active=True).count()
+        return named or max(self.employee_count, 1)
+
     def day_bounds(self, weekday: int) -> tuple[time, time] | None:
         """The opening and closing time for a weekday, or None if closed."""
         hours = self.hours_for(weekday)
@@ -410,3 +429,109 @@ class ProviderPayout(TimeStampedModel):
     @property
     def is_verified(self) -> bool:
         return self.verification_status == self.VerificationStatus.VERIFIED
+
+
+class Staff(TimeStampedModel):
+    """A person who works at a shop.
+
+    ``employee_count`` was an integer, so a shop with four barbers was
+    "capacity 4" and no booking could ever name one of them. That is the first
+    thing a customer asks for — "can I book with Ravi?" — and every competitor
+    answers it.
+
+    Deactivated rather than deleted. A booking made six months ago still names
+    the person who did it, and a hard delete would either orphan that or take
+    the history with it. ``is_active`` is the whole lifecycle: an inactive
+    member keeps their name and their bookings but stops appearing in the
+    booking flow and stops counting towards capacity.
+
+    ``is_placeholder`` marks a row created by the migration from
+    ``employee_count``. Those exist only to carry headcount across the change;
+    the provider is told to name them.
+    """
+
+    provider = models.ForeignKey(ProviderProfile, on_delete=models.CASCADE, related_name="staff")
+
+    name = models.CharField(max_length=120)
+    bio = models.TextField(blank=True, default="")
+    photo = models.ImageField(upload_to="staff/", blank=True, null=True)
+
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_placeholder = models.BooleanField(
+        default=False,
+        help_text="Created from the old employee_count. Name it to clear the prompt.",
+    )
+
+    class Meta:
+        db_table = "providers_staff"
+        ordering = ["name", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "name"], name="providers_staff_provider_name_uniq"
+            ),
+            models.CheckConstraint(condition=~Q(name=""), name="providers_staff_name_not_blank"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def hours_for(self, weekday: int) -> StaffWorkingHours | None:
+        return self.hours.filter(weekday=weekday).first()
+
+    def is_open_on(self, weekday: int) -> bool:
+        """Whether this person works on a weekday.
+
+        No row means the shop never set per-person hours, so the person follows
+        the shop. Falling back to "closed on Sunday" matches what a shop with
+        no Sunday hours means by it.
+        """
+        hours = self.hours_for(weekday)
+        if hours is not None:
+            return not hours.is_closed
+        return self.provider.is_open_on(weekday)
+
+    def day_bounds(self, weekday: int) -> tuple[time, time] | None:
+        """Their own hours for a weekday, or the shop's if they set none."""
+        hours = self.hours_for(weekday)
+        if hours is not None:
+            if hours.is_closed:
+                return None
+            return hours.opens_at, hours.closes_at
+        return self.provider.day_bounds(weekday)
+
+
+class StaffWorkingHours(models.Model):
+    """Per-weekday hours for one person.
+
+    Separate from :class:`WorkingHours` rather than an optional column on it:
+    a person's Tuesday is genuinely different from the shop's Tuesday, and
+    "usually the same, except Sundays" cannot be expressed by a nullable field
+    on the shop's row.
+    """
+
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="hours")
+
+    weekday = models.PositiveSmallIntegerField(
+        choices=WorkingHours.WEEKDAYS,
+        validators=[MinValueValidator(0), MaxValueValidator(6)],
+        help_text="0 = Monday. Django's date.weekday() convention.",
+    )
+    is_closed = models.BooleanField(default=False)
+    opens_at = models.TimeField(default="09:00")
+    closes_at = models.TimeField(default="20:00")
+
+    class Meta:
+        db_table = "providers_staffworkinghours"
+        ordering = ["weekday"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["staff", "weekday"], name="providers_staffhours_staff_weekday_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(is_closed=True) | Q(opens_at__lt=F("closes_at")),
+                name="providers_staffhours_closes_after_opens",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.staff.name} {self.get_weekday_display()}"

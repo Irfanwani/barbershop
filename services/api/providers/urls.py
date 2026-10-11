@@ -21,6 +21,7 @@ from providers.views import (
     ServicePriceIndexView,
     ServiceSuggestionView,
     ServiceTypeListView,
+    StaffViewSet,
 )
 
 app_name = "providers"
@@ -40,6 +41,17 @@ urlpatterns = [
     path("me/balance/", ProviderBalanceView.as_view(), name="my-balance"),
     path("me/ledger/", ProviderLedgerView.as_view(), name="my-ledger"),
     path("me/withdraw/", WithdrawalView.as_view(), name="my-withdraw"),
+    path("me/staff/", StaffViewSet.as_view({"get": "list", "post": "create"}), name="my-staff"),
+    path(
+        "me/staff/<int:pk>/",
+        StaffViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"}),
+        name="my-staff-detail",
+    ),
     path("<int:pk>/", ProviderDetailView.as_view(), name="detail"),
     path("<int:pk>/availability/", AvailabilityView.as_view(), name="availability"),
+    path(
+        "<int:pk>/staff/",
+        StaffViewSet.as_view({"get": "public_staff"}),
+        name="staff",
+    ),
 ]
