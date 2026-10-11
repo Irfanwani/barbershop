@@ -125,6 +125,16 @@ class Booking(TimeStampedModel):
     deposit = models.PositiveIntegerField(default=0)
     balance = models.PositiveIntegerField(default=0)
 
+    #: The shop's cancellation policy as it stood when this booking was made.
+    #: Read live, a shop could tighten its window and the customer who booked
+    #: last month would find out they now owe money.
+    cancellation_window_hours = models.PositiveSmallIntegerField(default=24)
+    late_cancel_fee_percent = models.PositiveSmallIntegerField(default=50)
+    #: Amount the platform keeps when a customer cancels late. Computed once at
+    #: booking time from the deposit, because that is the only figure both sides
+    #: agreed to.
+    late_cancel_fee = models.PositiveIntegerField(default=0)
+
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancellation_reason = models.CharField(max_length=200, blank=True, default="")
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -206,6 +216,28 @@ class Booking(TimeStampedModel):
             payment.is_captured and payment.kind == PaymentKind.DEPOSIT
             for payment in self.payments.all()
         )
+
+    @property
+    def cancellation_deadline(self) -> datetime:
+        """The last moment a customer can cancel without a fee."""
+        return self.starts_at - timedelta(hours=self.cancellation_window_hours)
+
+    def is_late_cancellation(self, *, at: datetime | None = None) -> bool:
+        """Whether cancelling now would incur a fee.
+
+        A zero window means "no free window": any cancellation forfeits the
+        deposit, which is what a shop that insists on full prepayment wants.
+        The opposite — always refundable — is expressed with
+        ``late_cancel_fee_percent = 0``, so both directions are reachable
+        without a second setting.
+
+        Only ever meaningful for the customer. A provider cancelling is always
+        free — the shop has the chair and the customer is not at fault.
+        """
+        if self.cancellation_window_hours == 0:
+            return True
+        moment = at or timezone.now()
+        return moment >= self.cancellation_deadline
 
     def minutes_until_start(self) -> int:
         return int((self.starts_at - timezone.now()).total_seconds() // 60)

@@ -8,6 +8,7 @@ import { errorMessage } from '@/api/client';
 import { useCreateBooking, useQuote } from '@/api/hooks';
 import { Button, Divider, useColors } from '@/components/ui';
 import { formatWhen } from '@/components/booking-row';
+import { cancellationNote } from '@/lib/money';
 import type { Availability, ProviderDetail, Service } from '@/types/api';
 
 /**
@@ -265,6 +266,12 @@ export function BookingSheet({
                       {priced.total_display}
                     </Text>
                   </View>
+
+                  {cancellationNote(priced) ? (
+                    <Text className="mt-3 text-xs leading-4" style={{ color: colors.textSubtle }}>
+                      {cancellationNote(priced)}
+                    </Text>
+                  ) : null}
 
                   {!priced.is_available ? (
                     <Text className="mt-2 text-xs font-medium" style={{ color: colors.danger }}>

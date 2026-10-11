@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
-import { formatPaise, paymentSummary } from '@/lib/money';
+import { deadlineSummary, formatPaise, paymentSummary } from '@/lib/money';
 import { useBooking, useCancelBooking, useCreateOrder, useCreateReview } from '@/api/hooks';
 import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
 import { Field, FormError } from '@/components/field';
@@ -193,6 +193,12 @@ export default function BookingDetailScreen() {
           <Button onPress={startPayment} loading={paying} testID="booking-pay-balance">
             Pay remaining {formatPaise(record.amount_due)} now
           </Button>
+        ) : null}
+
+        {record.deposit > 0 && record.can_be_cancelled ? (
+          <Text className="text-xs" style={{ color: colors.textSubtle }}>
+            {deadlineSummary(record)}
+          </Text>
         ) : null}
 
         {record.can_be_cancelled ? (

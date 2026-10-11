@@ -81,6 +81,23 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
         help_text="When true, a booking starts as pending and the provider accepts it.",
     )
 
+    #: How far ahead a customer may cancel for free. Copied onto each booking at
+    #: the time it is made, so tightening this cannot retroactively change what
+    #: somebody already agreed to.
+    cancellation_window_hours = models.PositiveSmallIntegerField(
+        default=24,
+        validators=[MinValueValidator(0), MaxValueValidator(720)],
+        help_text="Cancel more than this far ahead and the deposit is returned in full.",
+    )
+    #: Percentage of the *deposit* kept when a customer cancels inside the
+    #: window. 50 is the industry default; 0 means a late cancellation still
+    #: refunds everything, which is a legitimate choice.
+    late_cancel_fee_percent = models.PositiveSmallIntegerField(
+        default=50,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Of the deposit, not the total. Charged on a late customer cancellation.",
+    )
+
     # Denormalised from Review. Reading the aggregate on every search result is
     # a correlated subquery per provider; this is one indexed column.
     rating_average = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal("0.00"))

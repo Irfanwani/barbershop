@@ -222,8 +222,18 @@ class BookingCancelView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="bookings_cancel")
+    @extend_schema(
+        operation_id="bookings_cancel",
+        description=(
+            "Either party may cancel. A customer cancelling inside the shop's "
+            "cancellation window still succeeds, but forfeits the agreed slice of "
+            "their deposit — the refusal case is a booking that cannot be cancelled "
+            "at all. The window and the fee are the ones frozen on the booking."
+        ),
+    )
     def post(self, request, reference: str):
+        from bookings.policy import apply_cancellation
+
         booking = lookup_booking(
             Booking.objects.filter(visible_bookings(request.user)).select_related(
                 "provider__user", "customer"
@@ -239,19 +249,19 @@ class BookingCancelView(APIView):
         reason_serializer = CancelBookingSerializer(data=request.data)
         reason_serializer.is_valid(raise_exception=True)
 
-        is_customer = booking.customer == request.user
-        booking.status = (
-            BookingStatus.CANCELLED_BY_CUSTOMER
-            if is_customer
-            else BookingStatus.CANCELLED_BY_PROVIDER
+        outcome = apply_cancellation(
+            booking,
+            by_provider=request.user != booking.customer,
+            reason=reason_serializer.validated_data["reason"],
         )
-        booking.cancelled_at = timezone.now()
-        booking.cancellation_reason = reason_serializer.validated_data["reason"]
-        booking.save(update_fields=["status", "cancelled_at", "cancellation_reason", "updated_at"])
 
         notify_other_party(booking, cancelled_by=request.user)
 
-        return Response(BookingSerializer(booking, context={"request": request}).data)
+        # What happened to the money, in words. A customer who loses part of a
+        # deposit deserves to be told here, not by noticing on their statement.
+        payload = BookingSerializer(booking, context={"request": request}).data
+        payload["cancellation"] = outcome.as_dict()
+        return Response(payload)
 
 
 class CollectBalanceSerializer(serializers.Serializer):
@@ -460,6 +470,7 @@ class QuoteView(APIView):
 
         deposit_percent = max((service.deposit_percent for service in services), default=0)
         deposit, balance = compute_deposit(total, deposit_percent)
+        late_cancel_fee, _ = compute_deposit(deposit, provider.late_cancel_fee_percent)
 
         return Response(
             {
@@ -477,6 +488,13 @@ class QuoteView(APIView):
                 "deposit_display": format_minor(deposit),
                 "balance": balance,
                 "balance_display": format_minor(balance),
+                # The policy, quoted before checkout. A customer who only finds
+                # out about a cancellation fee when they cancel it has been told
+                # too late to consent to it.
+                "cancellation_window_hours": provider.cancellation_window_hours,
+                "late_cancel_fee_percent": provider.late_cancel_fee_percent,
+                "late_cancel_fee": late_cancel_fee,
+                "late_cancel_fee_display": format_minor(late_cancel_fee),
                 "duration_minutes": int(duration.total_seconds() // 60),
                 "starts_at": starts_at,
                 "ends_at": ends_at,

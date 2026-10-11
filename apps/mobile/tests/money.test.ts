@@ -8,7 +8,12 @@
  * provider would act on by booking someone into that chair.
  */
 
-import { formatPaise, paymentSummary } from '@/lib/money';
+import {
+  cancellationNote,
+  deadlineSummary,
+  formatPaise,
+  paymentSummary,
+} from '@/lib/money';
 
 describe('formatPaise', () => {
   it('converts paise to rupees', () => {
@@ -68,5 +73,57 @@ describe('paymentSummary', () => {
     );
 
     expect(summary).toBe('Paid in full');
+  });
+});
+describe('cancellationNote', () => {
+  const quote = (overrides = {}) => ({
+    deposit: 90900,
+    cancellation_window_hours: 24,
+    late_cancel_fee: 45450,
+    ...overrides,
+  });
+
+  it('says nothing when there is no deposit to lose', () => {
+    // Telling every customer about a fee on a booking with no deposit is noise,
+    // and noise is how people stop reading the things that matter.
+    expect(cancellationNote(quote({ deposit: 0 }))).toBeNull();
+  });
+
+  it('explains a free window when nothing is kept', () => {
+    expect(cancellationNote(quote({ late_cancel_fee: 0 }))).toContain(
+      'Free cancellation up to 24 hours before',
+    );
+  });
+
+  it('names the fee and the window when something is kept', () => {
+    const note = cancellationNote(quote());
+
+    expect(note).toContain('24 hours before');
+    expect(note).toContain('₹454.50');
+  });
+
+  it('reads naturally when there is no free window at all', () => {
+    expect(cancellationNote(quote({ cancellation_window_hours: 0 }))).toContain(
+      'Cancel more than any time',
+    );
+  });
+
+  it('counts down the window in words rather than a date', () => {
+    // "24 hours before" is readable on a checkout screen. A timestamp is not.
+    expect(cancellationNote(quote())).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+});
+
+describe('deadlineSummary', () => {
+  it('says free while there is still time', () => {
+    expect(deadlineSummary({ is_late_cancellation: false, late_cancel_fee: 45450 })).toBe(
+      'Free cancellation',
+    );
+  });
+
+  it('says what cancelling now costs', () => {
+    expect(deadlineSummary({ is_late_cancellation: true, late_cancel_fee: 45450 })).toContain(
+      '₹454.50',
+    );
   });
 });

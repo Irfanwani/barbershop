@@ -5166,7 +5166,10 @@ paths:
   /api/v1/bookings/{reference}/cancel/:
     post:
       operationId: bookings_cancel
-      description: Either the customer or the provider it was booked with may cancel.
+      description: Either party may cancel. A customer cancelling inside the shop's
+        cancellation window still succeeds, but forfeits the agreed slice of their
+        deposit — the refusal case is a booking that cannot be cancelled at all. The
+        window and the fee are the ones frozen on the booking.
       summary: Cancel a booking
       parameters:
       - in: path
@@ -7457,6 +7460,27 @@ components:
         requires_deposit:
           type: boolean
           readOnly: true
+        cancellation_window_hours:
+          type: integer
+          readOnly: true
+        cancellation_deadline:
+          type: string
+          format: date-time
+          readOnly: true
+        is_late_cancellation:
+          type: boolean
+          description: |-
+            Whether cancelling *now* would cost the customer the fee.
+
+            From the customer's side. The provider's view is different and is not
+            this field.
+          readOnly: true
+        late_cancel_fee:
+          type: integer
+          readOnly: true
+        late_cancel_fee_display:
+          type: string
+          readOnly: true
         notes:
           type: string
           readOnly: true
@@ -7489,7 +7513,9 @@ components:
       - balance
       - balance_display
       - can_be_cancelled
+      - cancellation_deadline
       - cancellation_reason
+      - cancellation_window_hours
       - cancelled_at
       - created_at
       - currency
@@ -7499,8 +7525,11 @@ components:
       - duration_minutes
       - ends_at
       - id
+      - is_late_cancellation
       - is_paid
       - items
+      - late_cancel_fee
+      - late_cancel_fee_display
       - notes
       - platform_fee
       - platform_fee_display

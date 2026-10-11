@@ -321,6 +321,11 @@ export interface Booking {
   amount_paid: number;
   amount_due: number;
   requires_deposit: boolean;
+  cancellation_window_hours: number;
+  cancellation_deadline: string;
+  is_late_cancellation: boolean;
+  late_cancel_fee: number;
+  late_cancel_fee_display: string;
   notes: string;
   items: BookingItem[];
   can_be_cancelled: boolean;
@@ -349,6 +354,15 @@ export interface Quote {
   deposit_display: string;
   balance: number;
   balance_display: string;
+  /**
+   * The shop's cancellation policy, quoted before checkout. A customer who only
+   * hears about a fee when they cancel it has been told too late to consent to
+   * it, so it appears on the quote rather than only at cancellation.
+   */
+  cancellation_window_hours: number;
+  late_cancel_fee_percent: number;
+  late_cancel_fee: number;
+  late_cancel_fee_display: string;
   duration_minutes: number;
   starts_at: string;
   ends_at: string;

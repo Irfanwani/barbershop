@@ -71,6 +71,10 @@ class BookingSerializer(serializers.ModelSerializer):
     amount_paid = serializers.IntegerField(read_only=True)
     amount_due = serializers.SerializerMethodField()
     requires_deposit = serializers.BooleanField(read_only=True)
+    cancellation_deadline = serializers.DateTimeField(read_only=True)
+    is_late_cancellation = serializers.SerializerMethodField()
+    late_cancel_fee = serializers.IntegerField(read_only=True)
+    late_cancel_fee_display = serializers.SerializerMethodField()
     deposit_display = serializers.SerializerMethodField()
     balance_display = serializers.SerializerMethodField()
 
@@ -99,6 +103,11 @@ class BookingSerializer(serializers.ModelSerializer):
             "amount_paid",
             "amount_due",
             "requires_deposit",
+            "cancellation_window_hours",
+            "cancellation_deadline",
+            "is_late_cancellation",
+            "late_cancel_fee",
+            "late_cancel_fee_display",
             "notes",
             "items",
             "can_be_cancelled",
@@ -108,6 +117,17 @@ class BookingSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_is_late_cancellation(self, obj: Booking) -> bool:
+        """Whether cancelling *now* would cost the customer the fee.
+
+        From the customer's side. The provider's view is different and is not
+        this field.
+        """
+        return obj.is_late_cancellation()
+
+    def get_late_cancel_fee_display(self, obj: Booking) -> str:
+        return format_minor(obj.late_cancel_fee, obj.currency)
 
     def get_amount_due(self, obj: Booking) -> int:
         return max(obj.total - obj.amount_paid, 0)
@@ -261,6 +281,11 @@ class BookingCreateSerializer(serializers.Serializer):
         deposit_percent = max((service.deposit_percent for service in services), default=0)
         deposit, balance = compute_deposit(total, deposit_percent)
 
+        # The late-cancel fee is a slice of the *deposit*, worked out now. Both
+        # sides agree to it at booking time; a policy tightened afterwards must
+        # not apply to a booking that predates it.
+        late_cancel_fee, _ = compute_deposit(deposit, provider.late_cancel_fee_percent)
+
         status = (
             BookingStatus.AWAITING_CONFIRMATION
             if provider.requires_approval
@@ -279,6 +304,9 @@ class BookingCreateSerializer(serializers.Serializer):
                 total=total,
                 deposit=deposit,
                 balance=balance,
+                cancellation_window_hours=provider.cancellation_window_hours,
+                late_cancel_fee_percent=provider.late_cancel_fee_percent,
+                late_cancel_fee=late_cancel_fee,
                 currency=CURRENCY,
                 notes=self.validated_data.get("notes", ""),
             )

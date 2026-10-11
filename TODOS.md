@@ -139,7 +139,7 @@ cancelled — that is [P1.3](#p13-refunds).
 
 ## P1.2 Cancellation policy with a deadline and a late-cancel fee
 
-**Status:** todo
+**Status:** done
 
 Today `can_be_cancelled` checks status only. Anything can be cancelled at any
 moment, which means a slot can be freed 30 seconds before it starts.
@@ -152,9 +152,27 @@ moment, which means a slot can be freed 30 seconds before it starts.
 - `Booking` records the policy that applied, so a later change to the shop's
   policy cannot alter an old booking
 
-**Acceptance:** cancelling 2 hours before a booking inside a 24-hour window is
-refused with a message naming the deadline; cancelling 30 hours before is
-allowed; the recorded policy on an old booking is unaffected by a shop edit.
+**Done.** `cancellation_window_hours` and `late_cancel_fee_percent` on the
+shop, frozen onto every booking, with `late_cancel_fee` computed at booking
+time from the deposit.
+
+A late cancellation **succeeds** and forfeits the agreed slice. The only
+refusal is a booking that cannot be cancelled at all — refusing a late
+cancellation would just leave the shop with a slot nobody is coming to.
+
+The fee is a slice of the **deposit**, not the total, and is a one-directional
+penalty: a provider cancelling is always free. They still have the chair and
+the customer is not at fault.
+
+Zero is meaningful in both fields and means opposite things: a zero window is
+"no free window, any cancellation forfeits", and a zero fee is "always
+refunded". Both directions are reachable without a second setting.
+
+22 tests, including that tightening the shop's window or fee does not reach a
+booking made before the change.
+
+**Not yet:** the forfeited money is recorded but not moved. That is
+[P1.3](#p13-refunds).
 
 ## P1.3 Refunds
 
