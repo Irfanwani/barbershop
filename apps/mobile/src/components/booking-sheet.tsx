@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useCreateBooking, useQuote } from '@/api/hooks';
+import { useCreateBooking, useQuote, useShopStaff } from '@/api/hooks';
 import { Button, Divider, useColors } from '@/components/ui';
 import { formatWhen } from '@/components/booking-row';
 import { cancellationNote } from '@/lib/money';
@@ -37,10 +37,18 @@ export function BookingSheet({
 
   const [selected, setSelected] = useState<Service[]>([]);
   const [slot, setSlot] = useState<string | null>(null);
+  // null means "whoever is free". A shop that has named nobody has no list, so
+  // this stays null and behaves exactly as it did before staff existed.
+  const [staffId, setStaffId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const quote = useQuote();
   const create = useCreateBooking();
+  const staff = useShopStaff(provider.id);
+
+  // Someone who does not work the day being booked cannot be chosen. Offering
+  // them and refusing at the server would be a worse version of the same thing.
+  const bookable = (staff.data ?? []).filter((member) => member.is_open_today);
 
   const services = useMemo(
     () => provider.services.filter((service) => service.is_active),
@@ -85,6 +93,7 @@ export function BookingSheet({
         provider: provider.id,
         services: selected.map((service) => service.id),
         starts_at: slot,
+        ...(staffId ? { staff: staffId } : {}),
       });
       onClose();
       router.replace(`/(customer)/booking/${booking.reference}`);
@@ -159,7 +168,34 @@ export function BookingSheet({
             {selected.length > 0 ? (
               <View className="gap-2">
                 <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
-                  2 · When?
+                  2 · Who?
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View className="flex-row gap-2 pr-4">
+                    <StaffChip
+                      label="Anyone"
+                      caption={bookable.length > 0 ? `${bookable.length} available` : 'next free'}
+                      picked={staffId === null}
+                      onPress={() => setStaffId(null)}
+                    />
+                    {bookable.map((member) => (
+                      <StaffChip
+                        key={member.id}
+                        label={member.name}
+                        caption={member.is_placeholder ? 'at this shop' : 'available today'}
+                        picked={staffId === member.id}
+                        onPress={() => setStaffId(member.id)}
+                      />
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {selected.length > 0 ? (
+              <View className="gap-2">
+                <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
+                  3 · When?
                 </Text>
                 {freeSlots.length === 0 ? (
                   <Text className="text-sm" style={{ color: colors.textMuted }}>
@@ -305,5 +341,41 @@ export function BookingSheet({
         </View>
       </View>
     </Modal>
+  );
+}
+function StaffChip({
+  label,
+  caption,
+  picked,
+  onPress,
+}: {
+  label: string;
+  caption: string;
+  picked: boolean;
+  onPress: () => void;
+}) {
+  const colors = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: picked }}
+      testID={`staff-chip-${label}`}
+      className="rounded-2xl border px-3 py-2.5"
+      style={{
+        backgroundColor: picked ? colors.accent : colors.surface,
+        borderColor: picked ? colors.accent : colors.border,
+      }}>
+      <Text
+        className="text-sm font-semibold"
+        style={{ color: picked ? colors.accentText : colors.text }}>
+        {label}
+      </Text>
+      <Text
+        className="text-xs"
+        style={{ color: picked ? colors.accentText : colors.textSubtle }}>
+        {caption}
+      </Text>
+    </Pressable>
   );
 }

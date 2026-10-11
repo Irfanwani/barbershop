@@ -181,6 +181,30 @@ export interface ProviderSelf {
  * Sunday as 0 would silently shift every day by one, which is the kind of bug
  * that shows up as "closed on the wrong day" and takes a week to trace.
  */
+/**
+ * Someone who works at a shop.
+ *
+ * `is_placeholder` marks a row the headcount migration created: real capacity,
+ * no name yet. The app says so rather than showing "Staff member 3" as though
+ * someone had chosen it.
+ */
+export interface StaffMember {
+  id: number;
+  name: string;
+  bio: string;
+  photo: string | null;
+  is_active: boolean;
+  is_placeholder: boolean;
+  is_open_today: boolean;
+  hours: {
+    weekday: number;
+    weekday_label: string;
+    is_closed: boolean;
+    opens_at: string;
+    closes_at: string;
+  }[];
+}
+
 export interface WorkingHours {
   id: number;
   weekday: number;

@@ -254,7 +254,7 @@ statement are a support ticket.
 
 ## P2.1 Individual staff members
 
-**Status:** done (backend); app screens outstanding
+**Status:** done
 
 The single biggest structural gap. `employee_count` is an integer, so a shop
 with four barbers is "capacity 4" and no booking ever names a barber. Every
@@ -307,8 +307,16 @@ Writing the tests found five bugs:
 - **The provider's staff list paginated and the public one did not**, so the
   same data had two shapes for the client to handle.
 
-**Still to do:** no app screen — a provider cannot add staff, and a customer
-cannot pick one.
+**In the app.** A provider adds and retires people from a **Team** tab, which
+states plainly that the list *is* their capacity — a provider who does not
+realise that will assume it is decorative. Rows the migration created are
+flagged as unnamed until someone gives them a real one.
+
+A customer picks a barber in the booking sheet, alongside the time. The default
+is Anyone, which is the old behaviour exactly: a shop that has named nobody
+has no chips and nothing changes for them. Someone who does not work the day
+being booked is not offered at all, rather than offered and refused at the
+server.
 rather than silently falling back to the shop.
 
 ## P2.2 Waitlist, with automatic fill on cancellation

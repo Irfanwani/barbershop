@@ -18,6 +18,8 @@ import {
   describeLedgerKind,
   describeLedgerStatus,
 } from '@/components/balance-card';
+import { isUnnamed } from '@/lib/money';
+import type { StaffMember } from '@/types/api';
 
 describe('formatPaise', () => {
   it('converts paise to rupees', () => {
@@ -147,5 +149,28 @@ describe('ledger lines', () => {
     expect(describeLedgerStatus('paid_out')).toBe('Paid out');
     // A failed transfer is shown as failed rather than silently omitted.
     expect(describeLedgerStatus('voided')).toBe('Failed');
+  });
+});
+
+describe('staff', () => {
+  it('flags the rows the headcount migration created', () => {
+    // Real capacity, no name yet. The app says so rather than showing
+    // "Staff member 3" as though someone had chosen it.
+    const placeholder: StaffMember = {
+      id: 1,
+      name: 'Staff member 3',
+      bio: '',
+      photo: null,
+      is_active: true,
+      is_placeholder: true,
+      is_open_today: true,
+      hours: [],
+    };
+    expect(placeholder.is_placeholder).toBe(true);
+    expect(isUnnamed(placeholder)).toBe(true);
+  });
+
+  it('does not flag a named person', () => {
+    expect(isUnnamed({ name: 'Ravi', is_placeholder: false })).toBe(false);
   });
 });

@@ -23,6 +23,7 @@ import {
   providersApi,
   reviewsApi,
   type ProviderSearch,
+  type StaffHoursInput,
 } from '@/api/endpoints';
 import { keys } from '@/lib/query-client';
 import type {
@@ -536,6 +537,47 @@ export function useWithdraw() {
       client.setQueryData(keys.balance, body.balance);
       // A payout draws down cleared earnings, so the statement changes.
       void client.invalidateQueries({ queryKey: keys.ledger });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Staff
+// ---------------------------------------------------------------------------
+
+export function useMyStaff() {
+  return useQuery({ queryKey: keys.staff, queryFn: providersApi.staff });
+}
+
+export function useShopStaff(providerId: number | undefined) {
+  return useQuery({
+    queryKey: [...keys.staff, 'shop', providerId],
+    queryFn: () => providersApi.shopStaff(providerId!),
+    enabled: providerId !== undefined,
+  });
+}
+
+export function useSaveStaff() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id?: number; body: { name: string; bio?: string; hours?: StaffHoursInput[] } }) =>
+      id ? providersApi.updateStaff(id, body) : providersApi.addStaff(body),
+    onSuccess: () => {
+      // Capacity comes from these rows, so the shop and its availability are
+      // stale the moment one is added or retired.
+      void client.invalidateQueries({ queryKey: keys.staff });
+      void client.invalidateQueries({ queryKey: ['providers'] });
+    },
+  });
+}
+
+export function useRetireStaff() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => providersApi.retireStaff(id),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.staff });
+      void client.invalidateQueries({ queryKey: ['providers'] });
     },
   });
 }

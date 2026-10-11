@@ -35,7 +35,15 @@ import type {
   ServiceTypeOption,
   User,
   WorkingHours,
+  StaffMember,
 } from '@/types/api';
+
+export interface StaffHoursInput {
+  weekday: number;
+  is_closed: boolean;
+  opens_at?: string;
+  closes_at?: string;
+}
 
 export const authApi = {
   register: (body: {
@@ -213,6 +221,20 @@ export const providersApi = {
 
   hours: () => api.get<WorkingHours[]>('/providers/me/hours/'),
 
+  staff: () => api.get<StaffMember[]>('/providers/me/staff/'),
+
+  addStaff: (body: { name: string; bio?: string; hours?: StaffHoursInput[] }) =>
+    api.post<StaffMember>('/providers/me/staff/', body),
+
+  updateStaff: (id: number, body: { name?: string; bio?: string; hours?: StaffHoursInput[] }) =>
+    api.patch<StaffMember>(`/providers/me/staff/${id}/`, body),
+
+  /** Retires rather than deletes: their past bookings keep their name. */
+  retireStaff: (id: number) => api.delete(`/providers/me/staff/${id}/`),
+
+  /** The people a customer can choose from at this shop. */
+  shopStaff: (providerId: number) => api.get<StaffMember[]>(`/providers/${providerId}/staff/`),
+
   saveHours: (days: {
     weekday: number;
     is_closed: boolean;
@@ -267,8 +289,14 @@ export const bookingsApi = {
   quote: (body: { provider: number; services: number[]; starts_at: string }) =>
     api.post<Quote>('/bookings/quote/', body),
 
-  create: (body: { provider: number; services: number[]; starts_at: string; notes?: string }) =>
-    api.post<Booking>('/bookings/new/', body),
+  create: (body: {
+    provider: number;
+    services: number[];
+    starts_at: string;
+    notes?: string;
+    /** Who is doing the job. Omitted means "whoever is free". */
+    staff?: number;
+  }) => api.post<Booking>('/bookings/new/', body),
 
   cancel: (reference: string, reason = '') =>
     api.post<Booking>(`/bookings/${reference}/cancel/`, { reason }),

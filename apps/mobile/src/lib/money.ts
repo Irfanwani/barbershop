@@ -1,3 +1,5 @@
+import type { StaffMember } from '@/types/api';
+
 /**
  * Display money, and say what a cancellation costs.
  *
@@ -71,4 +73,15 @@ export function deadlineSummary(booking: {
     return `Late to cancel \u00b7 ${formatPaise(booking.late_cancel_fee)} of the deposit is kept`;
   }
   return 'Free cancellation';
+}
+
+/**
+ * Whether this staff row still needs a real name.
+ *
+ * The rows that carried `employee_count` across the migration are real
+ * capacity, so they cannot be hidden — but presenting "Staff member 3" as
+ * though someone had typed it is worse than saying it is not finished.
+ */
+export function isUnnamed(member: Pick<StaffMember, 'is_placeholder' | 'name'>): boolean {
+  return member.is_placeholder || member.name.trim().length === 0;
 }
