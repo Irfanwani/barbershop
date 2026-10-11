@@ -207,6 +207,10 @@ REST_FRAMEWORK = {
         "auth": env.get("THROTTLE_RATE_AUTH", "20/min"),
         "password_reset": env.get("THROTTLE_RATE_PASSWORD_RESET", "5/min"),
         "booking": env.get("THROTTLE_RATE_BOOKING", "30/min"),
+        # Public, unauthenticated search. Anyone can page through every shop on
+        # the platform, so it is rate limited more tightly than anything a
+        # signed-in user can do.
+        "public_search": env.get("THROTTLE_RATE_PUBLIC_SEARCH", "60/min"),
     },
     "EXCEPTION_HANDLER": "core.exceptions.api_exception_handler",
     "DATETIME_FORMAT": "iso-8601",

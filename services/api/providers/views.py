@@ -102,7 +102,6 @@ def _m(value: str | None) -> float | None:
             "A page of providers",
         ),
         400: BAD_REQUEST,
-        401: UNAUTHORIZED,
     },
 )
 class ProviderListView(APIView):
@@ -120,10 +119,18 @@ class ProviderListView(APIView):
     ``?page=&page_size=``   pagination
 
     Without ``lat``/``lng`` the caller's saved customer location is used; with
-    neither, results are returned unranked.
+    neither — or when the caller is anonymous — results are returned unranked.
+
+    Public, because this is a discovery surface. Someone deciding whether to
+    download the app has not signed up yet, and requiring an account to see
+    what exists is how a marketplace ends up with no supply. Exact coordinates
+    are never returned; each row carries a location rounded to ~111 m.
     """
 
-    permission_classes = [IsAuthenticated]
+    # Rate limited harder than anything signed-in, because this endpoint will
+    # happily page through every shop on the platform for an anonymous caller.
+    throttle_scope = "public_search"
+    permission_classes = [AllowAny]
     pagination_class = DefaultPagination
 
     @extend_schema(operation_id="providers_list")
@@ -134,7 +141,7 @@ class ProviderListView(APIView):
 
         if latitude is not None and longitude is not None:
             origin = Point(longitude, latitude, srid=4326)
-        else:
+        elif request.user.is_authenticated:
             profile = getattr(request.user, "customer_profile", None)
             if profile and profile.coords:
                 origin = profile.coords

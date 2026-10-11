@@ -48,10 +48,10 @@ class TestProviderSearch:
         assert body["count"] == 1
         assert body["results"][0]["display_name"] == "Sharp Cuts"
 
-    def test_requires_authentication(self):
-        from django.test import Client
-
-        assert Client().get(PROVIDERS).status_code == 401
+    # Search is deliberately public — see `tests/test_public_surface.py`, which
+    # owns that assertion and the reasoning for it. It was authenticated until
+    # the marketing site was found to be rendering a broken shop list because
+    # of it.
 
     def test_results_are_paginated(self):
         client, token = logged_in(make_user())

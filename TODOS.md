@@ -54,24 +54,34 @@ These are not features. They are things that are broken now.
 
 ## P0.1 The marketing site's shop list is broken
 
-**Status:** done — `ca796ab`
+**Status:** done
 
-`apps/web/app.js:63` calls `GET /providers/` with no token, but
-`ProviderListView` is `permission_classes = [IsAuthenticated]`. The section
-silently renders "Shops are not loading" in production. The price bands
-(`/providers/prices/`) are `AllowAny` and work fine, which is why it was not
-noticed.
+`apps/web/app.js:63` called `GET /providers/` with no token, but
+`ProviderListView` was `permission_classes = [IsAuthenticated]`. The section
+silently rendered "Shops are not loading" in production. The price bands were
+already `AllowAny` and worked fine, which is why it was never noticed — the
+page looked alive.
 
-**Done:** shop search, prices and the service index are now `AllowAny`; the
-provider *detail* view stays authenticated. A test asserts each public
-endpoint is reachable without a token.
+Shop search, prices, the service index, categories and product browsing are now
+`AllowAny`. Provider *detail* and availability stay authenticated: those are
+per-customer reasoning about somebody's calendar, not a listing.
+
+Anonymous search is rate limited to 60/min, tighter than any signed-in
+endpoint, because it will happily page through every shop on the platform for
+someone who has not signed up.
+
+`tests/test_public_surface.py` is the regression — 14 tests covering which
+endpoints work with no token and, just as importantly, which must not. Checked
+against a reverted fix: five of them fail without it.
 
 ## P0.2 The marketing site advertises a feature that does not exist
 
-**Status:** done — `ca796ab`
+**Status:** the claim is being made true
 
-`apps/web/index.html` said the app has "saved shops". It does not. Either
-build it (P1.4) or stop saying it. It is being built.
+`apps/web/index.html` said the app has "saved shops". It does not. It is
+being built as [P2.4](#p24-saved-shops) rather than deleted from the copy,
+because saved shops are the cheapest retention feature available and the
+backbone of the rebooking work in [P3.2](#p32-rebooking-nudges-for-lapsed-customers).
 
 ---
 
