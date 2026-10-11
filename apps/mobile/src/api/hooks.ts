@@ -512,3 +512,30 @@ export function useServicePrices() {
     staleTime: 10 * 60_000,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Provider earnings and withdrawals
+// ---------------------------------------------------------------------------
+
+export function useProviderBalance() {
+  return useQuery({ queryKey: keys.balance, queryFn: providersApi.balance });
+}
+
+export function useProviderLedger(page = 1) {
+  return useQuery({
+    queryKey: [...keys.ledger, page],
+    queryFn: () => providersApi.ledger({ page }),
+  });
+}
+
+export function useWithdraw() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (amount?: number) => providersApi.withdraw(amount),
+    onSuccess: (body) => {
+      client.setQueryData(keys.balance, body.balance);
+      // A payout draws down cleared earnings, so the statement changes.
+      void client.invalidateQueries({ queryKey: keys.ledger });
+    },
+  });
+}

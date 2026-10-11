@@ -14,6 +14,10 @@ import {
   formatPaise,
   paymentSummary,
 } from '@/lib/money';
+import {
+  describeLedgerKind,
+  describeLedgerStatus,
+} from '@/components/balance-card';
 
 describe('formatPaise', () => {
   it('converts paise to rupees', () => {
@@ -125,5 +129,23 @@ describe('deadlineSummary', () => {
     expect(deadlineSummary({ is_late_cancellation: true, late_cancel_fee: 45450 })).toContain(
       '₹454.50',
     );
+  });
+});
+
+describe('ledger lines', () => {
+  it('describe a kind in words rather than echoing the enum', () => {
+    // "platform_fee" on a statement the provider reads is a support ticket.
+    expect(describeLedgerKind('earning')).toBe('Appointment earned');
+    expect(describeLedgerKind('platform_fee')).toBe('BarberShop fee');
+    expect(describeLedgerKind('payout')).toBe('Withdrawal');
+    expect(describeLedgerKind('something_new')).toBe('Adjustment');
+  });
+
+  it('describe a status in words', () => {
+    expect(describeLedgerStatus('pending')).toBe('Pending');
+    expect(describeLedgerStatus('cleared')).toBe('Available');
+    expect(describeLedgerStatus('paid_out')).toBe('Paid out');
+    // A failed transfer is shown as failed rather than silently omitted.
+    expect(describeLedgerStatus('voided')).toBe('Failed');
   });
 });

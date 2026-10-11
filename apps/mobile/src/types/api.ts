@@ -245,6 +245,41 @@ export interface ServicePriceEntry {
   maximum_display: string | null;
 }
 
+/**
+ * What a provider is owed.
+ *
+ * Derived server-side from an append-only ledger, so every figure here can be
+ * explained line by line on the earnings screen.
+ */
+export interface ProviderBalance {
+  pending: number;
+  pending_display: string;
+  cleared: number;
+  cleared_display: string;
+  paid_out: number;
+  paid_out_display: string;
+  total: number;
+  total_display: string;
+}
+
+export interface LedgerEntry {
+  id: number;
+  kind: string;
+  status: 'pending' | 'cleared' | 'paid_out' | 'voided';
+  amount: number;
+  amount_display: string;
+  reference: string;
+  description: string;
+  created_at: string;
+}
+
+export interface Withdrawal {
+  amount: number;
+  reference: string;
+  transfer_id: string;
+  status: string;
+}
+
 export interface BasketLine {
   product: number;
   quantity: number;

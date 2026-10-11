@@ -209,7 +209,7 @@ accumulate and leave the payment captured while money is still owed.
 
 ## P1.4 Provider payout ledger and withdrawal
 
-**Status:** done (backend); app screen outstanding
+**Status:** done
 
 The most serious gap in the whole codebase. A provider can save bank details
 and they are registered with Razorpay, and then... there is no balance, no
@@ -243,7 +243,10 @@ zero; a failed transfer added a positive line that doubled the balance; and the
 payout entry was keyed by the gateway's transfer id rather than ours, so the
 settlement callback could never find it.
 
-**Still to do:** the app has no balance or payout screen.
+The provider app has an **Earnings** tab: what is available to withdraw, what
+is pending and why, and a statement where every line is explained in words —
+"Appointment earned", "BarberShop fee", "Withdrawal". Enum values on a
+statement are a support ticket.
 
 ---
 

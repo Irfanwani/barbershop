@@ -22,7 +22,10 @@ import type {
   Product,
   ProductCategory,
   ProductOrder,
+  LedgerEntry,
   Payout,
+  ProviderBalance,
+  Withdrawal,
   ShopProduct,
   Quote,
   Review,
@@ -230,6 +233,23 @@ export const providersApi = {
     }),
 
   myPayout: () => api.get<Payout>('/providers/me/payout/'),
+
+  balance: () => api.get<ProviderBalance>('/providers/me/balance/'),
+
+  ledger: (params: { page?: number } = {}) =>
+    api.get<{ count: number; results: LedgerEntry[] }>('/providers/me/ledger/', params as QueryParams),
+
+  /**
+   * Ask for money to be sent to the bank.
+   *
+   * Amount is optional and defaults to everything cleared, because that is what
+   * providers want almost every time.
+   */
+  withdraw: (amount?: number) =>
+    api.post<{ withdrawal: Withdrawal; balance: ProviderBalance }>(
+      '/providers/me/withdraw/',
+      amount ? { amount } : {},
+    ),
 
   savePayout: (body: Record<string, string>) =>
     api.put<Payout>('/providers/me/payout/', body),

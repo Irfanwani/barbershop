@@ -42,6 +42,8 @@ export const keys = {
   services: ['providers', 'me', 'services'] as const,
   hours: ['providers', 'me', 'hours'] as const,
   payout: ['providers', 'me', 'payout'] as const,
+  balance: ['providers', 'me', 'balance'] as const,
+  ledger: ['providers', 'me', 'ledger'] as const,
   serviceTypes: ['providers', 'types'] as const,
   priceBands: ['providers', 'prices'] as const,
   servicePrices: ['providers', 'prices', 'services'] as const,
