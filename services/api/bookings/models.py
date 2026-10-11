@@ -16,7 +16,6 @@ at 1000 characters — and a single mutable ``totalcost``.
 
 from __future__ import annotations
 
-import secrets
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -25,23 +24,17 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from accounts.models import User
+from core import references
 from core.models import TimeStampedModel
 from core.money import CURRENCY, format_minor
 from providers.models import ProviderProfile, Service
 
-REFERENCE_PREFIX = "BK"
-REFERENCE_LENGTH = 6
-_REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no I/O/0/1
+REFERENCE_PREFIX = references.BOOKING
 
 
 def generate_reference() -> str:
-    """A short booking reference, e.g. ``BK-7QK4M2``.
-
-    Customer-visible, so it must not be guessable. Sequential ids were: ``BK-1``,
-    ``BK-2`` would leak the entire booking history to anyone who opened the app.
-    """
-    body = "".join(secrets.choice(_REFERENCE_ALPHABET) for _ in range(REFERENCE_LENGTH))
-    return f"{REFERENCE_PREFIX}-{body}"
+    """A short booking reference, e.g. ``BK-7QK4M2``."""
+    return references.generate_reference(REFERENCE_PREFIX)
 
 
 class BookingStatus(models.TextChoices):

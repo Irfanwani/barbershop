@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from accounts.models import Role, User
 from bookings.models import Booking, BookingItem, BookingStatus
+from catalog.models import Inventory, Product
 from core.money import compute_platform_fee
 from payments.models import Payment, PaymentStatus
 from providers.models import ProviderProfile, Service, ServiceType
@@ -234,3 +235,40 @@ def auth_header(token: str) -> dict:
 
 def decimal(value: str) -> Decimal:
     return Decimal(value)
+
+
+def make_product(
+    *,
+    name: str = "Cedarwood Shampoo",
+    brand: str = "BarberShop",
+    price: int = 45000,
+    category: str = "haircare",
+    compare_at_price: int | None = None,
+    is_active: bool = True,
+    **kwargs,
+) -> Product:
+    return Product.objects.create(
+        name=name,
+        brand=brand,
+        price=price,
+        category=category,
+        compare_at_price=compare_at_price,
+        is_active=is_active,
+        **kwargs,
+    )
+
+
+def make_stock(
+    provider: ProviderProfile,
+    product=None,
+    *,
+    quantity: int = 5,
+    is_available: bool = True,
+) -> Inventory:
+    product = product or make_product()
+    return Inventory.objects.create(
+        provider=provider,
+        product=product,
+        quantity=quantity,
+        is_available=is_available,
+    )

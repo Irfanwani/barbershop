@@ -6359,6 +6359,692 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/products/:
+    get:
+      operationId: products_list
+      description: Every active product across every shop. Paginated.
+      summary: Browse products
+      parameters:
+      - in: query
+        name: brand
+        schema:
+          type: string
+        description: Filter by brand.
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Filter by category.
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Search name, brand and description.
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/products/types/:
+    get:
+      operationId: products_categories
+      summary: Categories
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/products/popular/:
+    get:
+      operationId: products_popular
+      description: 'Ranked by units sold, not by rating: a new product has no rating.'
+      summary: Popular right now
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/products/{id}/:
+    get:
+      operationId: products_retrieve
+      summary: One product
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/products/shops/{provider_pk}/:
+    get:
+      operationId: products_shop_list
+      description: |-
+        One shop's shelf.
+
+        Public, because "does this shop sell what I need" is asked before booking.
+      summary: What a shop is selling
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: path
+        name: provider_pk
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: search
+        schema:
+          type: string
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShopProduct'
+          description: ''
+  /api/v1/products/me/inventory/:
+    get:
+      operationId: products_inventory_list
+      description: Add or adjust stock. Products themselves are the platform's catalogue.
+      summary: Your shelf
+      tags:
+      - products
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Inventory'
+          description: ''
+    post:
+      operationId: products_inventory_set
+      description: Add or adjust stock. Products themselves are the platform's catalogue.
+      summary: Your shelf
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InventoryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InventoryRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Inventory'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+  /api/v1/products/me/orders/:
+    get:
+      operationId: orders_list
+      summary: Your orders
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - orders
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+          description: ''
+  /api/v1/products/me/shop-orders/:
+    get:
+      operationId: orders_shop_list
+      summary: Orders for your shop
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      tags:
+      - orders
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+          description: ''
+  /api/v1/products/orders/quote/:
+    post:
+      operationId: orders_quote
+      description: What you would pay, without creating anything.
+      summary: Price a basket
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+  /api/v1/products/orders/new/:
+    post:
+      operationId: orders_create
+      description: Prices come from the product rows, not the request. Stock is decremented
+        inside the same transaction, so the last unit cannot be sold twice.
+      summary: Create an order
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '401':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No token, or the token has expired
+  /api/v1/products/orders/{reference}/:
+    get:
+      operationId: orders_retrieve
+      summary: One order
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/products/orders/{reference}/action/:
+    post:
+      operationId: orders_action
+      description: Cancel, mark ready, or mark collected.
+      summary: Move an order along
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderStatusActionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrderStatusActionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrderStatusActionRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+              examples:
+                Validation:
+                  value:
+                    error:
+                      code: validation_error
+                      message: This field is required.
+                      details:
+                        starts_at:
+                        - This field is required.
+                  summary: A field is missing or the wrong shape
+                BusinessRule:
+                  value:
+                    error:
+                      code: business_rule_violation
+                      message: That slot is already taken. Pick another time.
+                      details: null
+                  summary: Well-formed, but not allowed right now
+          description: Malformed request, or one that breaks a business rule
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: Authenticated, but not allowed
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
 components:
   schemas:
     AccountState:
@@ -6441,6 +7127,16 @@ components:
       description: |-
         * `savings` - Savings
         * `current` - Current
+    ActionEnum:
+      enum:
+      - cancel
+      - ready
+      - collect
+      type: string
+      description: |-
+        * `cancel` - cancel
+        * `ready` - ready
+        * `collect` - collect
     AvailabilityToggleRequest:
       type: object
       description: |-
@@ -6674,6 +7370,20 @@ components:
           type: string
           default: ''
           maxLength: 200
+    CategoryEnum:
+      enum:
+      - haircare
+      - tools
+      - styling
+      - skincare
+      - other
+      type: string
+      description: |-
+        * `haircare` - Hair care
+        * `tools` - Tools
+        * `styling` - Styling
+        * `skincare` - Skincare
+        * `other` - Other
     ChangePasswordRequest:
       type: object
       properties:
@@ -6752,6 +7462,45 @@ components:
         preferred_service_type:
           type: string
           maxLength: 32
+    Inventory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          allOf:
+          - $ref: '#/components/schemas/Product'
+          readOnly: true
+        quantity:
+          type: integer
+          minimum: 0
+        is_available:
+          type: boolean
+          description: Whether the shop offers this at all. Lets you hide stock without
+            deleting it.
+        is_in_stock:
+          type: boolean
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - is_in_stock
+      - product
+      - updated_at
+    InventoryRequest:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          minimum: 0
+        is_available:
+          type: boolean
+          description: Whether the shop offers this at all. Lets you hide stock without
+            deleting it.
     LoginAudit:
       type: object
       properties:
@@ -6797,6 +7546,146 @@ components:
       description: |-
         * `razorpay` - Razorpay
         * `cash` - Cash at the shop
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        reference:
+          type: string
+          maxLength: 16
+        provider:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/OrderStatusEnum'
+        lines:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        subtotal:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        platform_fee:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        total:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        total_display:
+          type: string
+          readOnly: true
+        currency:
+          type: string
+          maxLength: 3
+        notes:
+          type: string
+          maxLength: 500
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        collected_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        can_be_paid:
+          type: boolean
+          readOnly: true
+        can_be_collected:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - can_be_collected
+      - can_be_paid
+      - created_at
+      - id
+      - lines
+      - provider
+      - total_display
+    OrderCreateRequest:
+      type: object
+      description: |-
+        Create an order from a basket.
+
+        The provider is not in the request: a basket spans one shop, because
+        fulfilment is collection from that shop and a customer cannot collect from
+        two addresses in one trip.
+      properties:
+        provider:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineRequest'
+        notes:
+          type: string
+          default: ''
+          maxLength: 500
+      required:
+      - items
+      - provider
+    OrderLineRequest:
+      type: object
+      description: |-
+        One line, requested by product id and quantity.
+
+        No price is accepted. The price comes from the product row, exactly as a
+        booking's price comes from the service row.
+      properties:
+        product:
+          type: integer
+        quantity:
+          type: integer
+          maximum: 20
+          minimum: 1
+      required:
+      - product
+      - quantity
+    OrderStatusActionRequest:
+      type: object
+      description: |-
+        Which transition the caller wants, as a string rather than a URL.
+
+        The old appointments API accepted a bare status string and let the caller
+        write any status at all. The permitted set is this enum, and the view checks
+        it against the order's current status too.
+      properties:
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+      required:
+      - action
+    OrderStatusEnum:
+      enum:
+      - pending
+      - paid
+      - ready
+      - collected
+      - cancelled
+      - refunded
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `paid` - Paid
+        * `ready` - Ready for collection
+        * `collected` - Collected
+        * `cancelled` - Cancelled
+        * `refunded` - Refunded
     PasswordResetConfirmRequest:
       type: object
       properties:
@@ -7104,6 +7993,102 @@ components:
           format: double
           maximum: 180
           minimum: -180
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 1000
+        brand:
+          type: string
+          maxLength: 80
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        price:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Shop price in paise.
+        price_display:
+          type: string
+          readOnly: true
+        compare_at_price:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          description: Was-price in paise, for showing a discount. Not charged.
+        compare_at_price_display:
+          type: string
+          nullable: true
+          readOnly: true
+        is_discounted:
+          type: boolean
+          readOnly: true
+        photo:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - compare_at_price_display
+      - created_at
+      - id
+      - is_discounted
+      - name
+      - price
+      - price_display
+      - updated_at
+    ProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 1000
+        brand:
+          type: string
+          maxLength: 80
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        price:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Shop price in paise.
+        compare_at_price:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          description: Was-price in paise, for showing a discount. Not charged.
+        photo:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - name
+      - price
     ProviderList:
       type: object
       description: One provider in full, with the menu and their opening hours.
@@ -7790,6 +8775,33 @@ components:
         * `spa` - Spa
         * `massage` - Massage
         * `other` - Other
+    ShopProduct:
+      type: object
+      description: |-
+        A product as it appears in a shop's storefront, with that shop's stock.
+
+        Reads an `Inventory` row rather than a `Product`: the same shampoo in three
+        shops is three rows with three stock levels, and a catalogue endpoint that
+        cannot say which one it is describing is not useful to a shopfront.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          allOf:
+          - $ref: '#/components/schemas/Product'
+          readOnly: true
+        quantity:
+          type: integer
+          readOnly: true
+        is_in_stock:
+          type: boolean
+          readOnly: true
+      required:
+      - id
+      - is_in_stock
+      - product
+      - quantity
     VerifyEmailRequest:
       type: object
       properties:
