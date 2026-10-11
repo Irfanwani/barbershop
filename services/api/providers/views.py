@@ -20,7 +20,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from bookings.models import next_free_slot, slot_grid
+from bookings.models import slot_grid
 from core.pagination import DefaultPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
@@ -31,6 +31,7 @@ from providers.hours_serializers import (
 )
 from providers.models import ProviderProfile, Service, WorkingHours
 from providers.pricing import MIN_SAMPLE_FOR_CONFIDENCE
+from providers.queries import starting_price_subquery
 from providers.serializers import (
     PayoutSerializer,
     ProviderDetailSerializer,
@@ -38,6 +39,7 @@ from providers.serializers import (
     ProviderSelfSerializer,
     ProviderWriteSerializer,
     ServiceSerializer,
+    annotate_next_free_slots,
     service_type_choices,
 )
 
@@ -134,8 +136,13 @@ class ProviderListView(APIView):
             if profile and profile.coords:
                 origin = profile.coords
 
-        queryset = ProviderProfile.objects.select_related("user").annotate(
-            service_count=Count("services", filter=Q(services__is_active=True), distinct=True)
+        queryset = (
+            ProviderProfile.objects.select_related("user")
+            .prefetch_related("hours")
+            .annotate(
+                service_count=Count("services", filter=Q(services__is_active=True), distinct=True)
+            )
+            .annotate(_starting_price_annotated=starting_price_subquery())
         )
 
         radius_km = min(_m(request.query_params.get("radius_km")) or 25, 100)
@@ -177,16 +184,25 @@ class ProviderListView(APIView):
         if min_rating is not None:
             queryset = queryset.filter(rating_average__gte=min_rating)
 
-        if request.query_params.get("available_today") in {"1", "true", "True"}:
-            queryset = [profile for profile in queryset if next_free_slot(profile) is not None]
-        else:
-            queryset = list(queryset)
-
-        if origin is not None:
-            queryset.sort(key=lambda profile: profile.distance_metres)
+        # Sort in the database, not in Python. Sorting a list here meant the
+        # whole table had been loaded first, so a platform with ten thousand
+        # shops read ten thousand rows to show twenty.
+        #
+        # `id` as the tiebreaker matters either way: paginating a queryset with
+        # no total order can return the same shop on two pages and skip another
+        # entirely, so a customer scrolling the list sees a duplicate.
+        queryset = queryset.order_by(
+            *(["distance_metres"] if origin is not None else []),
+            "id",
+        )
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
+
+        # One extra query for the whole page's availability, instead of one per
+        # provider per candidate slot.
+        page = annotate_next_free_slots(page)
+
         serializer = ProviderListSerializer(page, many=True, context={"request": request})
 
         response = paginator.get_paginated_response(serializer.data)

@@ -172,7 +172,15 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
         None means "fall back to the shop's own opening and closing time", which
         is what every shop had before per-day hours existed. Treating a missing
         row as "closed" would silently shut every provider on the platform.
+
+        Reads the prefetch cache when there is one. `.filter()` would ignore it
+        and hit the database — and this is called once per slot per slot per
+        provider, which turned a single search request into a thousand queries.
         """
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("hours")
+        if prefetched is not None:
+            return next((row for row in prefetched if row.weekday == weekday), None)
+
         return self.hours.filter(weekday=weekday).first()
 
     def is_open_on(self, weekday: int) -> bool:

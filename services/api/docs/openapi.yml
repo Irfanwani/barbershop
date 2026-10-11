@@ -4254,7 +4254,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProviderList'
+                $ref: '#/components/schemas/ProviderDetail'
           description: ''
         '400':
           content:
@@ -8129,7 +8129,7 @@ components:
       required:
       - name
       - price
-    ProviderList:
+    ProviderDetail:
       type: object
       description: One provider in full, with the menu and their opening hours.
       properties:
@@ -8198,8 +8198,13 @@ components:
         rating_count:
           type: integer
           readOnly: true
+        starting_price:
+          type: integer
+          nullable: true
+          readOnly: true
         starting_price_display:
           type: string
+          nullable: true
           readOnly: true
         owner:
           allOf:
@@ -8252,6 +8257,7 @@ components:
       - service_type_label
       - services
       - slot_interval_minutes
+      - starting_price
       - starting_price_display
     ProviderSelf:
       type: object

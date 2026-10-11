@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from accounts.serializers import PointFieldSerializer, PublicUserSerializer
+from bookings.models import BLOCKING_STATUSES, Booking
 from providers.models import ProviderPayout, ProviderProfile, Service, ServiceType
 
 # Coarse enough to be useful for "is this near me", fine enough that a walk-in
@@ -43,6 +44,42 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 
 @extend_schema_serializer(component_name="ProviderList")
+def annotate_next_free_slots(queryset) -> list:
+    """Load the soonest free slot for every provider on a page, in one query.
+
+    Returns the providers. Each gets a ``_next_free_slot`` attribute, which
+    `ProviderListSerializer` reads instead of asking per row.
+
+    Done this way because the alternative is a query per provider per page: a
+    customer scrolling shops with twenty on screen would issue eight hundred
+    queries for one screen of results.
+    """
+    from bookings.models import next_free_slot
+
+    providers = list(queryset)
+    if not providers:
+        return providers
+
+    for provider in providers:
+        provider._next_free_slot = None
+
+    # One query for every taken interval on the page, rather than one per
+    # provider per candidate slot.
+    by_provider: dict[int, list] = {}
+    for row in Booking.objects.filter(
+        provider__in=providers,
+        status__in=BLOCKING_STATUSES,
+    ).values_list("provider_id", "starts_at", "ends_at"):
+        by_provider.setdefault(row[0], []).append((row[1], row[2]))
+
+    # The callers pass in providers that already have `hours` prefetched, so
+    # `day_bounds` inside `slot_grid` reads the cache rather than the database.
+    for provider in providers:
+        provider._next_free_slot = next_free_slot(provider, busy=by_provider.get(provider.pk, []))
+
+    return providers
+
+
 class ProviderListSerializer(serializers.ModelSerializer):
     """A provider as a customer browsing sees them.
 
@@ -52,7 +89,8 @@ class ProviderListSerializer(serializers.ModelSerializer):
 
     owner = PublicUserSerializer(source="user", read_only=True)
     service_type_label = serializers.CharField(source="get_service_type_display", read_only=True)
-    starting_price_display = serializers.CharField(read_only=True)
+    starting_price = serializers.SerializerMethodField()
+    starting_price_display = serializers.SerializerMethodField()
     approximate_location = serializers.SerializerMethodField()
     is_open_now = serializers.SerializerMethodField()
     next_available = serializers.SerializerMethodField()
@@ -77,11 +115,27 @@ class ProviderListSerializer(serializers.ModelSerializer):
             "requires_approval",
             "rating_average",
             "rating_count",
+            "starting_price",
             "starting_price_display",
             "owner",
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_starting_price(self, obj: ProviderProfile) -> int | None:
+        # Annotate `starting_price` in SQL on the search queryset. The property
+        # underneath runs one query per row otherwise, so a page of twenty was
+        # twenty extra round trips.
+        annotated = getattr(obj, "_starting_price_annotated", None)
+        if annotated is not None:
+            return annotated
+        return obj.starting_price
+
+    def get_starting_price_display(self, obj: ProviderProfile) -> str | None:
+        from core.money import format_minor
+
+        price = self.get_starting_price(obj)
+        return format_minor(price) if price else None
 
     def get_approximate_location(self, obj: ProviderProfile) -> dict | None:
         if not obj.coords:
@@ -99,10 +153,16 @@ class ProviderListSerializer(serializers.ModelSerializer):
         return obj.is_open_at()
 
     def get_next_available(self, obj: ProviderProfile) -> str | None:
+        # Precomputed by the view in one query per page. Falling back to
+        # per-row computation is correct but costs a query per provider, which
+        # is how a 20-row page turned into 1600 round trips.
+        slot = getattr(obj, "_next_free_slot", None)
+        if slot is not None:
+            return slot.isoformat() if slot else None
+
         from bookings.models import next_free_slot
 
-        slot = next_free_slot(obj)
-        return slot.isoformat() if slot else None
+        return (lambda found: found.isoformat() if found else None)(next_free_slot(obj))
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

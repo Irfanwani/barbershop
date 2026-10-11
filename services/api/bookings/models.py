@@ -335,11 +335,56 @@ def slot_grid(provider: ProviderProfile, days: int = 14) -> list[tuple[datetime,
     return slots
 
 
-def next_free_slot(provider: ProviderProfile) -> datetime | None:
-    """The soonest interval the provider is free for, or None."""
-    for starts_at, ends_at in slot_grid(provider, days=7):
-        if has_room(provider, starts_at, ends_at):
+def busy_intervals(provider: ProviderProfile, *, days: int = 7) -> list[tuple[datetime, datetime]]:
+    """Every interval already taken, in one query.
+
+    Callers that need to know where the gaps are should fetch the busy periods
+    once and walk them, rather than asking the database once per candidate slot.
+    A shop with a week of openings has hundreds of slots; the old per-slot query
+    turned a single search result into hundreds of round trips.
+    """
+    window_start, window_end = default_booking_window()
+    window_end = min(window_end, timezone.now() + timedelta(days=days))
+
+    return list(
+        Booking.objects.filter(
+            provider=provider,
+            status__in=BLOCKING_STATUSES,
+            ends_at__gt=window_start,
+            starts_at__lt=window_end,
+        )
+        .values_list("starts_at", "ends_at")
+        .order_by("starts_at")
+    )
+
+
+def next_free_slot(
+    provider: ProviderProfile,
+    *,
+    days: int = 7,
+    busy: list[tuple[datetime, datetime]] | None = None,
+) -> datetime | None:
+    """The soonest interval the provider is free for, or None.
+
+    Pass ``busy`` when you already have the taken intervals — a caller working
+    through several providers should fetch them once and reuse.
+    """
+    capacity = max(provider.employee_count, 1)
+    taken = busy_intervals(provider, days=days) if busy is None else busy
+
+    for starts_at, ends_at in slot_grid(provider, days=days):
+        if not is_within_working_hours(provider, starts_at, ends_at):
+            continue
+
+        # Overlapping is half-open, so a booking ending exactly when this begins
+        # is not a conflict. Counting in Python is fine here: this is a list of
+        # a few hundred intervals, not a query per slot.
+        overlapping = sum(
+            1 for taken_start, taken_end in taken if taken_start < ends_at and taken_end > starts_at
+        )
+        if overlapping < capacity:
             return starts_at
+
     return None
 
 
