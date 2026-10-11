@@ -16,6 +16,7 @@ from django.db import models
 
 from core.models import TimeStampedModel
 from core.money import CURRENCY, format_minor
+from payments.choices import PaymentKind
 
 
 class PaymentStatus(models.TextChoices):
@@ -27,18 +28,29 @@ class PaymentStatus(models.TextChoices):
 
 
 class Payment(TimeStampedModel):
-    """The money side of a booking.
+    """One charge against a booking.
 
-    A booking has at most one payment attempt chain; ``booking`` is one-to-one
-    so a second capture cannot be recorded against the same appointment.
+    One-to-many, because a booking can now be charged twice: a deposit to
+    secure the slot and the balance on arrival. One-to-one made a second charge
+    impossible to even store.
+
+    ``kind`` is what keeps them apart. A deposit that is captured must never be
+    read as "the booking is paid in full", and a balance that is captured must
+    not re-confirm a booking the customer walked out on.
     """
 
     class PaymentMethod(models.TextChoices):
         RAZORPAY = "razorpay", "Razorpay"
         CASH = "cash", "Cash at the shop"
 
-    booking = models.OneToOneField(
-        "bookings.Booking", on_delete=models.CASCADE, related_name="payment"
+    booking = models.ForeignKey(
+        "bookings.Booking", on_delete=models.CASCADE, related_name="payments"
+    )
+    kind = models.CharField(
+        max_length=16,
+        choices=PaymentKind.choices,
+        default=PaymentKind.FULL,
+        help_text="Which part of what is owed this charge settles.",
     )
 
     razorpay_order_id = models.CharField(max_length=64, unique=True, db_index=True)
@@ -63,7 +75,19 @@ class Payment(TimeStampedModel):
     class Meta:
         db_table = "payments_payment"
         ordering = ["-created_at"]
-        indexes = [models.Index(fields=["status", "-created_at"])]
+        indexes = [
+            models.Index(fields=["status", "-created_at"]),
+            models.Index(fields=["booking", "kind", "status"]),
+        ]
+        constraints = [
+            # One live charge per part. A second deposit attempt is made by
+            # cancelling the first, not by adding a row beside it.
+            models.UniqueConstraint(
+                fields=["booking", "kind"],
+                condition=models.Q(status__in=["created", "attempted", "captured"]),
+                name="payments_one_live_charge_per_kind",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.razorpay_order_id} · {format_minor(self.amount)} · {self.status}"

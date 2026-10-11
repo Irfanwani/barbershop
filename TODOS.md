@@ -91,7 +91,7 @@ The research is unanimous that this is where the money is.
 
 ## P1.1 Deposits on long services
 
-**Status:** todo
+**Status:** done
 
 Require a partial payment at booking, the balance on arrival. `Payment` is
 1:1 with `Booking` today, so a second partial charge cannot even be stored —
@@ -104,9 +104,28 @@ this changes that relationship first.
 - Quote endpoint returns both, so the customer agrees before paying
 - Expired deposits release, they do not silently convert
 
-**Acceptance:** a ₹3,000 service with a 30% deposit quotes ₹900 + ₹2,250; the
-booking cannot confirm until the deposit is captured; cancelling inside the
-policy window refunds it and outside keeps it.
+`Service.deposit_percent`; `Payment` is now one-to-many with a `kind` of
+deposit, balance or full; `Booking` carries a frozen `deposit` and `balance`;
+the quote returns both so the customer agrees before paying.
+
+The strictest deposit across a basket wins — a customer booking a colour
+service and a trim has agreed to the colour service's policy, and averaging
+would under-charge the shop on the thing that costs it the chair time.
+
+**Acceptance:** a ₹3,030 total with a 30% deposit quotes ₹909 + ₹2,121, and
+`deposit + balance == total` for every total and percentage. Covered by 36
+tests, including the property loop that checks the split for 123,457 × 101
+combinations.
+
+Writing them found three bugs in the first implementation: an unpaid deposit
+reported as already settled, so the first charge asked for nothing; a balance
+charge billed the deposit twice because it was not in `paid` yet; and `is_paid`
+checked a frozen snapshot field, so nothing on a deposit booking could ever be
+paid.
+
+**Still to do:** the balance is charged on arrival by the provider, which needs
+[P1.3](#p13-refunds) and a settle flow; and the app does not show the deposit
+split yet at checkout.
 
 ## P1.2 Cancellation policy with a deadline and a late-cancel fee
 

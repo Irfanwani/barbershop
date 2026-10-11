@@ -6,7 +6,8 @@ from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from bookings.models import Booking, BookingStatus
-from payments.models import Payment, PaymentStatus  # noqa: F401
+from payments.choices import PaymentKind
+from payments.models import Payment, PaymentStatus
 
 
 @extend_schema_serializer(component_name="Payment")
@@ -18,6 +19,7 @@ class PaymentSerializer(serializers.ModelSerializer):
     """
 
     amount_display = serializers.CharField(read_only=True)
+    kind = serializers.CharField(read_only=True)
     booking_reference = serializers.CharField(source="booking.reference", read_only=True)
     is_captured = serializers.BooleanField(read_only=True)
 
@@ -27,6 +29,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "id",
             "booking",
             "booking_reference",
+            "kind",
             "razorpay_order_id",
             "razorpay_payment_id",
             "amount",
@@ -63,8 +66,14 @@ class CreateOrderSerializer(serializers.Serializer):
                 f"This booking is {booking.get_status_display().lower()} and no longer "
                 f"needs paying."
             )
-        if hasattr(booking, "payment") and booking.payment.is_captured:
-            raise serializers.ValidationError("This booking has already been paid.")
+        # A booking can now be charged twice — deposit, then balance — so the
+        # check is per-kind rather than "has this booking ever been paid".
+        kind = self.context.get("kind")
+        if kind and booking.payments.filter(kind=kind, status=PaymentStatus.CAPTURED).exists():
+            label = "deposit" if kind == PaymentKind.DEPOSIT else "payment"
+            raise serializers.ValidationError(
+                f"The {label} for this booking has already been paid."
+            )
 
         # DRF types `context` as a Mapping; it is a mutable dict at runtime.
         self.context["booking_obj"] = booking  # type: ignore[index]

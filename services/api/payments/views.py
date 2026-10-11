@@ -20,7 +20,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -29,6 +29,7 @@ from rest_framework.views import APIView
 from bookings.models import Booking, BookingStatus
 from core.exceptions import BusinessRuleViolation
 from core.schema import BAD_REQUEST, NOT_FOUND, UNAUTHORIZED
+from payments.due import amount_due, default_kind, requested_kind
 from payments.models import Payment, PaymentStatus
 from payments.serializers import (
     CreateOrderSerializer,
@@ -86,11 +87,37 @@ class CreateOrderView(APIView):
     supplied by the caller.
     """
 
-    @extend_schema(operation_id="payments_create_order")
-    def post(self, request):
-        serializer = CreateOrderSerializer(data=request.data, context={"request": request})
+    @extend_schema(
+        operation_id="payments_create_order",
+        parameters=[
+            OpenApiParameter(
+                "kind",
+                str,
+                description=(
+                    "`deposit` or `balance`. Defaults to whatever is still owed "
+                    "right now: the deposit on a booking that needs one, "
+                    "otherwise the full total."
+                ),
+            )
+        ],
+    )
+    def _booking_for(self, request) -> Booking:
+        """Resolve and validate the booking the caller means to pay for."""
+        kind = requested_kind(request)
+        serializer = CreateOrderSerializer(
+            data=request.data, context={"request": request, "kind": kind}
+        )
         serializer.is_valid(raise_exception=True)
-        booking: Booking = serializer.context["booking_obj"]
+        return serializer.context["booking_obj"]
+
+    def post(self, request):
+        booking = self._booking_for(request)
+
+        kind = requested_kind(request) or default_kind(booking)
+        amount = amount_due(booking, kind)
+
+        if amount <= 0:
+            raise BusinessRuleViolation("There is nothing left to pay for this booking.")
 
         if not credentials_configured():
             raise BusinessRuleViolation(
@@ -99,10 +126,10 @@ class CreateOrderView(APIView):
 
         try:
             order = create_order(
-                amount=booking.total,
+                amount=amount,
                 currency=booking.currency,
                 receipt=booking.reference,
-                notes={"booking": booking.reference},
+                notes={"booking": booking.reference, "kind": kind},
             )
         except Exception as exc:
             logger.exception("Razorpay order creation failed for %s", booking.reference)
@@ -112,8 +139,9 @@ class CreateOrderView(APIView):
 
         payment = Payment.objects.create(
             booking=booking,
+            kind=kind,
             razorpay_order_id=order["id"],
-            amount=booking.total,
+            amount=amount,
             currency=booking.currency,
             status=PaymentStatus.CREATED,
         )
@@ -127,7 +155,10 @@ class CreateOrderView(APIView):
                     "amount": order["amount"],
                     "currency": order["currency"],
                 },
-                "amount_display": format_minor_amount(booking.total, booking.currency),
+                "amount_display": format_minor_amount(amount, booking.currency),
+                "amount_due_display": format_minor_amount(
+                    booking.total - booking.amount_paid, booking.currency
+                ),
             },
             status=status.HTTP_201_CREATED,
         )

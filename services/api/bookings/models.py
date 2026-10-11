@@ -27,6 +27,7 @@ from accounts.models import User
 from core import references
 from core.models import TimeStampedModel
 from core.money import CURRENCY, format_minor
+from payments.choices import PaymentKind
 from providers.models import ProviderProfile, Service
 
 REFERENCE_PREFIX = references.BOOKING
@@ -118,6 +119,12 @@ class Booking(TimeStampedModel):
 
     notes = models.TextField(blank=True, default="", max_length=500)
 
+    #: What must be paid now to secure the slot, and what is owed on arrival.
+    #: Frozen here, like the prices: a shop raising its deposit policy next week
+    #: must not change what somebody agreed to pay today.
+    deposit = models.PositiveIntegerField(default=0)
+    balance = models.PositiveIntegerField(default=0)
+
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancellation_reason = models.CharField(max_length=200, blank=True, default="")
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -171,9 +178,34 @@ class Booking(TimeStampedModel):
         }
 
     @property
+    def amount_paid(self) -> int:
+        """Captured against this booking, deposit and balance together."""
+        return sum(payment.amount for payment in self.payments.all() if payment.is_captured)
+
+    @property
     def is_paid(self) -> bool:
-        payment = getattr(self, "payment", None)
-        return bool(payment and payment.is_captured)
+        """Whether nothing more is owed.
+
+        Derived from what has actually been captured against the total, not from
+        any status flag: `balance` is a frozen snapshot from booking time and
+        does not change when the balance is later paid.
+
+        Not "has any payment been captured" either — that would let a captured
+        deposit read as a paid booking, which is exactly the confusion deposits
+        create if you are not careful.
+        """
+        return self.amount_paid >= self.total
+
+    @property
+    def requires_deposit(self) -> bool:
+        return self.deposit > 0 and not self.has_captured_deposit
+
+    @property
+    def has_captured_deposit(self) -> bool:
+        return any(
+            payment.is_captured and payment.kind == PaymentKind.DEPOSIT
+            for payment in self.payments.all()
+        )
 
     def minutes_until_start(self) -> int:
         return int((self.starts_at - timezone.now()).total_seconds() // 60)

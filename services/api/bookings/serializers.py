@@ -24,7 +24,7 @@ from bookings.models import (
     is_within_working_hours,
 )
 from core.exceptions import BusinessRuleViolation
-from core.money import CURRENCY, compute_platform_fee, format_minor
+from core.money import CURRENCY, compute_deposit, compute_platform_fee, format_minor
 from providers.models import ProviderProfile, Service
 from providers.serializers import ProviderSummarySerializer
 
@@ -68,6 +68,11 @@ class BookingSerializer(serializers.ModelSerializer):
     duration_minutes = serializers.IntegerField(read_only=True)
     can_be_cancelled = serializers.BooleanField(read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
+    amount_paid = serializers.IntegerField(read_only=True)
+    amount_due = serializers.SerializerMethodField()
+    requires_deposit = serializers.BooleanField(read_only=True)
+    deposit_display = serializers.SerializerMethodField()
+    balance_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -87,6 +92,13 @@ class BookingSerializer(serializers.ModelSerializer):
             "total",
             "total_display",
             "currency",
+            "deposit",
+            "deposit_display",
+            "balance",
+            "balance_display",
+            "amount_paid",
+            "amount_due",
+            "requires_deposit",
             "notes",
             "items",
             "can_be_cancelled",
@@ -96,6 +108,15 @@ class BookingSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_amount_due(self, obj: Booking) -> int:
+        return max(obj.total - obj.amount_paid, 0)
+
+    def get_deposit_display(self, obj: Booking) -> str:
+        return format_minor(obj.deposit, obj.currency)
+
+    def get_balance_display(self, obj: Booking) -> str:
+        return format_minor(obj.balance, obj.currency)
 
     def get_customer(self, obj: Booking) -> dict:
         user = obj.customer
@@ -231,6 +252,14 @@ class BookingCreateSerializer(serializers.Serializer):
 
         subtotal = sum(service.price for service in services)
         platform_fee = compute_platform_fee(subtotal, settings.PLATFORM_FEE_PERCENT)
+        total = subtotal + platform_fee
+
+        # The strictest requirement across the basket. A customer booking a
+        # colour service and a trim has agreed to the colour service's deposit;
+        # taking the average would under-charge the shop on the thing that
+        # actually costs them the chair time.
+        deposit_percent = max((service.deposit_percent for service in services), default=0)
+        deposit, balance = compute_deposit(total, deposit_percent)
 
         status = (
             BookingStatus.AWAITING_CONFIRMATION
@@ -247,7 +276,9 @@ class BookingCreateSerializer(serializers.Serializer):
                 status=status,
                 subtotal=subtotal,
                 platform_fee=platform_fee,
-                total=subtotal + platform_fee,
+                total=total,
+                deposit=deposit,
+                balance=balance,
                 currency=CURRENCY,
                 notes=self.validated_data.get("notes", ""),
             )

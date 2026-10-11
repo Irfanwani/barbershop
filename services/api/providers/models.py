@@ -284,6 +284,16 @@ class Service(TimeStampedModel):
         default=True, help_text="Retired services stay on old bookings but cannot be booked."
     )
 
+    #: Percentage of the booking total taken up front, to secure the slot.
+    #: Zero means pay in full at booking, which is what most services want.
+    #: A long colouring job that empties a chair for three hours is where this
+    #: earns its keep — see the deposit research in TODOS.md P1.1.
+    deposit_percent = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        help_text="Taken at booking; the balance is paid on arrival. 0 means pay in full.",
+    )
+
     class Meta:
         db_table = "providers_service"
         ordering = ["name"]

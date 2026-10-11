@@ -64,6 +64,10 @@ class Quote:
     currency: str = CURRENCY
     duration_minutes: int = 0
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    #: What must be paid now to secure the slot, and what is owed on arrival.
+    #: Zero for both when a service needs no deposit.
+    deposit: int = 0
+    balance: int = 0
 
     def as_dict(self) -> dict:
         return {
@@ -105,10 +109,38 @@ def compute_platform_fee(subtotal: int, percent: int) -> int:
     return int(fee)
 
 
+def compute_deposit(total: int, deposit_percent: int) -> tuple[int, int]:
+    """Split a total into (deposit, balance).
+
+    The deposit is taken from the **total**, not the subtotal, because that is
+    the number the customer agreed to. The platform's cut on the balance is
+    already inside ``total``, so there is no second fee to compute here.
+
+    Half-up rounding, for the same reason as everywhere else: ``deposit +
+    balance == total`` has to hold exactly, or a customer's receipt does not
+    add up to their quote.
+    """
+    if deposit_percent <= 0:
+        return 0, total
+
+    deposit_minor = int(
+        (Decimal(total) * Decimal(deposit_percent) / Decimal(100)).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+    )
+
+    # A deposit equal to the total leaves nothing to pay on arrival, which is
+    # what a 100% deposit means. Anything above it is capped rather than
+    # producing a negative balance.
+    deposit_minor = min(deposit_minor, total)
+    return deposit_minor, total - deposit_minor
+
+
 def quote(
     services: list[tuple[int, str, int, int]],
     fee_percent: int,
     default_duration: int = 30,
+    deposit_percent: int = 0,
 ) -> Quote:
     """Price a booking from authoritative service rows.
 
@@ -122,11 +154,15 @@ def quote(
     subtotal = sum(line.line_total for line in lines)
     platform_fee = compute_platform_fee(subtotal, fee_percent)
     duration = sum(duration or default_duration for *_r, duration in services)
+    total = subtotal + platform_fee
+    deposit, balance = compute_deposit(total, deposit_percent)
 
     return Quote(
         lines=lines,
         subtotal=subtotal,
         platform_fee=platform_fee,
-        total=subtotal + platform_fee,
+        total=total,
         duration_minutes=duration,
+        deposit=deposit,
+        balance=balance,
     )

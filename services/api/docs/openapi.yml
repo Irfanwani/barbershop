@@ -6087,7 +6087,7 @@ paths:
           description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/payments/orders/:
     post:
-      operationId: payments_create_order
+      operationId: payments_orders_create
       description: Creates a Razorpay order for the booking's total. The amount is
         the server-computed figure and cannot be supplied by the caller.
       summary: Start a payment
@@ -7290,6 +7290,27 @@ components:
         currency:
           type: string
           readOnly: true
+        deposit:
+          type: integer
+          readOnly: true
+        deposit_display:
+          type: string
+          readOnly: true
+        balance:
+          type: integer
+          readOnly: true
+        balance_display:
+          type: string
+          readOnly: true
+        amount_paid:
+          type: integer
+          readOnly: true
+        amount_due:
+          type: integer
+          readOnly: true
+        requires_deposit:
+          type: boolean
+          readOnly: true
         notes:
           type: string
           readOnly: true
@@ -7317,12 +7338,18 @@ components:
           format: date-time
           readOnly: true
       required:
+      - amount_due
+      - amount_paid
+      - balance
+      - balance_display
       - can_be_cancelled
       - cancellation_reason
       - cancelled_at
       - created_at
       - currency
       - customer
+      - deposit
+      - deposit_display
       - duration_minutes
       - ends_at
       - id
@@ -7333,6 +7360,7 @@ components:
       - platform_fee_display
       - provider
       - reference
+      - requires_deposit
       - starts_at
       - status
       - subtotal
@@ -7910,6 +7938,9 @@ components:
         booking_reference:
           type: string
           readOnly: true
+        kind:
+          type: string
+          readOnly: true
         razorpay_order_id:
           type: string
           readOnly: true
@@ -7930,6 +7961,7 @@ components:
           allOf:
           - $ref: '#/components/schemas/PaymentStatusEnum'
           readOnly: true
+          default: created
         method:
           allOf:
           - $ref: '#/components/schemas/MethodEnum'
@@ -7960,6 +7992,7 @@ components:
       - failure_reason
       - id
       - is_captured
+      - kind
       - method
       - razorpay_order_id
       - razorpay_payment_id

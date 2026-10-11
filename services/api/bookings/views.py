@@ -30,7 +30,7 @@ from bookings.serializers import (
     QuoteRequestSerializer,
 )
 from core.exceptions import BusinessRuleViolation
-from core.money import compute_platform_fee, format_minor
+from core.money import compute_deposit, compute_platform_fee, format_minor
 from core.pagination import CompactPagination
 from core.schema import BAD_REQUEST, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from providers.models import ProviderProfile, Service
@@ -390,6 +390,9 @@ class QuoteView(APIView):
         platform_fee = compute_platform_fee(subtotal, settings.PLATFORM_FEE_PERCENT)
         total = subtotal + platform_fee
 
+        deposit_percent = max((service.deposit_percent for service in services), default=0)
+        deposit, balance = compute_deposit(total, deposit_percent)
+
         return Response(
             {
                 "currency": "INR",
@@ -399,6 +402,13 @@ class QuoteView(APIView):
                 "platform_fee_display": format_minor(platform_fee),
                 "total": total,
                 "total_display": format_minor(total),
+                # Shown before checkout, never applied after. A deposit the
+                # customer discovers at the payment screen is a complaint.
+                "deposit_percent": deposit_percent,
+                "deposit": deposit,
+                "deposit_display": format_minor(deposit),
+                "balance": balance,
+                "balance_display": format_minor(balance),
                 "duration_minutes": int(duration.total_seconds() // 60),
                 "starts_at": starts_at,
                 "ends_at": ends_at,
