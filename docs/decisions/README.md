@@ -8,6 +8,7 @@ Short, dated notes on decisions that were not obvious.
 | [0002](./0002-versioned-api.md)           | Version the API under `/api/v1/`       | Accepted |
 | [0003](./0003-server-authoritative-pricing.md) | Never trust a client-supplied price | Accepted |
 | [0004](./0004-uv-for-dependency-management.md) | `uv` over Poetry + requirements.txt | Accepted |
+| [0005](./0005-what-ai-is-for.md) | Narrow retrieval, never generation on money | Accepted |
 
 ## The template
 

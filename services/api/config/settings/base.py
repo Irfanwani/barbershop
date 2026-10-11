@@ -315,6 +315,18 @@ CELERY_ENABLE_UTC = True
 CELERY_TASK_ACKS_LATE = True
 
 # ---------------------------------------------------------------------------
+# Optional AI, for matching what a customer wants to what a shop sells.
+#
+# No default and no URL: with nothing configured the feature falls back to
+# keyword matching and the app behaves identically. It is never a hard
+# dependency — see docs/decisions/0005-what-ai-is-for.md.
+# ---------------------------------------------------------------------------
+
+AI_MODEL = env.get("AI_MODEL", "")
+AI_API_KEY = env.get("AI_API_KEY", "")
+AI_ENDPOINT = env.get("AI_ENDPOINT", "")
+
+# ---------------------------------------------------------------------------
 # Field-level encryption for provider bank details.
 # Losing this key means losing access to stored account numbers. There is
 # deliberately no default: production refuses to boot without it.

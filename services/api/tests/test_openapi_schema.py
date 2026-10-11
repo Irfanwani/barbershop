@@ -55,6 +55,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/providers/me/services/{id}/",
     "/api/v1/providers/prices/",
     "/api/v1/providers/prices/services/",
+    "/api/v1/providers/suggest/",
     "/api/v1/providers/me/payout/",
     "/api/v1/providers/me/hours/",
     "/api/v1/providers/me/accepting-bookings/",
@@ -83,6 +84,7 @@ EXPECTED_ENDPOINTS = {
     # reviews
     "/api/v1/reviews/",
     "/api/v1/reviews/new/",
+    "/api/v1/reviews/shops/{provider_pk}/summary/",
     "/api/v1/reviews/{id}/",
     "/api/v1/reviews/{id}/reply/",
     # payments

@@ -6,6 +6,7 @@ right now". It is one PostGIS query, not a loop over coordinates in Python.
 
 from __future__ import annotations
 
+import logging
 from datetime import time
 
 from django.contrib.gis.db.models.functions import Distance
@@ -42,6 +43,8 @@ from providers.serializers import (
     annotate_next_free_slots,
     service_type_choices,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _m(value: str | None) -> float | None:
@@ -732,3 +735,86 @@ class ServicePriceIndexView(APIView):
         limit = max(1, min(limit, 50))
 
         return Response({"services": service_name_bands(services, limit=limit)})
+
+
+@extend_schema(
+    tags=["providers"],
+    summary="Suggest services from what the customer says",
+    description=(
+        "Matches free text against real, active services. The model may only "
+        "choose from the ids supplied to it, so a suggestion is always a "
+        "service that exists and can be booked. Falls back to keyword matching "
+        "when no model is configured, and says which it used."
+    ),
+    parameters=[OpenApiParameter("q", str, description="What the customer asked for.")],
+    request=None,
+    responses={200: None},
+)
+class ServiceSuggestionView(APIView):
+    """What the customer asked for, matched to what a shop actually sells.
+
+    The one place a language model earns its keep on this platform: bridging the
+    gap between a customer's words and a shop's. It cannot change a booking or
+    a price, so the cost of being wrong is an unhelpful suggestion.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="providers_suggest_services")
+    def post(self, request):
+        from providers.suggestions import (
+            Matcher,
+            SuggestionUnavailable,
+            keyword_fallback,
+            service_candidates,
+        )
+
+        query = (request.data.get("q") or "").strip()
+        if not query:
+            return Response(
+                {"error": {"code": "validation_error", "message": "Say something."}}, status=400
+            )
+
+        limit = min(int(request.data.get("limit") or 5), 20)
+
+        services = (
+            Service.objects.filter(is_active=True, provider__is_accepting_bookings=True)
+            .select_related("provider")
+            .order_by("provider__rating_average", "price")
+        )
+        if request.data.get("provider"):
+            services = services.filter(provider_id=request.data["provider"])
+
+        candidates = service_candidates(services)
+        if not candidates:
+            return Response(
+                {
+                    "error": {
+                        "code": "business_rule_violation",
+                        "message": "Nothing to suggest yet.",
+                    }
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        matcher = Matcher()
+        matched_by = "keywords"
+        try:
+            ids = matcher.rank(query, candidates, limit=limit)
+            matched_by = "model"
+        except SuggestionUnavailable:
+            logger.info("Falling back to keyword matching: no model configured or it failed")
+            ids = keyword_fallback(query, candidates, limit=limit)
+
+        by_id = {candidate["id"]: candidate for candidate in candidates}
+        # Preserve the candidate order, so a tie is resolved the way the shop
+        # would have ordered it.
+        suggestions = [by_id[id_] for id_ in ids if id_ in by_id]
+
+        return Response(
+            {
+                "suggestions": suggestions,
+                "matched_by": matched_by,
+                "candidates_considered": len(candidates),
+            }
+        )

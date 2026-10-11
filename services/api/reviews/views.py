@@ -176,3 +176,31 @@ class ReviewReplyView(APIView):
         serializer.save()
 
         return Response(ReviewSerializer(review).data)
+
+
+@extend_schema(
+    tags=["reviews"],
+    summary="What a shop's reviews say",
+    description=(
+        "The rating picture — average, distribution, count — computed from real "
+        "reviews, plus a written summary when there are enough of them. Falls back "
+        "to the numbers alone when no model is configured."
+    ),
+    responses={200: None, 404: NOT_FOUND},
+)
+class ProviderSummaryView(APIView):
+    """A shop's reviews, condensed.
+
+    Public: someone deciding between two shops should not need an account to
+    read what customers say about them.
+    """
+
+    permission_classes = []
+
+    @extend_schema(operation_id="reviews_summary")
+    def get(self, request, provider_pk: int):
+        from providers.models import ProviderProfile
+        from reviews.summaries import summarise_provider
+
+        provider = get_object_or_404(ProviderProfile, pk=provider_pk)
+        return Response(summarise_provider(provider))

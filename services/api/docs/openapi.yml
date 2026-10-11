@@ -4114,6 +4114,28 @@ paths:
                       details: null
                   summary: Well-formed, but not allowed right now
           description: Malformed request, or one that breaks a business rule
+  /api/v1/providers/suggest/:
+    post:
+      operationId: providers_suggest_services
+      description: Matches free text against real, active services. The model may
+        only choose from the ids supplied to it, so a suggestion is always a service
+        that exists and can be booked. Falls back to keyword matching when no model
+        is configured, and says which it used.
+      summary: Suggest services from what the customer says
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: What the customer asked for.
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/providers/me/accepting-bookings/:
     post:
       operationId: providers_set_accepting_bookings
@@ -5638,6 +5660,57 @@ paths:
                 required:
                 - error
           description: No token, or the token has expired
+  /api/v1/reviews/shops/{provider_pk}/summary/:
+    get:
+      operationId: reviews_summary
+      description: The rating picture — average, distribution, count — computed from
+        real reviews, plus a written summary when there are enough of them. Falls
+        back to the numbers alone when no model is configured.
+      summary: What a shop's reviews say
+      parameters:
+      - in: path
+        name: provider_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - reviews
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        description: Stable machine-readable code, e.g. `business_rule_violation`.
+                        example: validation_error
+                      message:
+                        type: string
+                        description: A sentence safe to show a user.
+                        example: That slot is already taken. Pick another time.
+                      details:
+                        nullable: true
+                        description: Field-level detail when there is any; null otherwise.
+                        example:
+                          starts_at:
+                          - This field is required.
+                    required:
+                    - code
+                    - message
+                    - details
+                required:
+                - error
+          description: No such resource, or not yours to see. Deliberately indistinguishable.
   /api/v1/reviews/{id}/:
     get:
       operationId: reviews_retrieve
