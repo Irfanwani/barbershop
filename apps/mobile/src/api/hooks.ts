@@ -190,6 +190,25 @@ export function useSetAcceptingBookings() {
   });
 }
 
+export function useCollectBooking() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      reference,
+      amount,
+      method,
+    }: {
+      reference: string;
+      amount?: number;
+      method?: 'cash' | 'upi' | 'card';
+    }) => bookingsApi.collect(reference, { amount, method }),
+    onSuccess: (booking) => {
+      client.setQueryData(keys.booking(booking.reference), booking);
+      void client.invalidateQueries({ queryKey: ['bookings'] });
+    },
+  });
+}
+
 export function useMyServices() {
   return useQuery({ queryKey: keys.services, queryFn: providersApi.myServices });
 }

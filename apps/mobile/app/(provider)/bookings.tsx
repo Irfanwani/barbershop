@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { FlatList, RefreshControl, Text, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
+import type { Booking } from '@/types/api';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
-import { useBookings, useTransitionBooking } from '@/api/hooks';
+import { useBookings, useCollectBooking, useTransitionBooking } from '@/api/hooks';
 import { Button, Card, EmptyState, useColors } from '@/components/ui';
 import { BookingRow } from '@/components/booking-row';
+import { formatPaise } from '@/lib/money';
 
 type Tab = 'today' | 'upcoming' | 'past';
 
@@ -19,6 +21,8 @@ export default function ProviderBookings() {
 
   const bookings = useBookings(params);
   const transition = useTransitionBooking();
+  const collect = useCollectBooking();
+  const [collectError, setCollectError] = useState<string | null>(null);
 
   const rows = bookings.data?.results ?? [];
 
@@ -28,7 +32,25 @@ export default function ProviderBookings() {
     setRefreshing(false);
   }
 
-  function pendingActions(reference: string, status: string) {
+  async function takeBalance(reference: string, amount: number) {
+    setCollectError(null);
+    try {
+      await collect.mutateAsync({ reference, amount, method: 'cash' });
+    } catch (caught) {
+      setCollectError(errorMessage(caught, 'Could not record that payment.'));
+    }
+  }
+
+  function pendingActions(booking: Booking) {
+    const { reference, status } = booking;
+
+    // What is still owed on an appointment that is under way. Recording this
+    // is separate from marking the appointment done: a customer who paid and
+    // then walked out has still been paid.
+    const balanceDue =
+      booking.amount_due > 0 && ['confirmed', 'completed'].includes(status)
+        ? booking.amount_due
+        : 0;
     if (status === 'awaiting_confirmation') {
       return (
         <>
@@ -53,6 +75,16 @@ export default function ProviderBookings() {
     if (status === 'confirmed') {
       return (
         <>
+          {balanceDue > 0 ? (
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onPress={() => takeBalance(reference, balanceDue)}
+              loading={collect.isPending && collect.variables?.reference === reference}
+              testID={`collect-${reference}`}>
+              Take {formatPaise(balanceDue)}
+            </Button>
+          ) : null}
           <Button
             variant="secondary"
             className="flex-1"
@@ -109,7 +141,7 @@ export default function ProviderBookings() {
               booking={item}
               perspective="provider"
               statusLabel={BOOKING_STATUS_LABELS[item.status]}
-              actions={pendingActions(item.reference, item.status)}
+              actions={pendingActions(item)}
             />
           </View>
         )}
@@ -129,6 +161,14 @@ export default function ProviderBookings() {
           )
         }
       />
+
+      {collectError ? (
+        <View className="px-4 pb-2">
+          <Text className="text-sm font-medium" style={{ color: colors.danger }}>
+            {collectError}
+          </Text>
+        </View>
+      ) : null}
 
       {transition.isError ? (
         <View className="px-4 pb-4">

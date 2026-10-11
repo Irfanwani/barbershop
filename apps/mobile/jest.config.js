@@ -36,6 +36,7 @@ module.exports = {
     'src/lib/cn.ts',
     'src/lib/secure-store.ts',
     'src/lib/weekdays.ts',
+    'src/lib/money.ts',
     'src/store/**/*.ts',
   ],
   coverageThreshold: {

@@ -314,6 +314,13 @@ export interface Booking {
   total: number;
   total_display: string;
   currency: string;
+  deposit: number;
+  deposit_display: string;
+  balance: number;
+  balance_display: string;
+  amount_paid: number;
+  amount_due: number;
+  requires_deposit: boolean;
   notes: string;
   items: BookingItem[];
   can_be_cancelled: boolean;
@@ -331,6 +338,17 @@ export interface Quote {
   platform_fee_display: string;
   total: number;
   total_display: string;
+  /**
+   * What is taken now to secure the slot, and what is owed on arrival.
+   * Both zero on a service with no deposit policy. Shown before checkout,
+   * never applied after — a deposit the customer discovers at the payment
+   * screen is a complaint.
+   */
+  deposit_percent: number;
+  deposit: number;
+  deposit_display: string;
+  balance: number;
+  balance_display: string;
   duration_minutes: number;
   starts_at: string;
   ends_at: string;

@@ -1,6 +1,7 @@
 import { Text, View } from 'react-native';
 
-import { useColors , Card } from '@/components/ui';
+import { Card, useColors } from '@/components/ui';
+import { formatPaise } from '@/lib/money';
 import type { Booking } from '@/types/api';
 
 type Tone = 'positive' | 'neutral' | 'danger';
@@ -73,6 +74,20 @@ export function BookingRow({
           {booking.total_display}
         </Text>
       </View>
+
+      {/* Only shown when something is genuinely outstanding. A row reading
+          "paid" under a captured deposit would be a lie the provider would
+          act on by booking someone else into that chair. */}
+      {booking.amount_due > 0 && booking.amount_paid > 0 ? (
+        <Text className="text-xs font-medium" style={{ color: colors.warning }}>
+          {formatPaise(booking.amount_due)} still to collect
+        </Text>
+      ) : null}
+      {booking.amount_due === booking.total && booking.total > 0 ? (
+        <Text className="text-xs" style={{ color: colors.textSubtle }}>
+          Nothing paid yet
+        </Text>
+      ) : null}
 
       {actions ? <View className="flex-row gap-2">{actions}</View> : null}
 

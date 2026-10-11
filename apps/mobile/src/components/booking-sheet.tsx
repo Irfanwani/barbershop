@@ -225,6 +225,38 @@ export function BookingSheet({
                     </Text>
                   </View>
 
+                  {priced.deposit > 0 ? (
+                    <>
+                      <View className="mt-2 flex-row justify-between">
+                        <View className="flex-1 pr-3">
+                          <Text className="text-sm" style={{ color: colors.textMuted }}>
+                            Due now
+                          </Text>
+                          <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                            {priced.deposit_percent}% secures your slot
+                          </Text>
+                        </View>
+                        <Text className="text-sm font-medium" style={{ color: colors.text }}>
+                          {priced.deposit_display}
+                        </Text>
+                      </View>
+
+                      <View className="mt-2 flex-row justify-between">
+                        <View className="flex-1 pr-3">
+                          <Text className="text-sm" style={{ color: colors.textMuted }}>
+                            Due at the shop
+                          </Text>
+                          <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                            Pay the rest in cash or card when you arrive
+                          </Text>
+                        </View>
+                        <Text className="text-sm font-medium" style={{ color: colors.text }}>
+                          {priced.balance_display}
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
+
                   <View className="mt-2 flex-row justify-between">
                     <Text className="text-base font-semibold" style={{ color: colors.text }}>
                       Total
@@ -256,7 +288,11 @@ export function BookingSheet({
               disabled={!slot || !priced || !priced.is_available}
               loading={create.isPending}
               testID="book-confirm">
-              {priced ? `Confirm · ${priced.total_display}` : 'Confirm booking'}
+              {priced
+                ? priced.deposit > 0
+                  ? `Pay ${priced.deposit_display} to confirm`
+                  : `Confirm · ${priced.total_display}`
+                : 'Confirm booking'}
             </Button>
           </View>
         </View>

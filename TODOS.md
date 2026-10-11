@@ -123,9 +123,19 @@ charge billed the deposit twice because it was not in `paid` yet; and `is_paid`
 checked a frozen snapshot field, so nothing on a deposit booking could ever be
 paid.
 
-**Still to do:** the balance is charged on arrival by the provider, which needs
-[P1.3](#p13-refunds) and a settle flow; and the app does not show the deposit
-split yet at checkout.
+**Complete.** `POST /bookings/{ref}/collect/` records what was taken in the
+shop — cash, UPI or card — and deliberately does not complete the booking.
+Both sides of the app show the split: the checkout sheet says how much is due
+now and how much at the shop, the booking detail shows what has been paid, and
+the provider's booking list has a "Take ₹X" button.
+
+Two blockers had to be cleared for it to work at all: the payment endpoint only
+accepted `PENDING_PAYMENT`, so the moment a deposit moved a booking to
+`CONFIRMED` the balance became unpayable; and the per-kind unique constraint
+blocked a customer who abandoned checkout and came back.
+
+What is still missing is what happens to the money when a booking is
+cancelled — that is [P1.3](#p13-refunds).
 
 ## P1.2 Cancellation policy with a deadline and a late-cancel fee
 

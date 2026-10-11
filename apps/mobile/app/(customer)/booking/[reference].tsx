@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
+import { formatPaise, paymentSummary } from '@/lib/money';
 import { useBooking, useCancelBooking, useCreateOrder, useCreateReview } from '@/api/hooks';
 import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
 import { Field, FormError } from '@/components/field';
@@ -120,6 +121,39 @@ export default function BookingDetailScreen() {
               {record.platform_fee_display}
             </Text>
           </View>
+          {record.deposit > 0 ? (
+            <>
+              <View className="flex-row justify-between">
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  Deposit to secure the slot
+                </Text>
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  {record.deposit_display}
+                </Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  Due at the shop
+                </Text>
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  {record.balance_display}
+                </Text>
+              </View>
+            </>
+          ) : null}
+
+          {record.amount_paid > 0 ? (
+            <View className="flex-row justify-between">
+              <Text className="text-sm font-medium" style={{ color: colors.success }}>
+                Paid so far
+              </Text>
+              <Text className="text-sm font-medium" style={{ color: colors.success }}>
+                {formatPaise(record.amount_paid)}
+              </Text>
+            </View>
+          ) : null}
+
+          <Divider className="my-2" />
           <View className="flex-row justify-between">
             <Text className="text-base font-semibold" style={{ color: colors.text }}>
               Total
@@ -135,7 +169,7 @@ export default function BookingDetailScreen() {
             {BOOKING_STATUS_LABELS[record.status]}
           </Text>
           <Text className="text-xs" style={{ color: colors.textMuted }}>
-            {record.is_paid ? 'Paid' : 'Not paid yet'} · booked {formatWhen(record.created_at)}
+            {paymentSummary(record)} · booked {formatWhen(record.created_at)}
           </Text>
           {record.cancellation_reason ? (
             <Text className="text-xs" style={{ color: colors.textMuted }}>
@@ -146,9 +180,18 @@ export default function BookingDetailScreen() {
 
         {payError ? <FormError message={payError} /> : null}
 
-        {!record.is_paid && record.status === 'pending_payment' ? (
+        {record.requires_deposit && !record.is_paid ? (
           <Button onPress={startPayment} loading={paying} testID="booking-pay">
-            Pay {record.total_display}
+            Pay deposit {record.deposit_display}
+          </Button>
+        ) : null}
+
+        {record.deposit > 0 &&
+        record.amount_paid >= record.deposit &&
+        !record.is_paid &&
+        record.status === 'confirmed' ? (
+          <Button onPress={startPayment} loading={paying} testID="booking-pay-balance">
+            Pay remaining {formatPaise(record.amount_due)} now
           </Button>
         ) : null}
 

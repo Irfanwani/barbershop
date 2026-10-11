@@ -255,6 +255,16 @@ export const bookingsApi = {
 
   transition: (reference: string, action: 'accept' | 'decline' | 'complete' | 'no-show') =>
     api.post<Booking>(`/bookings/${reference}/${action}/`),
+
+  /**
+   * Record what was taken at the counter.
+   *
+   * Not a transition: taking the money and finishing the appointment are
+   * separate decisions. A customer who paid and then walked out has still been
+   * paid.
+   */
+  collect: (reference: string, body?: { amount?: number; method?: 'cash' | 'upi' | 'card'; note?: string }) =>
+    api.post<Booking>(`/bookings/${reference}/collect/`, body ?? {}),
 };
 
 export const reviewsApi = {
