@@ -43,6 +43,8 @@ export const keys = {
   hours: ['providers', 'me', 'hours'] as const,
   payout: ['providers', 'me', 'payout'] as const,
   serviceTypes: ['providers', 'types'] as const,
+  priceBands: ['providers', 'prices'] as const,
+  servicePrices: ['providers', 'prices', 'services'] as const,
   providers: (params?: unknown) => ['providers', 'list', params ?? {}] as const,
   provider: (id: number | string) => ['providers', 'detail', id] as const,
   availability: (id: number | string, days?: number) =>

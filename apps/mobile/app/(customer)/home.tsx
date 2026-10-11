@@ -1,10 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useCustomerProfile, useProviderSearch, useServiceTypes } from '@/api/hooks';
+import {
+  useCustomerProfile,
+  usePriceBands,
+  useProviderSearch,
+  useServiceTypes,
+} from '@/api/hooks';
 import { Badge, Button, Card, EmptyState, useColors } from '@/components/ui';
 import { ProviderCard } from '@/components/provider-card';
 import { SearchFilters, type Filters } from '@/components/search-filters';
@@ -96,6 +102,8 @@ export default function CustomerHome() {
               onChange={setFilters}
               serviceTypes={types ?? []}
             />
+
+            <PriceHint />
           </View>
         }
         renderItem={({ item }) => (
@@ -134,4 +142,37 @@ function greeting(name: string): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening';
   return name ? `${part}, ${name.split(' ')[0]}` : part;
+}
+
+/**
+ * What this kind of shop usually charges, above the results.
+ *
+ * A customer scrolling shops is comparing prices while they scroll. Putting
+ * the typical figure next to the list answers the question they have not yet
+ * thought to ask, and a thin sample says so rather than asserting a rate.
+ */
+function PriceHint() {
+  const colors = useColors();
+  const router = useRouter();
+  const bands = usePriceBands();
+
+  const band = bands.data?.bands.find((entry) => entry.sample_size > 0);
+  if (!band?.median_display) return null;
+
+  return (
+    <Pressable
+      onPress={() => router.push('/prices')}
+      accessibilityRole="button"
+      accessibilityLabel="See what shops usually charge"
+      className="flex-row items-center gap-2 rounded-2xl border px-3 py-2.5 active:opacity-70"
+      style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+      <Ionicons name="pricetag-outline" size={16} color={colors.accent} />
+      <Text className="flex-1 text-xs" style={{ color: colors.textMuted }}>
+        {band.is_thin
+          ? `${band.service_type_label} prices here start around ${band.minimum_display}`
+          : `${band.service_type_label} here typically cost ${band.median_display}`}
+      </Text>
+      <Ionicons name="chevron-forward" size={14} color={colors.textSubtle} />
+    </Pressable>
+  );
 }

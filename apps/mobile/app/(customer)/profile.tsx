@@ -28,6 +28,12 @@ export default function ProfileScreen() {
 
   const rows: SettingsRow[] = [
     {
+      icon: 'pricetag-outline',
+      title: 'Prices',
+      subtitle: 'What shops here usually charge',
+      onPress: () => router.push('/prices'),
+    },
+    {
       icon: 'bag-handle-outline',
       title: 'My orders',
       subtitle: 'Products you have bought and their status',

@@ -18,6 +18,7 @@ import type {
   ProviderPage,
   ProviderSelf,
   OrderQuote,
+  PriceBand,
   Product,
   ProductCategory,
   ProductOrder,
@@ -27,6 +28,7 @@ import type {
   Review,
   ReviewPage,
   Service,
+  ServicePriceEntry,
   ServiceTypeOption,
   User,
   WorkingHours,
@@ -183,6 +185,14 @@ export const providersApi = {
     api.get<ProviderDetail>(`/providers/${id}/`, params as QueryParams),
 
   serviceTypes: () => api.get<ServiceTypeOption[]>('/providers/types/'),
+
+  /** Typical prices per shop type, aggregated across the platform. */
+  priceBands: () =>
+    api.get<{ bands: PriceBand[]; minimum_sample: number }>('/providers/prices/'),
+
+  /** Median price per service name, for names several shops offer. */
+  servicePrices: () =>
+    api.get<{ services: ServicePriceEntry[] }>('/providers/prices/services/'),
 
   myShop: () => api.get<ProviderSelf>('/providers/me/'),
 

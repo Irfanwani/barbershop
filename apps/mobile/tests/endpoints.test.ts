@@ -352,6 +352,18 @@ describe('provider endpoints', () => {
     expect(last().body).toEqual({ product: 7, quantity: 12, is_available: true });
   });
 
+  it('reads aggregated prices per shop type', async () => {
+    await providersApi.priceBands();
+
+    expect(pathOf(last())).toContain('/providers/prices/');
+  });
+
+  it('reads the per-service price index', async () => {
+    await providersApi.servicePrices();
+
+    expect(pathOf(last())).toContain('/providers/prices/services/');
+  });
+
   it('paginates the shop list', async () => {
     await providersApi.search({ page: 3, page_size: 10 });
 

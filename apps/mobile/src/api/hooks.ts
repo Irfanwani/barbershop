@@ -476,3 +476,20 @@ export function useOrderAction() {
     },
   });
 }
+
+export function usePriceBands() {
+  return useQuery({
+    queryKey: keys.priceBands,
+    queryFn: providersApi.priceBands,
+    // Prices move slowly, and every shop detail screen would refetch this.
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useServicePrices() {
+  return useQuery({
+    queryKey: keys.servicePrices,
+    queryFn: providersApi.servicePrices,
+    staleTime: 10 * 60_000,
+  });
+}

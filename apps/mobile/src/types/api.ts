@@ -214,6 +214,37 @@ export interface ShopProduct {
   is_in_stock: boolean;
 }
 
+export interface PriceBand {
+  service_type: string;
+  service_type_label: string;
+  sample_size: number;
+  minimum: number | null;
+  minimum_display: string | null;
+  maximum: number | null;
+  maximum_display: string | null;
+  average: number | null;
+  average_display: string | null;
+  median: number | null;
+  median_display: string | null;
+  p25: number | null;
+  p25_display: string | null;
+  p75: number | null;
+  p75_display: string | null;
+  /** Fewer shops than the server is comfortable with. Say so rather than pretending. */
+  is_thin: boolean;
+}
+
+export interface ServicePriceEntry {
+  name: string;
+  sample_size: number;
+  median: number | null;
+  median_display: string | null;
+  minimum: number | null;
+  minimum_display: string | null;
+  maximum: number | null;
+  maximum_display: string | null;
+}
+
 export interface BasketLine {
   product: number;
   quantity: number;
