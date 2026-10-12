@@ -531,6 +531,20 @@ export function useProviderBalance() {
   return useQuery({ queryKey: keys.balance, queryFn: providersApi.balance });
 }
 
+/**
+ * Revenue, rates, and how they compare with the window before.
+ *
+ * Server-computed on purpose. Summing `booking.total` on the device is wrong
+ * as soon as there is more than one page, wrong offline, and cannot answer
+ * "how was last month" at all.
+ */
+export function useProviderAnalytics(days = 30) {
+  return useQuery({
+    queryKey: keys.analytics(days),
+    queryFn: () => providersApi.analytics(days),
+  });
+}
+
 export function useProviderLedger(page = 1) {
   return useQuery({
     queryKey: [...keys.ledger, page],

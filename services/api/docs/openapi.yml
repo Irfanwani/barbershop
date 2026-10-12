@@ -4407,6 +4407,31 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/analytics/:
+    get:
+      operationId: providers_my_analytics
+      description: Computed over every booking in the window, not the page the app
+        happened to load. Includes the previous window and the change against it.
+      summary: Your numbers
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+        description: Window length. One of 7, 30, 90 or 365. Defaults to 30.
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/providers/me/ledger/:
     get:
       operationId: providers_ledger

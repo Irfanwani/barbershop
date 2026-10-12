@@ -24,6 +24,7 @@ import type {
   ProductOrder,
   LedgerEntry,
   Payout,
+  ProviderAnalytics,
   ProviderBalance,
   Withdrawal,
   ShopProduct,
@@ -286,6 +287,16 @@ export const providersApi = {
   myPayout: () => api.get<Payout>('/providers/me/payout/'),
 
   balance: () => api.get<ProviderBalance>('/providers/me/balance/'),
+
+  /**
+   * Revenue and rates for the whole window, not one page of bookings.
+   *
+   * The app used to add up the totals on whatever the bookings list had
+   * loaded, which meant the figure changed when you scrolled and was wrong
+   * whenever there was more than a screenful.
+   */
+  analytics: (days = 30) =>
+    api.get<ProviderAnalytics>('/providers/me/analytics/', { days } as QueryParams),
 
   ledger: (params: { page?: number } = {}) =>
     api.get<{ count: number; results: LedgerEntry[] }>('/providers/me/ledger/', params as QueryParams),

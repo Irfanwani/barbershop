@@ -26,6 +26,7 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -35,6 +36,7 @@ from rest_framework.views import APIView
 
 from accounts.models import SavedShop
 from bookings.models import slot_grid
+from core.exceptions import BusinessRuleViolation
 from core.pagination import DefaultPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
@@ -1018,3 +1020,53 @@ class StaffViewSet(viewsets.ModelViewSet):
 
 
 staff = StaffViewSet.as_view({"get": "list"})
+
+
+class ProviderAnalyticsView(APIView):
+    """What this shop earned, and how it compares with the window before.
+
+    Replaces three numbers summed on the device from the first page of the
+    bookings list. That version was wrong past page one, wrong offline, and
+    unable to answer "how was last month" without paging backwards through
+    every appointment in between.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="providers_my_analytics",
+        summary="Your numbers",
+        description=(
+            "Computed over every booking in the window, not the page the app "
+            "happened to load. Includes the previous window and the change "
+            "against it."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "days",
+                int,
+                description="Window length. One of 7, 30, 90 or 365. Defaults to 30.",
+            )
+        ],
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        from providers.analytics import DAYS_CHOICES, report
+
+        provider = get_object_or_404(
+            ProviderProfile.objects.prefetch_related("hours", "services"), user=request.user
+        )
+
+        try:
+            days = int(request.query_params.get("days", 30))
+        except (TypeError, ValueError):
+            raise BusinessRuleViolation("days has to be a number.") from None
+
+        # Snapshotted, not silently coerced. `days=3650` should not quietly
+        # become something the caller did not ask for.
+        if days not in DAYS_CHOICES:
+            raise BusinessRuleViolation(
+                f"Choose one of {', '.join(str(choice) for choice in DAYS_CHOICES)} days."
+            )
+
+        return Response(report(provider, days=days))

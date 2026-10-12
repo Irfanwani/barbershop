@@ -333,6 +333,67 @@ export interface ProviderBalance {
   total_display: string;
 }
 
+/** One row of "what each service earns". */
+export interface ServiceEarnings {
+  name: string;
+  bookings: number;
+  completed: number;
+  gross: number;
+  gross_display: string;
+  earnings: number;
+  earnings_display: string;
+}
+
+/**
+ * The counts behind a period, and how they compare with the one before it.
+ *
+ * `percent` is null when there is nothing to compare against. It is not 100 or
+ * Infinity: a shop going from nothing to something has not grown by a
+ * percentage, and rendering it as one is how a dashboard starts lying.
+ */
+export interface AnalyticsChange {
+  now: number;
+  before: number;
+  difference: number;
+  percent: number | null;
+}
+
+export interface PeriodMetrics {
+  bookings: number;
+  completed: number;
+  cancelled: number;
+  no_shows: number;
+  upcoming: number;
+  revenue_earned: number;
+  revenue_earned_display: string;
+  platform_fees: number;
+  platform_fees_display: string;
+  tips: number;
+  tips_display: string;
+  no_show_rate: number;
+  rebooking_rate: number;
+  rebooking_customers: number;
+  eligible_customers: number;
+  utilisation: number;
+  booked_minutes: number;
+  available_minutes: number;
+  per_service: ServiceEarnings[];
+}
+
+export interface ProviderAnalytics {
+  period: {
+    from: string;
+    to: string;
+    days: number;
+    previous_from: string;
+    previous_to: string;
+  };
+  available_days: number[];
+  current: PeriodMetrics;
+  previous: PeriodMetrics;
+  changes: Record<string, AnalyticsChange>;
+}
+
 export interface LedgerEntry {
   id: number;
   kind: string;

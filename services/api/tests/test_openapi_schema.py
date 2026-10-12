@@ -75,6 +75,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/providers/me/staff/",
     "/api/v1/providers/me/staff/{id}/",
     "/api/v1/providers/{id}/staff/",
+    "/api/v1/providers/me/analytics/",
     "/api/v1/providers/me/balance/",
     "/api/v1/providers/me/ledger/",
     "/api/v1/providers/me/withdraw/",

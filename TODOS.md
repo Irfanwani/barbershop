@@ -719,7 +719,7 @@ a second; a reply that says "cancel" cancels the booking.
 
 ## P4.1 Server-side provider analytics
 
-**Status:** todo
+**Status:** done
 
 The provider dashboard computes three numbers **on the device** from the
 bookings list. That is wrong three ways: it is wrong if you page beyond the
@@ -732,6 +732,22 @@ periods you have to page backwards through.
 
 **Acceptance:** the numbers match what the bookings list contains across
 *every* page, not the first.
+
+- `GET /api/v1/providers/me/analytics/?days=30` — `days` must be one of
+  7/30/90/365, refused rather than silently coerced
+- Money is read from the ledger, not recomputed from booking totals, so tips
+  and manual adjustments are included; tips count as earnings and carry no fee
+- `percent` is `null` when the previous window was empty. "Up from nothing" is
+  not a percentage
+- Rates ship with the counts behind them: "50% returning" means something very
+  different at four customers than at four hundred
+- Dashboard shows earned, the trend, completion, returning and no-show rates,
+  and what earns, with a 7/30/90-day switch
+- Four bugs found and fixed while testing, each with the test that catches it:
+  booked minutes came out in seconds; tips were excluded from earnings; the
+  rebooking query excluded every customer it could have counted, pinning the
+  rate at zero; and the counts behind the rate were never exposed, which is
+  why that went unnoticed
 
 ## P4.2 Client notes and consultation forms
 
