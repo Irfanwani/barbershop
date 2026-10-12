@@ -437,6 +437,13 @@ class BookingStatusView(APIView):
                 booking_reference=booking.reference,
             )
 
+            # Points for the same reason, and on the same event: awarding them
+            # at booking time means points for appointments that get cancelled,
+            # refunded, or never happen.
+            from promotions import loyalty
+
+            loyalty.credit(booking)
+
         return Response(BookingSerializer(booking, context={"request": request}).data)
 
 

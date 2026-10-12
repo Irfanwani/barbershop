@@ -20,6 +20,7 @@ urlpatterns = [
     path("providers/", include("providers.urls")),
     # --- bookings -----------------------------------------------------------
     path("bookings/", include("bookings.urls")),
+    path("promotions/", include("promotions.urls")),
     # --- reviews -----------------------------------------------------------
     path("reviews/", include("reviews.urls")),
     # --- payments ----------------------------------------------------------

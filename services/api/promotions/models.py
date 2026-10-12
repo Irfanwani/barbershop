@@ -284,3 +284,100 @@ def apply(booking, code: PromoCode, discount: int) -> PromoRedemption:
 
 def expires_in(code: PromoCode) -> datetime | None:
     return code.expires_at
+
+
+class LoyaltyLedgerEntry(models.Model):
+    """One movement in a customer's points balance.
+
+    Append-only, for the same reason the money ledger is: a stored balance
+    drifts from what happened, and a balance nobody can explain is a balance
+    nobody trusts. This is the balance's history; the balance itself is the sum.
+    """
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="loyalty_entries"
+    )
+    provider = models.ForeignKey(
+        "providers.ProviderProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="loyalty_entries",
+    )
+    booking = models.ForeignKey(
+        "bookings.Booking",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="loyalty_entries",
+    )
+
+    #: Positive credits the balance, negative spends it.
+    points = models.IntegerField()
+    reason = models.CharField(
+        max_length=32,
+        choices=[
+            ("earned", "Earned"),
+            ("spent", "Spent"),
+            ("expired", "Expired"),
+            ("adjusted", "Adjusted"),
+        ],
+    )
+    expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "promotions_loyaltyentry"
+        ordering = ["created_at", "id"]
+        indexes = [models.Index(fields=["customer", "created_at"])]
+        constraints = [
+            # One award per booking, enforced by the database rather than by
+            # whoever calls the code next. A status guard already stops this in
+            # the completion endpoint; a second guard that cannot be forgotten
+            # is what stops it being reintroduced.
+            models.UniqueConstraint(
+                fields=["booking"],
+                condition=models.Q(reason="earned"),
+                name="promotions_one_award_per_booking",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.customer} {self.reason} {self.points}"
+
+
+class LoyaltyPolicy(TimeStampedModel):
+    """How long this shop's points live, and how many it awards per booking.
+
+    Per shop rather than platform-wide, because a salon that wants loyalty to
+    look like a salon and a barber who does not should not be forced into the
+    same answer.
+    """
+
+    provider = models.OneToOneField(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="loyalty_policy"
+    )
+    points_per_booking = models.PositiveIntegerField(
+        default=0, help_text="Points awarded on a completed booking. 0 disables loyalty."
+    )
+    #: Awarded against the booking total, so a discount does not silently cut
+    #: the points too.
+    points_on_booking_completed = models.BooleanField(default=True)
+    validity_days = models.PositiveSmallIntegerField(
+        default=365, help_text="0 means the points never expire."
+    )
+    #: The most any one booking can redeem, as a percentage of its total.
+    max_redemption_percent = models.PositiveSmallIntegerField(default=20)
+
+    class Meta:
+        db_table = "promotions_loyaltypolicy"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(max_redemption_percent__lte=100),
+                name="promotions_redemption_percent_sane",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider} · {self.points_per_booking} pts"

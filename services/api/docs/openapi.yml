@@ -6380,6 +6380,117 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/promotions/points/:
+    get:
+      operationId: promotions_points_balance
+      description: Expiring points are counted separately, because a balance nobody
+        warns you about is a balance that arrives at zero on its own.
+      summary: Your points balance
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/promotions/points/history/:
+    get:
+      operationId: promotions_points_history
+      description: Every movement, in words. A balance you cannot explain is not trusted.
+      summary: Your points history
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/promotions/points/settings/:
+    get:
+      operationId: promotions_points_settings
+      description: What a shop awards, and how much of a booking points may cover.
+      summary: Your loyalty settings
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: promotions_points_settings_update
+      description: What a shop awards, and how much of a booking points may cover.
+      summary: Change your loyalty settings
+      tags:
+      - promotions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/promotions/bookings/{reference}/points/:
+    get:
+      operationId: promotions_booking_points
+      description: The cap is applied here as well as at redemption, so the number
+        on the screen is the number that will be honoured.
+      summary: Points usable on a booking
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list

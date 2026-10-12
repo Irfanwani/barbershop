@@ -530,7 +530,7 @@ index twice. The first step is explicitly `db_index=False`.
 
 ## P3.1 Loyalty points
 
-**Status:** todo
+**Status:** done
 
 Present in every competitor (Boulevard's is "advanced", StyleSeat's is
 "basic", KwickStudio's is 5-tier). We have none.
@@ -542,7 +542,35 @@ Present in every competitor (Boulevard's is "advanced", StyleSeat's is
 
 **Acceptance:** completing a booking credits points; a redemption cannot make
 a total negative; a points balance survives the provider being deleted from
-the marketplace.
+the marketplace — tested, 23 tests.
+
+**The balance is a sum over a ledger, oldest credit first against oldest
+spend.** Not a flat sum: a flat sum says somebody has 100 points when 90 of
+them expired last week and were already spent, and a customer whose points
+vanish is a customer who stops trusting the number.
+
+**Expiry needs no job that rewrites history.** Walking the queue means an
+expired credit simply stops counting. I first wrote a cleanup task that zeroed
+lapsed credits — which corrupts the ledger the moment one of them was already
+spent, and puts two sources of truth on the books.
+
+**The redemption cap is applied before the number is shown**, not only when it
+is used, so what is on screen is what will be honoured. Points are capped as a
+share of the booking total: uncapped, they are a way to give an appointment
+away.
+
+**Points are awarded on completion**, for the same reason earnings are — at
+booking time they are points for appointments that get cancelled or never
+happen.
+
+**One award per booking, enforced by the database.** The completion endpoint
+already guards on status; a second guard that cannot be forgotten is what
+stops it being reintroduced.
+
+**A balance survives the shop leaving the marketplace.** The points were
+earned by the customer, not by the platform.
+
+**Still to do:** no app screen for spending them at checkout.
 
 ## P3.2 Rebooking nudges for lapsed customers
 
