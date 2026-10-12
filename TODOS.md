@@ -563,6 +563,12 @@ away.
 booking time they are points for appointments that get cancelled or never
 happen.
 
+**Spent at the quote, and the balance is shown with its expiry.** The app asks
+the server what the points are worth rather than multiplying a rate itself, and
+the same figure is sent into the booking request. `expiring_soon` is shown next
+to the balance on purpose: a number that quietly shrinks between visits is a
+number nobody trusts, and the warning is cheaper than the complaint.
+
 **One award per booking, enforced by the database.** The completion endpoint
 already guards on status; a second guard that cannot be forgotten is what
 stops it being reintroduced.
@@ -844,6 +850,12 @@ tests.
 **Quote and checkout share one pricing function**, so a code that expires
 between them is caught at both rather than being quietly ignored at one. A
 test asserts the quoted total and the paid total are identical.
+
+**Applied in the app, at the quote rather than at payment.** The code is sent
+to be resolved and the server says what it did, so the customer sees a total
+that already has the discount in it instead of finding out at the payment
+screen. The same code travels into the booking request, so the price quoted
+and the price charged cannot drift apart. The app never computes a discount.
 
 **The fee is taken on the discounted amount, and the reduced fee is shown
 beside the full one.** The alternative — holding the fee at its full amount —

@@ -540,8 +540,44 @@ export interface Quote {
   duration_minutes: number;
   starts_at: string;
   ends_at: string;
+  /**
+   * What the code did, stated back.
+   *
+   * The server resolves and prices the code; the app never computes a
+   * discount. It shows what came back so the customer can see the code was
+   * understood rather than silently ignored.
+   */
+  promo_code: string | null;
+  promo_description: string;
+  points_spent: number;
+  /** What those points were worth, in paise, as the server priced them. */
+  points_worth_minor: number;
   items: { service_id: number; name: string; unit_price: number; unit_price_display: string; duration_minutes: number }[];
   is_available: boolean;
+}
+
+/**
+ * What a customer has in their loyalty balance.
+ *
+ * `expiring_soon` is carried alongside the balance on purpose: a number that
+ * quietly shrinks is a number nobody trusts, so the app says which points are
+ * about to go rather than letting them discover it at checkout.
+ */
+export interface PointsBalance {
+  available: number;
+  expiring_soon: number;
+  /** What the available points are worth, in paise, at the platform's rate. */
+  worth_minor: number;
+}
+
+/** One movement in the points history. */
+export interface PointsEntry {
+  id: number;
+  points: number;
+  reason: string;
+  shop: string | null;
+  created_at: string;
+  expires_at: string | null;
 }
 
 export interface Review {

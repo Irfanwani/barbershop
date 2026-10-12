@@ -23,6 +23,7 @@ import {
   productsApi,
   notificationPreferencesApi,
   providersApi,
+  loyaltyApi,
   savedShopsApi,
   reviewsApi,
   type ProviderSearch,
@@ -348,6 +349,16 @@ function useIdempotentMutation<TVars, TData>(
   );
 
   return { ...inner, mutate: start, mutateAsync: startAsync };
+}
+
+/** What this customer has in their loyalty balance, for the checkout screen. */
+export function usePointsBalance(enabled = true) {
+  return useQuery({
+    queryKey: keys.pointsBalance,
+    queryFn: loyaltyApi.balance,
+    enabled,
+    retry: false,
+  });
 }
 
 export function useCreateBooking() {

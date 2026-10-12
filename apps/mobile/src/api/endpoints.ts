@@ -24,6 +24,8 @@ import type {
   ProductOrder,
   LedgerEntry,
   Payout,
+  PointsBalance,
+  PointsEntry,
   ProviderAnalytics,
   ProviderBalance,
   Withdrawal,
@@ -57,6 +59,11 @@ export const notificationPreferencesApi = {
     api.put<{ preferences: Record<string, boolean> }>('/me/notification-preferences/', {
       preferences,
     }),
+};
+
+export const loyaltyApi = {
+  balance: () => api.get<PointsBalance>('/promotions/points/'),
+  history: () => api.get<{ entries: PointsEntry[] }>('/promotions/points/history/'),
 };
 
 export const savedShopsApi = {
@@ -348,8 +355,19 @@ export const bookingsApi = {
 
   get: (reference: string) => api.get<Booking>(`/bookings/${reference}/`),
 
-  quote: (body: { provider: number; services: number[]; starts_at: string }) =>
-    api.post<Quote>('/bookings/quote/', body),
+  /**
+   * Price a slot.
+   *
+   * `promo_code` and `redeem_points` are sent to be *resolved* by the server,
+   * which decides what they are worth. The app never computes a discount.
+   */
+  quote: (body: {
+    provider: number;
+    services: number[];
+    starts_at: string;
+    promo_code?: string;
+    redeem_points?: number;
+  }) => api.post<Quote>('/bookings/quote/', body),
 
   create: (
     body: {
@@ -359,6 +377,12 @@ export const bookingsApi = {
       notes?: string;
       /** Who is doing the job. Omitted means "whoever is free". */
       staff?: number;
+      /**
+       * A code, and points to spend. Both are resolved and priced by the
+       * server; a discount sent by the client is ignored.
+       */
+      promo_code?: string;
+      redeem_points?: number;
     },
     /** Stable across retries, so a retry is a replay and not a second booking. */
     idempotencyKey?: string,

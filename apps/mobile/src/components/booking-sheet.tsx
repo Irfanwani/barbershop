@@ -5,10 +5,17 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useCreateBooking, useJoinWaitlist, useQuote, useShopStaff } from '@/api/hooks';
+import {
+  useCreateBooking,
+  useJoinWaitlist,
+  usePointsBalance,
+  useQuote,
+  useShopStaff,
+} from '@/api/hooks';
 import { Button, Divider, useColors } from '@/components/ui';
+import { Field, FormError } from '@/components/field';
 import { formatWhen } from '@/components/booking-row';
-import { cancellationNote } from '@/lib/money';
+import { cancellationNote, formatPaise } from '@/lib/money';
 import type { Availability, ProviderDetail, Service } from '@/types/api';
 
 /**
@@ -41,8 +48,13 @@ export function BookingSheet({
   // this stays null and behaves exactly as it did before staff existed.
   const [staffId, setStaffId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Empty string rather than null: an untouched field and a cleared one are
+  // the same thing here, and "" is what the server reads as "no code".
+  const [promoCode, setPromoCode] = useState('');
+  const [redeemPoints, setRedeemPoints] = useState(false);
 
   const quote = useQuote();
+  const points = usePointsBalance(Boolean(slot));
   const create = useCreateBooking();
   const joinWaitlist = useJoinWaitlist();
   const staff = useShopStaff(provider.id);
@@ -76,11 +88,49 @@ export function BookingSheet({
   async function chooseTime(startsAt: string) {
     setError(null);
     setSlot(startsAt);
+    await reprice(startsAt);
+  }
+
+  /**
+   * Ask the server what it costs.
+   *
+   * Every one of these is sent to be *resolved*, not applied: the server looks
+   * the code up, decides what the points are worth, and returns a total. The app
+   * never does the arithmetic, which is what stops a modified client posting a
+   * discount of its own.
+   */
+  async function reprice(at: string) {
     try {
       await quote.mutateAsync({
         provider: provider.id,
         services: selected.map((service) => service.id),
-        starts_at: startsAt,
+        starts_at: at,
+        ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
+        ...(redeemPoints && points.data ? { redeem_points: points.data.available } : {}),
+      });
+    } catch (caught) {
+      setError(errorMessage(caught, 'Could not price that slot.'));
+    }
+  }
+
+  async function applyPromo() {
+    if (!slot) return;
+    setError(null);
+    await reprice(slot);
+  }
+
+  async function togglePoints() {
+    if (!slot) return;
+    const next = !redeemPoints;
+    setError(null);
+    setRedeemPoints(next);
+    try {
+      await quote.mutateAsync({
+        provider: provider.id,
+        services: selected.map((service) => service.id),
+        starts_at: slot,
+        ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
+        ...(next && points.data ? { redeem_points: points.data.available } : {}),
       });
     } catch (caught) {
       setError(errorMessage(caught, 'Could not price that slot.'));
@@ -117,6 +167,8 @@ export function BookingSheet({
         services: selected.map((service) => service.id),
         starts_at: slot,
         ...(staffId ? { staff: staffId } : {}),
+        ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
+        ...(redeemPoints && points.data ? { redeem_points: points.data.available } : {}),
       });
       onClose();
       router.replace(`/(customer)/booking/${booking.reference}`);
@@ -342,6 +394,35 @@ export function BookingSheet({
                     </Text>
                   </View>
 
+                  {priced.promo_code ? (
+                    <View className="mt-2 flex-row justify-between">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-sm" style={{ color: colors.success }}>
+                          {priced.promo_description || `Code ${priced.promo_code} applied`}
+                        </Text>
+                      </View>
+                      <Text className="text-sm font-medium" style={{ color: colors.success }}>
+                        applied
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {priced.points_spent > 0 ? (
+                    <View className="mt-2 flex-row justify-between">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-sm" style={{ color: colors.success }}>
+                          {priced.points_spent} points
+                        </Text>
+                        <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                          Off what you pay today
+                        </Text>
+                      </View>
+                      <Text className="text-sm font-medium" style={{ color: colors.success }}>
+                        {formatPaise(priced.points_worth_minor)}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {cancellationNote(priced) ? (
                     <Text className="mt-3 text-xs leading-4" style={{ color: colors.textSubtle }}>
                       {cancellationNote(priced)}
@@ -357,10 +438,65 @@ export function BookingSheet({
               </View>
             ) : null}
 
-            {error ? (
-              <Text className="text-sm" style={{ color: colors.danger }}>
-                {error}
-              </Text>
+            {priced ? (
+              <View className="gap-3">
+                <View className="gap-2">
+                  <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
+                    4 · Discounts
+                  </Text>
+                  <View className="flex-row items-end gap-2">
+                    <View className="flex-1">
+                      <Field
+                        label="Promo code"
+                        placeholder="Have a code?"
+                        value={promoCode}
+                        onChangeText={setPromoCode}
+                        autoCapitalize="characters"
+                        testID="promo-code"
+                      />
+                    </View>
+                    <Button
+                      variant="secondary"
+                      onPress={() => void applyPromo()}
+                      loading={quote.isPending}
+                      testID="promo-apply">
+                      Apply
+                    </Button>
+                  </View>
+                </View>
+
+                {points.data && points.data.available > 0 ? (
+                  <Pressable
+                    onPress={() => void togglePoints()}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: redeemPoints }}
+                    testID="points-toggle"
+                    className="flex-row items-center justify-between rounded-2xl border px-4 py-3"
+                    style={{
+                      backgroundColor: redeemPoints ? `${colors.accent}12` : colors.surface,
+                      borderColor: redeemPoints ? colors.accent : colors.border,
+                    }}>
+                    <View className="flex-1 pr-3">
+                      <Text className="text-sm font-medium" style={{ color: colors.text }}>
+                        Use my {points.data.available} points
+                      </Text>
+                      <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                        Worth {formatPaise(points.data.worth_minor)} off
+                        {points.data.expiring_soon > 0
+                          ? ` · ${points.data.expiring_soon} expiring soon`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={redeemPoints ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={redeemPoints ? colors.accent : colors.textSubtle}
+                    />
+                  </Pressable>
+                ) : null}
+
+                <FormError message={error} />
+              </View>
             ) : null}
           </ScrollView>
 

@@ -54,6 +54,7 @@ export const keys = {
   analytics: (days: number) => ['providers', 'me', 'analytics', days] as const,
   staff: ['providers', 'me', 'staff'] as const,
   savedShops: ['me', 'saved-shops'] as const,
+  pointsBalance: ['promotions', 'points'] as const,
   waitlist: ['bookings', 'waitlist'] as const,
   offers: ['bookings', 'waitlist', 'offers'] as const,
   ledger: ['providers', 'me', 'ledger'] as const,
