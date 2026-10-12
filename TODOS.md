@@ -379,7 +379,7 @@ Writing the tests found three bugs:
 
 ## P2.3 Rescheduling
 
-**Status:** todo
+**Status:** done (backend); app screen outstanding
 
 Changing a booking today means cancelling and rebooking, which loses the
 reference, the reminders and the review link, and can double-charge.
@@ -392,7 +392,32 @@ reference, the reminders and the review link, and can double-charge.
 
 **Acceptance:** rescheduling keeps the same reference; rescheduling onto a
 booked slot is refused; rescheduling inside the late-cancel window is
-treated as a cancel and a new booking.
+treated as a cancel and a new booking — all three tested, 21 tests.
+
+**The same booking throughout.** Same reference, same payments, same frozen
+items. Cancelling and rebooking would lose the reference the customer has
+been quoting, drop the reminders, break the review link, and on a booking
+with a deposit paid could refund it once and then charge it again.
+
+**The price is re-checked, and a change stops the move.** Silently charging
+the new one is a bait and switch; silently charging the old one is a shop
+eating a cost it agreed nowhere. Both figures come back with a 409 and the
+move happens only once someone sends `accept_price_change`.
+
+**A service the shop has since dropped blocks the move** rather than being
+quietly removed from it. Arriving for something nobody does any more is a
+worse outcome than being told.
+
+**The deposit split moves with the price.** It is a percentage of the total;
+holding the old figure while the total changes is the kind of thing that
+only surfaces in a reconciliation three months later.
+
+**Inside the cancellation window this cancels instead of moving**, and says
+so. A reschedule button that silently dodges the late-cancel fee is a way to
+never pay one. The provider moving their own appointment late is still free —
+the fee only ever punishes the customer.
+
+**Still to do:** no app screen.
 
 ## P2.4 Saved shops
 

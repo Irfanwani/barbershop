@@ -8,6 +8,7 @@ from bookings.views import (
     BookingCreateView,
     BookingDetailView,
     BookingListView,
+    BookingRescheduleView,
     BookingStatusView,
     QuoteView,
     WaitlistEntryDetailView,
@@ -38,6 +39,11 @@ urlpatterns = [
     path("new/", BookingCreateView.as_view(), name="create"),
     path("<str:reference>/", BookingDetailView.as_view(), name="detail"),
     path("<str:reference>/cancel/", BookingCancelView.as_view(), name="cancel"),
+    path(
+        "<str:reference>/reschedule/",
+        BookingRescheduleView.as_view(),
+        name="reschedule",
+    ),
     path("<str:reference>/collect/", BookingCollectView.as_view(), name="collect"),
     path(
         "<str:reference>/<str:action>/",

@@ -23,11 +23,13 @@ from rest_framework.views import APIView
 
 from accounts.email import send_booking_confirmation
 from bookings.models import Booking, BookingStatus, WaitlistEntry, WaitlistOffer, has_room
+from bookings.reschedule import late_window_message
 from bookings.serializers import (
     BookingCreateSerializer,
     BookingSerializer,
     CancelBookingSerializer,
     QuoteRequestSerializer,
+    RescheduleSerializer,
     WaitlistDeclineResultSerializer,
     WaitlistEntrySerializer,
     WaitlistJoinSerializer,
@@ -43,6 +45,7 @@ from bookings.waitlist import (
 )
 from core.exceptions import BusinessRuleViolation
 from core.money import compute_deposit, compute_platform_fee, format_minor
+from core.notifications import format_appointment_time
 from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
@@ -573,7 +576,7 @@ def notify_provider(booking: Booking) -> None:
     )
 
 
-def notify_other_party(booking: Booking, cancelled_by) -> None:
+def notify_other_party(booking: Booking, cancelled_by, *, rescheduled: bool = False) -> None:
     tokens = list(
         (
             booking.customer.push_tokens.filter(active=True)
@@ -582,12 +585,20 @@ def notify_other_party(booking: Booking, cancelled_by) -> None:
         ).values_list("token", flat=True)
     )
     if tokens:
-        send_push(
-            tokens,
-            title="Booking cancelled",
-            body=f"{booking.reference} was cancelled",
-            data={"screen": "appointments"},
-        )
+        if rescheduled:
+            send_push(
+                tokens,
+                title="Appointment moved",
+                body=(f"{booking.reference} is now {format_appointment_time(booking)}"),
+                data={"screen": "appointments"},
+            )
+        else:
+            send_push(
+                tokens,
+                title="Booking cancelled",
+                body=f"{booking.reference} was cancelled",
+                data={"screen": "appointments"},
+            )
 
 
 def send_push(tokens: list[str], *, title: str, body: str, data: dict) -> None:
@@ -750,5 +761,104 @@ class WaitlistOfferDeclineView(_OfferView):
             # Whether somebody else took it. Without this the customer who has
             # already declined is left wondering.
             {"declined": True, "passed_on": next_offer is not None},
+            status=status.HTTP_200_OK,
+        )
+
+
+class BookingRescheduleView(APIView):
+    """Move an appointment to a different time.
+
+    Keeps the same booking: same reference, same payments, same reminders.
+    Inside the cancellation window it does not move at all — it cancels, and
+    says so, because a reschedule button that silently dodges the late-cancel
+    fee is a way to never pay one.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_reschedule",
+        summary="Move a booking to a new time",
+        description=(
+            "The reference, the payments and the reminders all follow the "
+            "booking. Inside the cancellation window this cancels instead and "
+            "returns `rescheduled: false`."
+        ),
+        request=RescheduleSerializer,
+        responses={200: BookingSerializer},
+    )
+    def post(self, request, reference: str):
+        from bookings.reschedule import (
+            PriceChanged,
+            RescheduleRefused,
+            reschedule,
+        )
+
+        body = RescheduleSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        starts_at = body.validated_data["starts_at"]
+
+        booking = lookup_booking(
+            Booking.objects.filter(visible_bookings(request.user)).select_related(
+                "provider__user", "customer", "provider", "staff"
+            ),
+            reference,
+        )
+
+        # The fee rule, applied before anything else so the answer is the same
+        # one a cancellation would have given.
+        if request.user == booking.customer and booking.is_late_cancellation():
+            from bookings.policy import apply_cancellation
+            from payments.refunds import RefundError, refund_booking_deposit
+
+            late_cancel_fee = booking.late_cancel_fee
+            apply_cancellation(booking, by_provider=False, reason="Moved to a new time")
+
+            try:
+                refund_booking_deposit(booking, forfeited=booking.late_cancel_fee > 0)
+            except RefundError as exc:
+                logger.warning("Could not settle a reschedule refund: %s", exc)
+
+            booking.refresh_from_db()
+
+            return Response(
+                {
+                    "rescheduled": False,
+                    "cancelled": True,
+                    "late_cancel_fee": late_cancel_fee,
+                    "message": late_window_message(booking),
+                    "booking": BookingSerializer(booking, context={"request": request}).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        try:
+            reschedule(
+                booking,
+                starts_at,
+                accept_price_change=body.validated_data["accept_price_change"],
+            )
+        except PriceChanged as changed:
+            # A different number is not a failure to report — it is something
+            # the customer has to agree to. Both figures go back so the app can
+            # show the difference rather than making them remember.
+            return Response(
+                {
+                    "rescheduled": False,
+                    "reason": "price_changed",
+                    "message": changed.message(),
+                    "old_total": changed.old_total,
+                    "new_total": changed.new_total,
+                    "difference": changed.difference,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        except RescheduleRefused as refused:
+            raise BusinessRuleViolation(refused.message) from refused
+
+        notify_other_party(booking, cancelled_by=request.user, rescheduled=True)
+
+        return Response(
+            BookingSerializer(booking, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )

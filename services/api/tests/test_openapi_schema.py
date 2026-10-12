@@ -56,6 +56,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/providers/prices/",
     "/api/v1/providers/prices/services/",
     "/api/v1/providers/suggest/",
+    "/api/v1/bookings/{reference}/reschedule/",
     "/api/v1/bookings/waitlist/",
     "/api/v1/bookings/waitlist/offers/",
     "/api/v1/bookings/waitlist/offers/{id}/accept/",

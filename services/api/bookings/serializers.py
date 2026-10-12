@@ -518,3 +518,16 @@ class WaitlistDeclineSerializer(serializers.Serializer):
 
     class Meta:
         pass
+
+
+class RescheduleSerializer(serializers.Serializer):
+    """Move a booking to a different time.
+
+    ``accept_price_change`` is the customer agreeing to a price that moved
+    since they booked. It is a separate, explicit field rather than something
+    inferred, because agreeing to more money is not something a client should
+    do by omission.
+    """
+
+    starts_at = serializers.DateTimeField()
+    accept_price_change = serializers.BooleanField(default=False)

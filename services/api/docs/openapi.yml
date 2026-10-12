@@ -5942,6 +5942,43 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/bookings/{reference}/reschedule/:
+    post:
+      operationId: bookings_reschedule
+      description: 'The reference, the payments and the reminders all follow the booking.
+        Inside the cancellation window this cancels instead and returns `rescheduled:
+        false`.'
+      summary: Move a booking to a new time
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RescheduleRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
   /api/v1/bookings/{reference}/collect/:
     post:
       operationId: bookings_collect
@@ -9747,6 +9784,24 @@ components:
       - email
       - password
       - username
+    RescheduleRequest:
+      type: object
+      description: |-
+        Move a booking to a different time.
+
+        ``accept_price_change`` is the customer agreeing to a price that moved
+        since they booked. It is a separate, explicit field rather than something
+        inferred, because agreeing to more money is not something a client should
+        do by omission.
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+        accept_price_change:
+          type: boolean
+          default: false
+      required:
+      - starts_at
     Review:
       type: object
       description: A review as it is read.
