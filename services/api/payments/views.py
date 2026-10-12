@@ -32,6 +32,7 @@ from core.exceptions import BusinessRuleViolation
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
 from payments.due import amount_due, default_kind, requested_kind
+from payments.idempotency import idempotent
 from payments.models import Payment, PaymentStatus
 from payments.refunds import reconcile
 from payments.serializers import (
@@ -190,7 +191,15 @@ class VerifyPaymentView(APIView):
     400, not a free haircut.
     """
 
-    @extend_schema(operation_id="payments_verify")
+    @extend_schema(
+        operation_id="payments_verify",
+        description=(
+            "Send an `Idempotency-Key` header to make this safe to retry. A "
+            "repeat returns the first response; the same key with a different "
+            "body is refused."
+        ),
+    )
+    @idempotent("payments.verify")
     def post(self, request):
         serializer = VerifyPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

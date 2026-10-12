@@ -7152,9 +7152,8 @@ paths:
   /api/v1/payments/verify/:
     post:
       operationId: payments_verify
-      description: Verifies Razorpay's signature, then **asks Razorpay what actually
-        happened** before recording anything. This confirms a payment; it never creates
-        one. A client cannot mark its own booking paid by asserting success.
+      description: Send an `Idempotency-Key` header to make this safe to retry. A
+        repeat returns the first response; the same key with a different body is refused.
       summary: Confirm a checkout the customer just made
       tags:
       - payments

@@ -724,7 +724,7 @@ renders on the shop page.
 
 ## P5.1 Idempotency keys on payment endpoints
 
-**Status:** todo
+**Status:** done (backend); app sends no keys yet
 
 `capture()` is internally idempotent for webhook retries, but a client
 retrying `POST /payments/verify/` on a flaky connection is not protected. The
@@ -736,7 +736,33 @@ the fix that would let it turn them back on.
 - A repeat with the same key and a *different* body is a 409
 
 **Acceptance:** two identical verify calls create one capture; the same key
-with a different body is rejected.
+with a different body is rejected — tested.
+
+**The body is fingerprinted, and that is what makes it safe rather than
+merely convenient.** A *different* request wearing a used key is not a retry,
+it is a mistake; answering it with the first response would hand back
+somebody else's receipt, which is worse than refusing.
+
+**Keyed JSON, so body ordering does not matter.** A client is not obliged to
+serialise a dict consistently, and two bodies that differ only in ordering
+are the same request.
+
+**Scoped to the account as well as the endpoint.** Two people on one device, or
+one person signing out and back in, must not collide.
+
+**The stored response is replayed byte for byte.** Recomputing it could produce
+something subtly different from what the customer was already shown.
+
+**Only successes are recorded.** A client that genuinely failed should be free
+to try again — a retried failure is the normal case, not the dangerous one.
+
+**A key older than a day is not replayed**, so a client that keys per *attempt*
+rather than per *operation* is not locked out of the endpoint forever.
+
+**No key means no change.** Nothing is required of any existing client.
+
+**Still to do:** the app does not send keys yet. Until it does, mutation
+retries stay disabled there — which is the whole point of the next step.
 
 ## P5.2 API keys for third parties
 
