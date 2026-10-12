@@ -22,12 +22,24 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.email import send_booking_confirmation
-from bookings.models import Booking, BookingStatus, has_room
+from bookings.models import Booking, BookingStatus, WaitlistEntry, WaitlistOffer, has_room
 from bookings.serializers import (
     BookingCreateSerializer,
     BookingSerializer,
     CancelBookingSerializer,
     QuoteRequestSerializer,
+    WaitlistDeclineResultSerializer,
+    WaitlistEntrySerializer,
+    WaitlistJoinSerializer,
+    WaitlistOfferSerializer,
+)
+from bookings.waitlist import (
+    OfferUnavailable,
+    accept_offer,
+    cancel_entry,
+    decline_offer,
+    offer_freed_slot,
+    slot_from_booking,
 )
 from core.exceptions import BusinessRuleViolation
 from core.money import compute_deposit, compute_platform_fee, format_minor
@@ -269,6 +281,10 @@ class BookingCancelView(APIView):
 
         booking.refresh_from_db()
         notify_other_party(booking, cancelled_by=request.user)
+
+        # An empty chair nobody knows about is a booking that did not happen.
+        # Offer it to whoever was waiting, before it goes back to being public.
+        offer_freed_slot(slot_from_booking(booking))
 
         # What happened to the money, in words. A customer who loses part of a
         # deposit deserves to be told here, not by noticing on their statement.
@@ -594,3 +610,145 @@ def send_push(tokens: list[str], *, title: str, body: str, data: dict) -> None:
         )
     except Exception:
         logger.exception("Could not deliver a push notification (%s)", title)
+
+
+class WaitlistView(APIView):
+    """Join, see and leave the waitlist.
+
+    A window rather than a single slot, because "any time this week" is what
+    most people mean and pinning one minute would mean the waitlist misses
+    almost every cancellation — the one thing it exists for.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_waitlist_join",
+        summary="Join the waitlist",
+        description=(
+            "Tells us when a matching slot frees up. You get first refusal on "
+            "it for a short window before it goes back to being public."
+        ),
+        request=WaitlistJoinSerializer,
+        responses={201: WaitlistEntrySerializer},
+    )
+    def post(self, request):
+        serializer = WaitlistJoinSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save()
+        return Response(WaitlistEntrySerializer(entry).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        operation_id="bookings_waitlist_list",
+        summary="Your waitlist entries",
+        responses={200: WaitlistEntrySerializer(many=True)},
+    )
+    def get(self, request):
+        entries = WaitlistEntry.objects.filter(customer=request.user).select_related(
+            "provider", "service", "staff"
+        )
+        return Response(WaitlistEntrySerializer(entries, many=True).data)
+
+
+class WaitlistEntryDetailView(APIView):
+    """Leave the waitlist, releasing any slot held for you."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_waitlist_leave",
+        summary="Leave the waitlist",
+        description="Stops telling you about this slot, and frees any you were holding.",
+        responses={204: None},
+    )
+    def delete(self, request, pk: int):
+        entry = get_object_or_404(WaitlistEntry, pk=pk, customer=request.user)
+        cancel_entry(entry)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WaitlistOfferListView(APIView):
+    """Slots currently being held for you."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_waitlist_offers",
+        summary="Slots being held for you",
+        description="Each one has a countdown. When it runs out it goes to the next person.",
+        responses={200: WaitlistOfferSerializer(many=True)},
+    )
+    def get(self, request):
+        offers = (
+            WaitlistOffer.objects.filter(entry__customer=request.user, status="pending")
+            .select_related("entry__provider", "entry__service", "staff")
+            .order_by("expires_at")
+        )
+        return Response(WaitlistOfferSerializer(offers, many=True).data)
+
+
+class _OfferView(APIView):
+    """Shared lookup for the offer endpoints.
+
+    An offer is found through the customer it belongs to, so asking about
+    somebody else's is a 404 rather than a 403 — the response should not
+    confirm that an offer exists at all.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _offer(self, request, pk: int) -> WaitlistOffer:
+        return get_object_or_404(
+            WaitlistOffer.objects.select_related("entry", "entry__service"),
+            pk=pk,
+            entry__customer=request.user,
+        )
+
+
+class WaitlistOfferAcceptView(_OfferView):
+    """Take a held slot."""
+
+    @extend_schema(
+        operation_id="bookings_waitlist_accept",
+        summary="Take a held slot",
+        description=(
+            "Creates the booking. The full booking rules run again rather than "
+            "trusting the offer, because an entry can sit for days across a "
+            "price change or a revised cancellation policy."
+        ),
+        request=None,
+        responses={201: BookingSerializer},
+    )
+    def post(self, request, pk: int):
+        offer = self._offer(request, pk)
+        try:
+            booking = accept_offer(offer)
+        except OfferUnavailable as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        return Response(
+            BookingSerializer(booking, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class WaitlistOfferDeclineView(_OfferView):
+    """Give a held slot back to whoever is next."""
+
+    @extend_schema(
+        operation_id="bookings_waitlist_decline",
+        summary="Give a held slot back",
+        description="The slot goes to the next person. You stay on the waitlist.",
+        request=None,
+        responses={200: WaitlistDeclineResultSerializer},
+    )
+    def post(self, request, pk: int):
+        offer = self._offer(request, pk)
+        next_offer = decline_offer(offer)
+
+        return Response(
+            # Whether somebody else took it. Without this the customer who has
+            # already declined is left wondering.
+            {"declined": True, "passed_on": next_offer is not None},
+            status=status.HTTP_200_OK,
+        )

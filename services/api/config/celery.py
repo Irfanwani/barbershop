@@ -38,6 +38,13 @@ app.conf.beat_schedule = {
         "task": "bookings.reminders.expire_stale_bookings",
         "schedule": crontab(minute="*/15"),
     },
+    # A slot held for someone who never answered goes back to the public list.
+    # Frequent, because every one of those is an empty chair in a shop that is
+    # open.
+    "expire-waitlist-offers": {
+        "task": "bookings.waitlist.expire_offers",
+        "schedule": crontab(minute="*/5"),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

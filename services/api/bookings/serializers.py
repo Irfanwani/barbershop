@@ -20,6 +20,9 @@ from bookings.models import (
     Booking,
     BookingItem,
     BookingStatus,
+    WaitlistEntry,
+    WaitlistOffer,
+    WaitlistStatus,
     has_room,
     is_within_working_hours,
 )
@@ -369,3 +372,149 @@ class BookingCreateSerializer(serializers.Serializer):
 
 class CancelBookingSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, max_length=200, default="")
+
+
+class WaitlistEntrySerializer(serializers.ModelSerializer):
+    """A waitlist entry, as the customer sees their own."""
+
+    provider_name = serializers.CharField(source="provider.display_name", read_only=True)
+    service_name = serializers.CharField(source="service.name", read_only=True)
+    staff_name = serializers.CharField(source="staff.name", read_only=True, default=None)
+
+    class Meta:
+        model = WaitlistEntry
+        fields = [
+            "id",
+            "provider",
+            "provider_name",
+            "service",
+            "service_name",
+            "staff",
+            "staff_name",
+            "window_start",
+            "window_end",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = ["status", "created_at", "provider_name", "service_name", "staff_name"]
+
+
+class WaitlistJoinSerializer(serializers.Serializer):
+    """Ask to be told when something frees up."""
+
+    provider = serializers.IntegerField()
+    service = serializers.IntegerField()
+    staff = serializers.IntegerField(required=False, allow_null=True)
+    window_start = serializers.DateTimeField()
+    window_end = serializers.DateTimeField()
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs["window_start"] >= attrs["window_end"]:
+            raise serializers.ValidationError(
+                {"window_end": "The end of the window has to be after its start."}
+            )
+
+        if attrs["window_start"] <= timezone.now():
+            raise serializers.ValidationError({"window_start": "That window has already started."})
+
+        provider = get_object_or_404(ProviderProfile, pk=attrs["provider"])
+
+        service = Service.objects.filter(
+            pk=attrs["service"], provider=provider, is_active=True
+        ).first()
+        if service is None:
+            # Same answer as a missing id, so this cannot be used to find out
+            # which services another shop offers.
+            raise serializers.ValidationError(
+                {"service": "That service is not available at this shop."}
+            )
+
+        staff = None
+        if attrs.get("staff") is not None:
+            staff = Staff.objects.filter(
+                pk=attrs["staff"], provider=provider, is_active=True
+            ).first()
+            if staff is None:
+                raise serializers.ValidationError(
+                    {"staff": "That person does not work at this shop."}
+                )
+
+        duplicate = WaitlistEntry.objects.filter(
+            customer=self.context["request"].user,
+            provider=provider,
+            service=service,
+            status__in=[WaitlistStatus.WAITING, WaitlistStatus.OFFERED],
+        ).exists()
+        if duplicate:
+            raise serializers.ValidationError(
+                "You are already on the waitlist for that service here."
+            )
+
+        attrs["provider_obj"] = provider
+        attrs["service_obj"] = service
+        attrs["staff_obj"] = staff
+        return attrs
+
+    def save(self, **kwargs) -> WaitlistEntry:
+        return WaitlistEntry.objects.create(
+            customer=self.context["request"].user,
+            provider=self.validated_data["provider_obj"],
+            service=self.validated_data["service_obj"],
+            staff=self.validated_data.get("staff_obj"),
+            window_start=self.validated_data["window_start"],
+            window_end=self.validated_data["window_end"],
+        )
+
+
+class WaitlistOfferSerializer(serializers.ModelSerializer):
+    """A slot being held for this customer, and how long they have."""
+
+    shop_name = serializers.CharField(source="entry.provider.display_name", read_only=True)
+    service_name = serializers.CharField(source="entry.service.name", read_only=True)
+    staff_name = serializers.CharField(source="staff.name", read_only=True, default=None)
+    seconds_left = serializers.SerializerMethodField()
+    can_accept = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WaitlistOffer
+        fields = [
+            "id",
+            "shop_name",
+            "service_name",
+            "staff_name",
+            "starts_at",
+            "ends_at",
+            "status",
+            "expires_at",
+            "seconds_left",
+            "can_accept",
+        ]
+
+    def get_seconds_left(self, obj: WaitlistOffer) -> int:
+        return max(0, int((obj.expires_at - timezone.now()).total_seconds()))
+
+    def get_can_accept(self, obj: WaitlistOffer) -> bool:
+        """Whether accepting would still succeed.
+
+        The hold may have lapsed without the cleanup task having run, and
+        offering a button that will be refused is worse than not offering it.
+        """
+        return obj.status == "pending" and obj.expires_at > timezone.now()
+
+
+class WaitlistDeclineResultSerializer(serializers.Serializer):
+    """What happened when someone let a held slot go.
+
+    ``passed_on`` is the part worth sending: without it a customer who has
+    already declined sits waiting to find out whether anybody took it.
+    """
+
+    declined = serializers.BooleanField()
+    passed_on = serializers.BooleanField()
+
+
+class WaitlistDeclineSerializer(serializers.Serializer):
+    """Declining takes no arguments — the offer id says which one."""
+
+    class Meta:
+        pass

@@ -321,7 +321,7 @@ rather than silently falling back to the shop.
 
 ## P2.2 Waitlist, with automatic fill on cancellation
 
-**Status:** todo
+**Status:** done (backend); app screens outstanding
 
 When a slot frees, it sits empty. The entire niche is built on this —
 "as soon as you add new availability, your waitlist gets notified instantly"
@@ -335,7 +335,42 @@ When a slot frees, it sits empty. The entire niche is built on this —
 
 **Acceptance:** cancelling a booked slot notifies the first matching waitlist
 entry; if they decline, the next is offered; the slot returns to public after
-the hold expires.
+the hold expires — all three tested, 29 tests.
+
+**A window, not a slot.** "Any time this week" is what most people mean, and
+pinning one minute would mean the waitlist misses almost every cancellation —
+the one thing it exists for. The window is checked against the freed booking's
+own start and end, so someone who said "this afternoon" is not woken next
+Tuesday.
+
+**The hold is the feature.** `SlotHold` is consulted by `has_room`, so an
+offered slot stops being publicly bookable for as long as the hold lasts.
+Without it "first to reply gets the slot" is a lie: the seconds between the
+offer and the reply belong to whoever is watching the list, not to the person
+who was notified.
+
+**One turn each.** An offer that lapses is not re-offered to the same person.
+They already had their turn; expire, re-offer, expire, re-offer would leave the
+people behind them watching an empty chair.
+
+**A lapsed hold costs nothing if the cleanup task never runs.** Every
+availability check treats an expired hold as no hold, so a dead Celery worker
+costs delay for the next person in line and nothing else.
+
+**Accepting re-runs the full booking rules** rather than trusting the offer. An
+entry can sit for days across a price change or a revised cancellation policy,
+and a booking built from stale assumptions is worse than a refused accept.
+
+**Still to do:** no app screen — nobody can join a waitlist or answer an offer.
+
+Writing the tests found three bugs:
+
+- **Accepting an offer was refused by its own hold.** The hold stopped the
+  customer it was held *for* from booking it. Released first now; both happen
+  in one transaction so nothing slips in between.
+- **A lapsed waiter was re-offered the same slot forever**, so the queue behind
+  them never moved.
+- **A free-text `{action}` URL segment** accepted any verb. Two explicit routes.
 
 ## P2.3 Rescheduling
 

@@ -5457,6 +5457,146 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/bookings/waitlist/:
+    get:
+      operationId: bookings_waitlist_list
+      description: |-
+        Join, see and leave the waitlist.
+
+        A window rather than a single slot, because "any time this week" is what
+        most people mean and pinning one minute would mean the waitlist misses
+        almost every cancellation — the one thing it exists for.
+      summary: Your waitlist entries
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaitlistEntry'
+          description: ''
+    post:
+      operationId: bookings_waitlist_join
+      description: Tells us when a matching slot frees up. You get first refusal on
+        it for a short window before it goes back to being public.
+      summary: Join the waitlist
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoinRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoinRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WaitlistJoinRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistEntry'
+          description: ''
+  /api/v1/bookings/waitlist/offers/:
+    get:
+      operationId: bookings_waitlist_offers
+      description: Each one has a countdown. When it runs out it goes to the next
+        person.
+      summary: Slots being held for you
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WaitlistOffer'
+          description: ''
+  /api/v1/bookings/waitlist/offers/{id}/accept/:
+    post:
+      operationId: bookings_waitlist_accept
+      description: Creates the booking. The full booking rules run again rather than
+        trusting the offer, because an entry can sit for days across a price change
+        or a revised cancellation policy.
+      summary: Take a held slot
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+  /api/v1/bookings/waitlist/offers/{id}/decline/:
+    post:
+      operationId: bookings_waitlist_decline
+      description: The slot goes to the next person. You stay on the waitlist.
+      summary: Give a held slot back
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistDeclineResult'
+          description: ''
+  /api/v1/bookings/waitlist/{id}/:
+    delete:
+      operationId: bookings_waitlist_leave
+      description: Stops telling you about this slot, and frees any you were holding.
+      summary: Leave the waitlist
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/bookings/new/:
     post:
       operationId: bookings_create
@@ -9947,6 +10087,165 @@ components:
       - razorpay_order_id
       - razorpay_payment_id
       - razorpay_signature
+    WaitlistDeclineResult:
+      type: object
+      description: |-
+        What happened when someone let a held slot go.
+
+        ``passed_on`` is the part worth sending: without it a customer who has
+        already declined sits waiting to find out whether anybody took it.
+      properties:
+        declined:
+          type: boolean
+        passed_on:
+          type: boolean
+      required:
+      - declined
+      - passed_on
+    WaitlistEntry:
+      type: object
+      description: A waitlist entry, as the customer sees their own.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        provider:
+          type: integer
+        provider_name:
+          type: string
+          readOnly: true
+        service:
+          type: integer
+        service_name:
+          type: string
+          readOnly: true
+        staff:
+          type: integer
+          nullable: true
+        staff_name:
+          type: string
+          readOnly: true
+        window_start:
+          type: string
+          format: date-time
+        window_end:
+          type: string
+          format: date-time
+        status:
+          allOf:
+          - $ref: '#/components/schemas/WaitlistEntryStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - provider
+      - provider_name
+      - service
+      - service_name
+      - staff_name
+      - status
+      - window_end
+      - window_start
+    WaitlistEntryStatusEnum:
+      enum:
+      - waiting
+      - offered
+      - booked
+      - declined
+      - left
+      type: string
+      description: |-
+        * `waiting` - Waiting
+        * `offered` - Offered
+        * `booked` - Booked
+        * `declined` - Declined
+        * `left` - Left
+    WaitlistJoinRequest:
+      type: object
+      description: Ask to be told when something frees up.
+      properties:
+        provider:
+          type: integer
+        service:
+          type: integer
+        staff:
+          type: integer
+          nullable: true
+        window_start:
+          type: string
+          format: date-time
+        window_end:
+          type: string
+          format: date-time
+      required:
+      - provider
+      - service
+      - window_end
+      - window_start
+    WaitlistOffer:
+      type: object
+      description: A slot being held for this customer, and how long they have.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        shop_name:
+          type: string
+          readOnly: true
+        service_name:
+          type: string
+          readOnly: true
+        staff_name:
+          type: string
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/WaitlistOfferStatusEnum'
+        expires_at:
+          type: string
+          format: date-time
+        seconds_left:
+          type: integer
+          readOnly: true
+        can_accept:
+          type: boolean
+          description: |-
+            Whether accepting would still succeed.
+
+            The hold may have lapsed without the cleanup task having run, and
+            offering a button that will be refused is worse than not offering it.
+          readOnly: true
+      required:
+      - can_accept
+      - ends_at
+      - expires_at
+      - id
+      - seconds_left
+      - service_name
+      - shop_name
+      - staff_name
+      - starts_at
+    WaitlistOfferStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - declined
+      - expired
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `accepted` - Accepted
+        * `declined` - Declined
+        * `expired` - Expired
     WeekdayEnum:
       enum:
       - 0

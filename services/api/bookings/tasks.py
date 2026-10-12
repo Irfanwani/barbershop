@@ -162,3 +162,17 @@ def _expire(queryset, new_status: BookingStatus) -> int:
         return 0
     queryset.update(status=new_status, expired_at=timezone.now())
     return len(ids)
+
+
+@shared_task(name="bookings.waitlist.expire_offers")
+def expire_waitlist_offers() -> dict[str, int]:
+    """Release held slots nobody answered.
+
+    Runs every five minutes. The schedule is a convenience, not the mechanism:
+    every availability check already treats an expired hold as no hold, so if
+    this never runs the only cost is the next person in line waiting a little
+    longer to be offered the same chair.
+    """
+    from bookings.waitlist import expire_offers
+
+    return expire_offers()

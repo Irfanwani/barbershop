@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
 from accounts.models import User
@@ -361,19 +361,48 @@ def has_room(
     )
     if exclude_booking:
         overlapping = overlapping.exclude(pk=exclude_booking)
-    if overlapping.count() >= provider.headcount():
+    # A slot held for a waitlist offer is taken, even though no booking exists
+    # for it yet. "First to reply gets the slot" is only true if the seconds
+    # between the offer and the reply belong to one person.
+    held = overlapping_slot_holds(provider, starts_at, ends_at)
+
+    if overlapping.count() + held["total"] >= provider.headcount():
         return False
 
     if staff is None:
         return True
 
-    return not Booking.objects.filter(
+    if Booking.objects.filter(
         provider=provider,
         staff=staff,
         status__in=BLOCKING_STATUSES,
         starts_at__lt=ends_at,
         ends_at__gt=starts_at,
-    ).exists()
+    ).exists():
+        return False
+
+    # Someone holding a slot for this specific barber is not available either.
+    return held["staff"] == 0
+
+
+def overlapping_slot_holds(
+    provider: ProviderProfile, starts_at: datetime, ends_at: datetime
+) -> dict[str, int]:
+    """How many active waitlist holds cover this interval.
+
+    Split by whether the hold is for a named barber, because a chair held for
+    someone specific cannot be given to someone else, while a chair held for
+    whoever is free just reduces the total.
+    """
+    active = SlotHold.objects.filter(
+        provider=provider,
+        starts_at__lt=ends_at,
+        ends_at__gt=starts_at,
+        offer__status="pending",
+        offer__expires_at__gt=timezone.now(),
+    )
+    totals = active.aggregate(total=Count("pk"), staff=Count("pk", filter=Q(staff__isnull=False)))
+    return {"total": totals["total"] or 0, "staff": totals["staff"] or 0}
 
 
 def is_slot_available(
@@ -516,3 +545,175 @@ def is_within_working_hours(
 
 
 AUTH_USER_MODEL = settings.AUTH_USER_MODEL
+
+
+class WaitlistStatus(models.TextChoices):
+    WAITING = "waiting", "Waiting"
+    #: A slot is being held for this entry and nobody has answered yet.
+    OFFERED = "offered", "Offered"
+    BOOKED = "booked", "Booked"
+    #: They said no, or let the hold run out. Not re-offered the same slot.
+    DECLINED = "declined", "Declined"
+    LEFT = "left", "Left"
+
+
+class WaitlistEntry(TimeStampedModel):
+    """ "Tell me when something frees up."
+
+    A window rather than a single slot, because the common case is a customer
+    who wants "any time this week", not one specific minute. Pinning a single
+    time would mean the waitlist misses almost every cancellation, which is the
+    one thing it exists for.
+
+    ``staff`` is optional and means "anyone". A shop with three barbers and one
+    freed chair should offer it to whoever is waiting, not to the person who
+    happens to want a specific one.
+    """
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="waitlist_entries"
+    )
+    provider = models.ForeignKey(
+        ProviderProfile, on_delete=models.CASCADE, related_name="waitlist_entries"
+    )
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.CASCADE,
+        related_name="waitlist_entries",
+        null=True,
+        blank=True,
+    )
+    service = models.ForeignKey(
+        "providers.Service", on_delete=models.CASCADE, related_name="waitlist_entries"
+    )
+
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+
+    status = models.CharField(
+        max_length=16, choices=WaitlistStatus.choices, default=WaitlistStatus.WAITING, db_index=True
+    )
+
+    class Meta:
+        db_table = "bookings_waitlist_entry"
+        ordering = ["created_at", "pk"]
+        indexes = [models.Index(fields=["provider", "status", "created_at"])]
+        constraints = [
+            # A window that ends before it starts is a typo, not "any time".
+            models.CheckConstraint(
+                condition=Q(window_start__lt=F("window_end")),
+                name="bookings_waitlist_window_ordered",
+            ),
+            # One live entry per customer per shop: joining twice would let one
+            # person take two offers for the same freed slot.
+            models.UniqueConstraint(
+                fields=["customer", "provider", "service"],
+                condition=Q(status__in=["waiting", "offered"]),
+                name="bookings_waitlist_one_live_per_shop",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.customer} → {self.provider}"
+
+    def matches(self, slot) -> bool:
+        """Whether a freed slot is something this entry asked for.
+
+        Shop and service are not re-checked here: the caller has already
+        selected entries for that shop and service. What is checked is whether
+        this entry actually wanted this *time* — a customer who said "Tuesday
+        afternoon" should not be woken at 09:00 on Thursday.
+        """
+        return self.window_start <= slot.starts_at and slot.ends_at <= self.window_end
+
+    def wants(self, staff) -> bool:
+        """Whether this entry is happy with a specific barber.
+
+        ``None`` means whoever is free.
+        """
+        return self.staff_id is None or (staff is not None and self.staff_id == staff.pk)
+
+
+class WaitlistOffer(TimeStampedModel):
+    """One freed slot, held for one person, for a while.
+
+    The hold is the point. Without it the slot is offered to someone who then
+    takes a minute to decide, during which another customer — who has no idea
+    any of this is happening — books it. The niche promises "filled in
+    seconds"; that only works if the seconds belong to one person.
+    """
+
+    entry = models.ForeignKey(WaitlistEntry, on_delete=models.CASCADE, related_name="offers")
+
+    # The freed slot, denormalised. Kept on the offer rather than pointing at a
+    # booking, because the booking it came from is cancelled and will be
+    # deleted or archived.
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField()
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.CASCADE,
+        related_name="waitlist_offers",
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=16,
+        choices=[
+            ("pending", "Pending"),
+            ("accepted", "Accepted"),
+            ("declined", "Declined"),
+            ("expired", "Expired"),
+        ],
+        default="pending",
+        db_index=True,
+    )
+    expires_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "bookings_waitlist_offer"
+        ordering = ["-created_at", "-pk"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(starts_at__lt=F("ends_at")),
+                name="bookings_waitlist_offer_slot_ordered",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"offer to {self.entry_id} for {self.starts_at}"
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == "pending" and self.expires_at > timezone.now()
+
+
+class SlotHold(models.Model):
+    """A slot reserved for one waitlist offer.
+
+    Consulted by the availability checks, so a held slot stops being publicly
+    bookable the moment it is offered. Without this an offer is a suggestion
+    and "first to reply gets the slot" is a lie.
+    """
+
+    offer = models.OneToOneField(WaitlistOffer, on_delete=models.CASCADE, related_name="hold")
+    provider = models.ForeignKey(
+        ProviderProfile, on_delete=models.CASCADE, related_name="slot_holds"
+    )
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.CASCADE,
+        related_name="slot_holds",
+        null=True,
+        blank=True,
+    )
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "bookings_slothold"
+        indexes = [models.Index(fields=["provider", "starts_at", "ends_at"])]
+
+    def __str__(self) -> str:
+        return f"held for offer {self.offer_id}"
