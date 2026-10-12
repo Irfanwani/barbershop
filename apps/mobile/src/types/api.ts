@@ -188,6 +188,35 @@ export interface ProviderSelf {
  * no name yet. The app says so rather than showing "Staff member 3" as though
  * someone had chosen it.
  */
+/** A waitlist entry: "tell me when something frees up". */
+export interface WaitlistEntry {
+  id: number;
+  provider: number;
+  provider_name: string;
+  service: number;
+  service_name: string;
+  staff: number | null;
+  staff_name: string | null;
+  window_start: string;
+  window_end: string;
+  status: 'waiting' | 'offered' | 'booked' | 'declined' | 'left';
+  created_at: string;
+}
+
+/** A slot being held for this customer, with the countdown attached. */
+export interface WaitlistOffer {
+  id: number;
+  shop_name: string;
+  service_name: string;
+  staff_name: string | null;
+  starts_at: string;
+  ends_at: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  expires_at: string;
+  seconds_left: number;
+  can_accept: boolean;
+}
+
 export interface StaffMember {
   id: number;
   name: string;

@@ -581,3 +581,56 @@ export function useRetireStaff() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Waitlist
+// ---------------------------------------------------------------------------
+
+export function useWaitlist() {
+  return useQuery({ queryKey: keys.waitlist, queryFn: bookingsApi.waitlist });
+}
+
+export function useWaitlistOffers() {
+  // Polled: an offer is a countdown, and a stale one says "take it" for a slot
+  // that has already gone to someone else.
+  return useQuery({
+    queryKey: keys.offers,
+    queryFn: bookingsApi.waitlistOffers,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useJoinWaitlist() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: bookingsApi.joinWaitlist,
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.waitlist }),
+  });
+}
+
+export function useLeaveWaitlist() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: bookingsApi.leaveWaitlist,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.waitlist });
+      // Leaving releases any slot they were holding, so the offer list moves.
+      void client.invalidateQueries({ queryKey: keys.offers });
+    },
+  });
+}
+
+export function useRespondToOffer() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, action }: { id: number; action: 'accept' | 'decline' }) =>
+      action === 'accept'
+        ? bookingsApi.acceptOffer(id)
+        : bookingsApi.declineOffer(id).then((result) => result as unknown as Booking),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.offers });
+      void client.invalidateQueries({ queryKey: keys.waitlist });
+      void client.invalidateQueries({ queryKey: ["bookings", "list"] });
+    },
+  });
+}

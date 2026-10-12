@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useCreateBooking, useQuote, useShopStaff } from '@/api/hooks';
+import { useCreateBooking, useJoinWaitlist, useQuote, useShopStaff } from '@/api/hooks';
 import { Button, Divider, useColors } from '@/components/ui';
 import { formatWhen } from '@/components/booking-row';
 import { cancellationNote } from '@/lib/money';
@@ -44,7 +44,9 @@ export function BookingSheet({
 
   const quote = useQuote();
   const create = useCreateBooking();
+  const joinWaitlist = useJoinWaitlist();
   const staff = useShopStaff(provider.id);
+  const [onWaitlist, setOnWaitlist] = useState(false);
 
   // Someone who does not work the day being booked cannot be chosen. Offering
   // them and refusing at the server would be a worse version of the same thing.
@@ -82,6 +84,27 @@ export function BookingSheet({
       });
     } catch (caught) {
       setError(errorMessage(caught, 'Could not price that slot.'));
+    }
+  }
+
+  async function addToWaitlist() {
+    if (selected.length === 0) return;
+    setError(null);
+    try {
+      // A window, not a slot: the whole point is to be told about the next
+      // cancellation, not this one particular minute.
+      const from = new Date();
+      const until = new Date(from.getTime() + 14 * 24 * 60 * 60 * 1000);
+      await joinWaitlist.mutateAsync({
+        provider: provider.id,
+        service: selected[0]!.id,
+        ...(staffId ? { staff: staffId } : {}),
+        window_start: from.toISOString(),
+        window_end: until.toISOString(),
+      });
+      setOnWaitlist(true);
+    } catch (caught) {
+      setError(errorMessage(caught, 'Could not join the waitlist.'));
     }
   }
 
@@ -198,9 +221,25 @@ export function BookingSheet({
                   3 · When?
                 </Text>
                 {freeSlots.length === 0 ? (
-                  <Text className="text-sm" style={{ color: colors.textMuted }}>
-                    Nothing free in the next week. Try another shop.
-                  </Text>
+                  <View className="gap-2">
+                    <Text className="text-sm" style={{ color: colors.textMuted }}>
+                      Nothing free in the next week. You can wait to be told when
+                      something is cancelled.
+                    </Text>
+                    {onWaitlist ? (
+                      <Text className="text-sm font-medium" style={{ color: colors.success }}>
+                        Added. We will offer you the next cancellation.
+                      </Text>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        onPress={() => void addToWaitlist()}
+                        loading={joinWaitlist.isPending}
+                        testID="join-waitlist">
+                        Join the waitlist
+                      </Button>
+                    )}
+                  </View>
                 ) : (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View className="flex-row gap-2 pr-4">

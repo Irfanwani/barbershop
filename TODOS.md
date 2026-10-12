@@ -321,7 +321,7 @@ rather than silently falling back to the shop.
 
 ## P2.2 Waitlist, with automatic fill on cancellation
 
-**Status:** done (backend); app screens outstanding
+**Status:** done
 
 When a slot frees, it sits empty. The entire niche is built on this —
 "as soon as you add new availability, your waitlist gets notified instantly"
@@ -361,7 +361,12 @@ costs delay for the next person in line and nothing else.
 entry can sit for days across a price change or a revised cancellation policy,
 and a booking built from stale assumptions is worse than a refused accept.
 
-**Still to do:** no app screen — nobody can join a waitlist or answer an offer.
+**In the app.** A customer joins from the booking sheet when nothing is free,
+and answers offers on a **Waitlist** tab. An offer shows the shop, the
+service, the time and the deadline it is held until — yours without a
+deadline is how somebody ends up being woken by another person taking their
+slot. A lapsed offer says it has run out and that the slot may already be
+gone, rather than offering a button that will fail.
 
 Writing the tests found three bugs:
 

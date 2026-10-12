@@ -13,13 +13,13 @@ import {
   deadlineSummary,
   formatPaise,
   paymentSummary,
-} from '@/lib/money';
+ isUnnamed } from '@/lib/money';
 import {
   describeLedgerKind,
   describeLedgerStatus,
 } from '@/components/balance-card';
-import { isUnnamed } from '@/lib/money';
 import type { StaffMember } from '@/types/api';
+import { formatClock, formatWhen } from '../app/(customer)/waitlist';
 
 describe('formatPaise', () => {
   it('converts paise to rupees', () => {
@@ -172,5 +172,20 @@ describe('staff', () => {
 
   it('does not flag a named person', () => {
     expect(isUnnamed({ name: 'Ravi', is_placeholder: false })).toBe(false);
+  });
+});
+
+describe('a held slot', () => {
+  it('says when the hold ends, not just that it is held', () => {
+    // "Yours" without a deadline is how somebody is woken by another person
+    // taking their slot.
+    expect(
+      formatWhen(new Date('2026-10-14T10:00:00Z').toISOString()),
+    ).toMatch(/\d{1,2}:\d{2}(am|pm)/);
+  });
+
+  it('writes the clock the way a person says it', () => {
+    const clock = formatClock(new Date('2026-10-14T15:30:00Z').toISOString());
+    expect(clock).toMatch(/^\d{1,2}:\d{2}(am|pm)$/);
   });
 });

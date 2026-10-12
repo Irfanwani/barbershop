@@ -36,6 +36,8 @@ import type {
   User,
   WorkingHours,
   StaffMember,
+  WaitlistEntry,
+  WaitlistOffer,
 } from '@/types/api';
 
 export interface StaffHoursInput {
@@ -283,6 +285,28 @@ export const providersApi = {
 export const bookingsApi = {
   list: (params?: { status?: string; upcoming?: boolean; past?: boolean; page?: number }) =>
     api.get<BookingPage>('/bookings/', params as QueryParams),
+
+  waitlist: () => api.get<WaitlistEntry[]>('/bookings/waitlist/'),
+
+  joinWaitlist: (body: {
+    provider: number;
+    service: number;
+    staff?: number | null;
+    window_start: string;
+    window_end: string;
+  }) => api.post<WaitlistEntry>('/bookings/waitlist/', body),
+
+  leaveWaitlist: (id: number) => api.delete(`/bookings/waitlist/${id}/`),
+
+  waitlistOffers: () => api.get<WaitlistOffer[]>('/bookings/waitlist/offers/'),
+
+  acceptOffer: (id: number) => api.post<Booking>(`/bookings/waitlist/offers/${id}/accept/`),
+
+  declineOffer: (id: number) =>
+    api.post<{ declined: boolean; passed_on: boolean }>(
+      `/bookings/waitlist/offers/${id}/decline/`,
+    ),
+
 
   get: (reference: string) => api.get<Booking>(`/bookings/${reference}/`),
 
