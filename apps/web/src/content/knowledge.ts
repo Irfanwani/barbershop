@@ -295,7 +295,7 @@ export const GROUPS: Group[] = [
             id: 'reschedule',
             question: 'Can I move an appointment to another time?',
             answer:
-              'Not yet — move a booking by cancelling and rebooking. Rescheduling in place, which keeps the original booking and its price, is on the roadmap but is not shipped.',
+              'Yes — "Change the time" on the booking screen. It is the same booking, so the reference, your payments and your reminders all follow it. The price is checked again when you move it: if the service now costs a different amount you will see both figures and be asked to agree, rather than being quietly charged either the old or the new one. Close to the appointment it becomes a cancellation instead, on the same terms as cancelling would have been.',
             keywords: ['reschedule', 'move appointment', 'change time', 'postpone', 'different day'],
           },
         ],
@@ -391,6 +391,20 @@ export const GROUPS: Group[] = [
             keywords: ['sign in', 'login', 'log in', 'otp', 'code', 'password', 'account'],
           },
           {
+            id: 'waitlist',
+            question: 'The time I want is taken. Can I wait for a cancellation?',
+            answer:
+              'Yes. On a shop\u2019s page, if nothing is free in the next week you can join the waitlist for that service. When a booked slot is cancelled it is offered to whoever joined first, and held for them for a short window before it goes back to being public. You get a countdown saying how long it is yours, so it is never a silent race.',
+            keywords: ['waitlist', 'cancellation', 'cancelled', 'waiting list', 'free slot', 'wait'],
+          },
+          {
+            id: 'save-a-shop',
+            question: 'Can I save a shop?',
+            answer:
+              'Yes — Save on any shop, and they come first when you browse. A saved shop stays saved even if the shop pauses for a holiday, so it reappears at the top of your list when it reopens rather than disappearing and having to be found again.',
+            keywords: ['save', 'saved', 'favourite', 'favorite', 'bookmark', 'usual place'],
+          },
+          {
             id: 'reminders',
             question: 'Will I be reminded about an appointment?',
             answer:
@@ -436,6 +450,26 @@ export const GROUPS: Group[] = [
       },
     ],
   },
+];
+
+/**
+ * Capabilities that are known to be shipped.
+ *
+ * Exists so a test can check the knowledge base does not describe any of them
+ * as unavailable. The existing test only ran the other way — that anything
+ * described as unshipped says so — which is why a shipped feature sat here
+ * claiming it was "on the roadmap" for several releases after it existed.
+ *
+ * **Add to this in the same commit that ships the feature.**
+ */
+export const SHIPPED_CAPABILITIES: { capability: string; mustMention: string }[] = [
+  { capability: 'Rescheduling', mustMention: 'Change the time' },
+  { capability: 'Staff', mustMention: 'barber' },
+  { capability: 'Waitlist', mustMention: 'waitlist' },
+  { capability: 'Saved shops', mustMention: 'Save' },
+  { capability: 'Deposits', mustMention: 'deposit' },
+  { capability: 'Refunds', mustMention: 'refund' },
+  { capability: 'Payouts', mustMention: 'withdraw' },
 ];
 
 /** Every entry, flattened, for search. */

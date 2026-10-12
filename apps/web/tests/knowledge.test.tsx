@@ -3,7 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 
-import { GROUPS, allEntries, groupsFor, searchEntries } from '@/content/knowledge';
+import {
+  GROUPS,
+  SHIPPED_CAPABILITIES,
+  allEntries,
+  groupsFor,
+  searchEntries,
+} from '@/content/knowledge';
 import Knowledge from '@/routes/Knowledge';
 
 describe('the content itself', () => {
@@ -33,6 +39,39 @@ describe('the content itself', () => {
     }
   });
 
+  it('never describes a shipped feature as unavailable', () => {
+    // The other direction of the same rule, and the one that actually bit:
+    // rescheduling shipped, and this page went on saying it was "on the
+    // roadmap" until somebody checked.
+    // Deliberately narrow. A bare "cannot" also appears in correct statements
+    // of limitation — "you cannot withdraw money that has not cleared" — and
+    // flagging those would train whoever reads a failure to ignore the test.
+    // What matters is a claim that the thing itself does not exist yet.
+    const UNAVAILABLE = /(not yet|is not shipped|on the roadmap|coming soon|does not support)/i;
+
+    const dishonestlyUnavailable = SHIPPED_CAPABILITIES.filter(({ mustMention }) =>
+      allEntries().some(
+        ({ entry }) =>
+          UNAVAILABLE.test(entry.answer) &&
+          entry.answer.toLowerCase().includes(mustMention.toLowerCase()),
+      ),
+    );
+
+    expect(dishonestlyUnavailable.map((item) => item.capability)).toEqual([]);
+  });
+
+  it('documents every shipped capability affirmatively', () => {
+    const corpus = allEntries()
+      .map((item) => item.entry.answer)
+      .join(' ')
+      .toLowerCase();
+
+    const missing = SHIPPED_CAPABILITIES.filter(
+      ({ mustMention }) => !corpus.includes(mustMention.toLowerCase()),
+    );
+    expect(missing.map((item) => item.capability)).toEqual([]);
+  });
+
   it('never promises a feature that does not exist', () => {
     // Anything not shipped has to say so. A knowledge base that documents the
     // roadmap in the present tense is worse than having none.
@@ -40,7 +79,9 @@ describe('the content itself', () => {
     const dishonest = allEntries().filter(
       ({ entry }) =>
         /(you can|currently|we now|supports)/i.test(entry.answer) &&
-        /(reschedul|waitlist|saved shop|staff member)/i.test(entry.answer) &&
+        /(reschedul|recurring|referral|staff member|consultation form)/i.test(
+          entry.answer,
+        ) &&
         !shipped.test(entry.answer),
     );
     expect(dishonest.map((item) => item.entry.id)).toEqual([]);
