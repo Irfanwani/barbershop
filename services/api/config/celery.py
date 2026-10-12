@@ -52,6 +52,12 @@ app.conf.beat_schedule = {
         "task": "bookings.reminders.send_rebooking_nudges",
         "schedule": crontab(hour=11, minute=30),
     },
+    # Reviews are already tied to completed bookings, so the trust signal is
+    # right. Nobody was asking, which is the other half of it.
+    "review-requests": {
+        "task": "bookings.reminders.request_reviews",
+        "schedule": crontab(hour=16, minute=0),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

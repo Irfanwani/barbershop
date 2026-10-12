@@ -51,9 +51,29 @@ class Review(TimeStampedModel):
     provider_reply = models.TextField(blank=True, default="", max_length=1000)
     replied_at = models.DateTimeField(null=True, blank=True)
 
+    photo = models.ImageField(
+        upload_to="reviews/",
+        blank=True,
+        null=True,
+        help_text="Optional. A picture of the result, which is what makes a review useful.",
+    )
+
     is_hidden = models.BooleanField(
         default=False, help_text="Hidden by moderation. Kept, not deleted."
     )
+
+    #: Why a provider asked for this to come down.
+    #:
+    #: Set only for abuse — harassment, spam, a review about somebody else.
+    #: Being rated badly is not a reason, and a provider who can wave a review
+    #: away by asking has no reason to keep the shop's rating honest.
+    removal_requested_reason = models.CharField(max_length=200, blank=True, default="")
+    removal_requested_at = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def can_be_requested_removed(self) -> bool:
+        """Whether a provider may ask for this review to come down."""
+        return can_be_requested_removed(self.removal_requested_reason)
 
     class Meta:
         db_table = "reviews_review"
@@ -71,3 +91,46 @@ class Review(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.rating}★ from {self.customer} for {self.provider}"
+
+
+class ReviewRequest(TimeStampedModel):
+    """That we asked this person to review this appointment.
+
+    Recorded rather than inferred. "Have we asked?" cannot be derived from
+    booking dates: a customer who reviews, and one who never will, look
+    identical from the appointment's side, and a second nudge to somebody who
+    has already declined is how a whole notification category gets turned off.
+    """
+
+    booking = models.OneToOneField(
+        "bookings.Booking", on_delete=models.CASCADE, related_name="review_request"
+    )
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="review_requests"
+    )
+
+    class Meta:
+        db_table = "reviews_reviewrequest"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"asked {self.customer} about {self.booking_id}"
+
+
+#: What counts as a reason to take a review down. Abuse only.
+#:
+#: A provider who could wave away a review by asking would have no reason to
+#: keep the shop's rating honest, and "we did not like it" is not abuse.
+REMOVAL_REASONS = ("abuse", "harass", "spam", "threaten")
+
+
+def can_be_requested_removed(reason: str) -> bool:
+    """Whether this stated reason is one we will act on.
+
+    A module function rather than a method, because the view has to check the
+    reason it was *given*, not the one on the row — which is empty the first
+    time and set afterwards, so checking the stored value refuses the first
+    report and allows every later one.
+    """
+    cleaned = (reason or "").strip().lower()
+    return bool(cleaned) and any(word in cleaned for word in REMOVAL_REASONS)

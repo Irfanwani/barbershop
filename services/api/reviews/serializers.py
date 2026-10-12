@@ -33,6 +33,7 @@ class ReviewSerializer(serializers.ModelSerializer):
             "booking",
             "rating",
             "comment",
+            "photo",
             "provider_reply",
             "replied_at",
             "created_at",
@@ -60,6 +61,7 @@ class ReviewCreateSerializer(serializers.Serializer):
     rating = serializers.IntegerField(min_value=MIN_RATING, max_value=MAX_RATING)
     comment = serializers.CharField(required=False, allow_blank=True, max_length=1000, default="")
     booking = serializers.IntegerField(required=False, allow_null=True)
+    photo = serializers.ImageField(required=False, allow_null=True)
 
     def validate(self, attrs: dict) -> dict:
         from bookings.models import Booking, BookingStatus
@@ -100,6 +102,9 @@ class ReviewCreateSerializer(serializers.Serializer):
             booking=validated_data["booking_obj"],
             rating=validated_data["rating"],
             comment=validated_data.get("comment", ""),
+            # Validated and then dropped: adding the field to the serializer is
+            # not enough, because create() writes the fields out by name.
+            photo=validated_data.get("photo"),
         )
         # The provider's cached rating is denormalised onto their row so search
         # results do not run an aggregate per shop.
@@ -134,3 +139,9 @@ class ReviewCreateModelSerializer(serializers.ModelSerializer):
                 f"A rating has to be between {MIN_RATING} and {MAX_RATING}."
             )
         return value
+
+
+class ReviewRemovalRequestSerializer(serializers.Serializer):
+    """Why a review should come down. Required, and it has to mean something."""
+
+    reason = serializers.CharField(max_length=200, trim_whitespace=True)

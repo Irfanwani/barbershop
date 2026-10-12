@@ -190,3 +190,17 @@ def send_rebooking_nudges() -> dict[str, int]:
     from accounts.reengagement import send_nudges
 
     return send_nudges()
+
+
+@shared_task(name="bookings.reminders.request_reviews")
+def request_reviews() -> dict[str, int]:
+    """Ask completed customers how it went, once each.
+
+    Runs daily. The window is one day to a month after the appointment:
+    long enough that they have an opinion, short enough that they remember
+    whose chair it was, and over before the review stops being about the
+    haircut and starts being about the platform.
+    """
+    from reviews.requests import send_requests
+
+    return send_requests()

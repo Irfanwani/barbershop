@@ -64,6 +64,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/bookings/waitlist/{id}/",
     "/api/v1/payments/bookings/{reference}/tip/",
     "/api/v1/payments/me/tips/",
+    "/api/v1/reviews/{id}/request-removal/",
     "/api/v1/promotions/points/",
     "/api/v1/promotions/points/history/",
     "/api/v1/promotions/points/settings/",

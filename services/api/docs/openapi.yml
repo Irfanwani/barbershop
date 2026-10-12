@@ -7136,6 +7136,43 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/reviews/{id}/request-removal/:
+    post:
+      operationId: reviews_request_removal
+      description: 'Only for abuse: harassment, spam, or a review about somebody else.
+        Being rated badly is not a reason.'
+      summary: Ask for a review to be removed
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - reviews
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRemovalRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewRemovalRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewRemovalRequestRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/payments/orders/:
     post:
       operationId: payments_orders_create
@@ -10148,6 +10185,12 @@ components:
         comment:
           type: string
           maxLength: 1000
+        photo:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional. A picture of the result, which is what makes a review
+            useful.
         provider_reply:
           type: string
           readOnly: true
@@ -10192,9 +10235,23 @@ components:
         booking:
           type: integer
           nullable: true
+        photo:
+          type: string
+          format: binary
+          nullable: true
       required:
       - provider
       - rating
+    ReviewRemovalRequestRequest:
+      type: object
+      description: Why a review should come down. Required, and it has to mean something.
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - reason
     ReviewReplyRequest:
       type: object
       description: A provider's public reply.

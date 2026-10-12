@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -11,12 +13,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.exceptions import BusinessRuleViolation
 from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
-from reviews.models import Review
+from reviews.models import Review, can_be_requested_removed
+from reviews.requests import notify_provider
 from reviews.serializers import (
     ReviewCreateSerializer,
+    ReviewRemovalRequestSerializer,
     ReviewReplySerializer,
     ReviewSerializer,
 )
@@ -114,6 +119,12 @@ class ReviewCreateView(APIView):
         serializer = ReviewCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         review = serializer.save()
+
+        # The shop should hear about a review the same day it arrives. Reviews
+        # are the main thing a provider cannot see coming, and an unanswered
+        # one — especially a bad one — is worse than the review.
+        notify_provider(review)
+
         return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
 
 
@@ -204,3 +215,56 @@ class ProviderSummaryView(APIView):
 
         provider = get_object_or_404(ProviderProfile, pk=provider_pk)
         return Response(summarise_provider(provider))
+
+
+class ReviewRemovalRequestView(APIView):
+    """Ask for a review to come down.
+
+    Abuse, and only abuse. A provider who could wave away a review by asking
+    would have no reason to keep the shop's rating honest, so the reason is
+    required and checked rather than optional.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="reviews_request_removal",
+        summary="Ask for a review to be removed",
+        description=(
+            "Only for abuse: harassment, spam, or a review about somebody "
+            "else. Being rated badly is not a reason."
+        ),
+        request=ReviewRemovalRequestSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, pk: int):
+        review = get_object_or_404(Review.objects.select_related("provider__user"), pk=pk)
+        if review.provider.user_id != request.user.pk:
+            raise PermissionDenied("That review is not about your shop.")
+
+        body = ReviewRemovalRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+
+        # Checked against what was *submitted*, not what is stored. Reading it
+        # off the instance asks whether a previous request was for abuse, which
+        # is always False the first time and always True afterwards — so the
+        # first report is refused and every later one is allowed.
+        if not can_be_requested_removed(body.validated_data["reason"]):
+            raise BusinessRuleViolation(
+                "A review can only be reported for abuse — harassment, spam, or "
+                "one that is not about this appointment."
+            )
+
+        review.removal_requested_reason = body.validated_data["reason"]
+        review.removal_requested_at = timezone.now()
+        review.save(
+            update_fields=["removal_requested_reason", "removal_requested_at", "updated_at"]
+        )
+
+        return Response(
+            {
+                "requested": True,
+                "reason": review.removal_requested_reason,
+                "note": "A moderator will look at it. The review stays up until then.",
+            }
+        )

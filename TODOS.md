@@ -826,7 +826,7 @@ apply here" are different problems with different fixes, and calling all three
 
 ## P4.5 Review reminders and photo reviews
 
-**Status:** todo
+**Status:** done
 
 Reviews exist and are tied to completed bookings, so the trust signal is
 already right. Nobody is being asked for one.
@@ -837,7 +837,40 @@ already right. Nobody is being asked for one.
 - A provider can request removal only for abuse, not for being rated badly
 
 **Acceptance:** a completed booking is nudged once; a review with a photo
-renders on the shop page.
+renders on the shop page — tested, 18 tests.
+
+**The window is one day to a month.** Immediately after an appointment nobody
+has an opinion yet; three months on, the review is about the platform rather
+than the haircut.
+
+**Once per booking, ever, recorded in its own table.** "Have we asked?" cannot
+be derived from booking dates — a customer who reviews and one who never will
+look identical from the appointment's side, and a second nudge to somebody who
+has already declined is how the whole notification category gets turned off.
+
+**A booking that is already reviewed is never nudged.** Asking for something
+they have done is nagging.
+
+**Somebody with no device is not recorded as asked**, or a failed push means
+they are never asked at all.
+
+**A provider can report a review only for abuse** — harassment, spam, or one
+about somebody else. The rule lives in one function and the view checks the
+reason it was *given*, not the one stored on the row.
+
+**The provider is told when a review arrives.** Reviews are the main thing a
+provider cannot see coming, and an unanswered one — especially a bad one — is
+worse than the review.
+
+Three bugs the tests found:
+
+- **The two bounds of the window were crossed**, so a booking two days old was
+  excluded and nobody was ever asked.
+- **The removal check read the stored reason, not the submitted one.** Empty
+  the first time and set afterwards, so the *first* report was refused and
+  every later one allowed.
+- **The photo was validated and then dropped.** Adding the field to the
+  serializer is not enough when `create()` writes its fields out by name.
 
 ---
 

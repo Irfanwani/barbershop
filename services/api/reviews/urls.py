@@ -7,6 +7,7 @@ from reviews.views import (
     ReviewCreateView,
     ReviewDetailView,
     ReviewListView,
+    ReviewRemovalRequestView,
     ReviewReplyView,
 )
 
@@ -18,4 +19,9 @@ urlpatterns = [
     path("shops/<int:provider_pk>/summary/", ProviderSummaryView.as_view(), name="summary"),
     path("<int:pk>/", ReviewDetailView.as_view(), name="detail"),
     path("<int:pk>/reply/", ReviewReplyView.as_view(), name="reply"),
+    path(
+        "<int:pk>/request-removal/",
+        ReviewRemovalRequestView.as_view(),
+        name="request-removal",
+    ),
 ]
