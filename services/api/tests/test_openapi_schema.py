@@ -117,6 +117,10 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/payments/webhook/",
     "/api/v1/payments/bookings/{reference}/refund/",
     "/api/v1/payments/{order_id}/",
+    # consultation forms
+    "/api/v1/providers/me/consultation-forms/",
+    "/api/v1/providers/me/consultation-forms/{id}/",
+    "/api/v1/bookings/consultation-forms/",
 }
 
 

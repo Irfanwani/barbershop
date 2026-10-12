@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
@@ -22,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.email import send_booking_confirmation
+from bookings.consultation import questions_for as consultation_questions_for
 from bookings.models import Booking, BookingStatus, WaitlistEntry, WaitlistOffer, has_room
 from bookings.reschedule import late_window_message
 from bookings.serializers import (
@@ -448,6 +450,82 @@ class BookingStatusView(APIView):
             loyalty.credit(booking)
 
         return Response(BookingSerializer(booking, context={"request": request}).data)
+
+
+class ConsultationFormsView(APIView):
+    """The questions a customer is expected to answer for a selection of services.
+
+    Public, because a shop's consultation form is part of what it offers: the
+    customer can see what will be asked before they book, which is the only way
+    the form can be consent rather than a surprise. Read-only, and it reveals
+    nothing about any customer's answers.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_consultation_forms",
+        summary="What to ask before booking",
+        description=(
+            "Every question attached to the selected services' forms, in order. "
+            "Sent with the booking so the shop has what it needs to start."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "services",
+                str,
+                description="Comma-separated service ids belonging to one provider.",
+            ),
+            OpenApiParameter("provider", int, description="Which shop those services belong to."),
+        ],
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        raw = request.query_params.get("services", "")
+        ids = [part for part in str(raw).split(",") if part.strip()]
+        if not ids:
+            return Response({"forms": [], "questions": []})
+
+        try:
+            service_ids = [int(part) for part in ids]
+        except ValueError:
+            raise BusinessRuleViolation("Those were not service ids.") from None
+
+        provider = get_object_or_404(ProviderProfile, pk=request.query_params.get("provider"))
+        services = list(
+            Service.objects.filter(
+                pk__in=service_ids, provider=provider, is_active=True
+            ).prefetch_related("consultation_forms__questions")
+        )
+        if not services:
+            return Response({"forms": [], "questions": []})
+
+        questions = consultation_questions_for(services)
+        forms = {
+            form.pk: form
+            for service in services
+            for form in service.consultation_forms.filter(is_active=True)
+        }
+        return Response(
+            {
+                "forms": [
+                    {"id": form.pk, "name": form.name, "description": form.description}
+                    for form in sorted(forms.values(), key=lambda f: f.name)
+                ],
+                "questions": [
+                    {
+                        "id": question.pk,
+                        "form": question.form_id,
+                        "label": question.label,
+                        "help_text": question.help_text,
+                        "kind": question.kind,
+                        "choices": question.choices,
+                        "is_required": question.is_required,
+                    }
+                    for question in questions
+                ],
+            }
+        )
 
 
 @extend_schema(

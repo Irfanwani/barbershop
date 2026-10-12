@@ -10,6 +10,7 @@ from providers.payout_views import (
 from providers.views import (
     AvailabilityView,
     BookingToggleView,
+    MyConsultationFormViewSet,
     MyPayoutView,
     MyProviderView,
     MyServiceDetailView,
@@ -43,6 +44,18 @@ urlpatterns = [
     path("me/analytics/", ProviderAnalyticsView.as_view(), name="my-analytics"),
     path("me/ledger/", ProviderLedgerView.as_view(), name="my-ledger"),
     path("me/withdraw/", WithdrawalView.as_view(), name="my-withdraw"),
+    path(
+        "me/consultation-forms/",
+        MyConsultationFormViewSet.as_view({"get": "list", "post": "create"}),
+        name="my-consultation-forms",
+    ),
+    path(
+        "me/consultation-forms/<int:pk>/",
+        MyConsultationFormViewSet.as_view(
+            {"get": "retrieve", "patch": "partial_update", "delete": "destroy"}
+        ),
+        name="my-consultation-form-detail",
+    ),
     path("me/staff/", StaffViewSet.as_view({"get": "list", "post": "create"}), name="my-staff"),
     path(
         "me/staff/<int:pk>/",

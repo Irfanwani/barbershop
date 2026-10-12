@@ -767,7 +767,7 @@ test, across all three cases in the chain, asserting the filter agrees with
 
 ## P4.2 Client notes and consultation forms
 
-**Status:** todo
+**Status:** done
 
 The provider sees `Booking.notes` — a 500-character free-text box the
 customer fills in at booking. Everything a barber actually needs to know
@@ -778,7 +778,41 @@ before a client sits down is missing.
 - Sensitive answers flagged so they are shown only to that provider
 
 **Acceptance:** a form attached to "Colour service" is answered at booking
-and visible on the provider's booking detail.
+and visible on the provider's booking detail — tested, 29 API tests and 12 app
+tests.
+
+**Attached to services, not to the shop.** What a barber needs to know about a
+beard trim is not what they need to know about a full colour change. A form with
+nothing attached is never asked, so the app refuses to save one rather than
+letting it look successful and do nothing forever.
+
+**Asked before committing, not after.** The customer can see the whole form
+before they book, which is the only way it can be consent rather than a
+surprise — and it means a required question stops the booking on the checkout
+screen instead of surfacing at the shop.
+
+**Answers are only accepted for questions that apply.** A request may not ask
+a shop's booking arbitrary questions, which would make the form a suggestion
+rather than a contract. A question from another shop, or from a service not in
+this booking, is refused.
+
+**Everything about an answer is frozen.** The question's wording and its
+sensitive flag are copied onto the answer. Rewording a question next month must
+not rewrite what somebody said three weeks ago, and a provider who realises a
+question was over-broad must not be able to un-flag it and make every answer to
+it readable by the customer retroactively — which is exactly the moment the
+customer trusted the flag.
+
+**A sensitive answer is shown to the provider of that booking and to nobody
+else.** Not the customer, not another shop, not a staff member elsewhere. It is
+*withheld* rather than replaced with "hidden": a placeholder row still confirms
+how many questions there were and which were private, which is itself the
+information the flag exists to protect.
+
+**Not every question is a text box.** A yes/no is two taps and a pick-one is a
+list, because a barber reading down a column of clients wants answers at a
+glance, not paragraphs — and asking "have you had colour before" with a
+keyboard gets one-word answers to questions that needed a sentence.
 
 ## P4.3 Tips
 

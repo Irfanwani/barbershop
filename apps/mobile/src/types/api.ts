@@ -510,6 +510,14 @@ export interface Booking {
   late_cancel_fee: number;
   late_cancel_fee_display: string;
   notes: string;
+  /**
+   * Answers to this shop's consultation forms.
+   *
+   * Present only when the reader is the provider this booking belongs to. The
+   * sensitive ones are withheld there too, so a customer reading their own
+   * booking gets an empty list rather than a masked one.
+   */
+  consultation_answers?: ConsultationAnswer[];
   items: BookingItem[];
   can_be_cancelled: boolean;
   is_paid: boolean;
@@ -577,6 +585,50 @@ export interface PointsBalance {
   expiring_soon: number;
   /** What the available points are worth, in paise, at the platform's rate. */
   worth_minor: number;
+}
+
+/** One question on a provider's consultation form. */
+export interface ConsultationQuestion {
+  id: number;
+  form: number;
+  label: string;
+  help_text: string;
+  kind: 'short_text' | 'long_text' | 'choice' | 'yes_no';
+  choices: string[];
+  is_required: boolean;
+  /**
+   * Only on the provider's own forms.
+   *
+   * The customer-facing endpoint omits it: telling somebody which answers are
+   * private invites them to guess what to avoid writing.
+   */
+  is_sensitive?: boolean;
+}
+
+/** A consultation form and its questions. */
+export interface ConsultationForm {
+  id: number;
+  name: string;
+  description: string;
+  is_active: boolean;
+  questions: ConsultationQuestion[];
+  /** Which of the provider's services this applies to. */
+  service_ids: number[];
+}
+
+/** What the server says will be asked, for a selection of services. */
+export interface ConsultationFormPrompt {
+  forms: { id: number; name: string; description: string }[];
+  questions: ConsultationQuestion[];
+}
+
+/** An answer, as the provider reads it. */
+export interface ConsultationAnswer {
+  id: number;
+  question: number | null;
+  label: string;
+  value: string;
+  is_sensitive: boolean;
 }
 
 /** One movement in the points history. */

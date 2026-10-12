@@ -61,6 +61,12 @@ export default function ProviderProfile() {
       onPress: () => router.push('/(provider)/availability'),
     },
     {
+      icon: 'help-circle-outline',
+      title: 'Consultation forms',
+      subtitle: 'What you need to know before a client sits down',
+      onPress: () => router.push('/(provider)/consultation-forms'),
+    },
+    {
       icon: 'notifications-outline',
       title: 'Notifications',
       subtitle: 'What BarberShop is allowed to tell you',

@@ -47,10 +47,17 @@ from providers.hours_serializers import (
     WorkingHoursSerializer,
     WorkingHoursWriteSerializer,
 )
-from providers.models import ProviderProfile, Service, Staff, WorkingHours
+from providers.models import (
+    ConsultationForm,
+    ProviderProfile,
+    Service,
+    Staff,
+    WorkingHours,
+)
 from providers.pricing import MIN_SAMPLE_FOR_CONFIDENCE
 from providers.queries import starting_price_subquery
 from providers.serializers import (
+    ConsultationFormSerializer,
     PayoutSerializer,
     ProviderDetailSerializer,
     ProviderListSerializer,
@@ -1092,3 +1099,78 @@ class ProviderAnalyticsView(APIView):
             )
 
         return Response(report(provider, days=days))
+
+
+class MyConsultationFormViewSet(viewsets.ModelViewSet):
+    """The provider's own consultation forms.
+
+    Scoped to the caller on every action, including the ones that take an id.
+    A provider asked for somebody else's form gets a 404 rather than a 403,
+    because "this does not exist" and "this is not yours" are the same fact
+    from out here.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+    serializer_class = ConsultationFormSerializer
+
+    def get_queryset(self):
+        return (
+            ConsultationForm.objects.filter(provider__user=self.request.user)
+            .prefetch_related("questions", "services")
+            .order_by("name")
+        )
+
+    def perform_create(self, serializer) -> None:
+        # Taken from the query the same way every read is scoped, rather than
+        # from a reverse one-to-one, so a race that creates the profile a
+        # moment later is a 404 rather than an AttributeError.
+        profile = get_object_or_404(ProviderProfile, user=self.request.user)
+        serializer.save(provider=profile)
+
+    @extend_schema(
+        operation_id="providers_my_consultation_forms",
+        summary="Your consultation forms",
+        description="Every form you have written, with its questions and the services it applies to.",
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_consultation_forms_create",
+        summary="Write a consultation form",
+        description=(
+            "A form with nothing attached to a service is never asked, so "
+            "service_ids is what makes one live."
+        ),
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_consultation_forms_retrieve",
+        summary="One of your consultation forms",
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_consultation_forms_update",
+        summary="Edit a consultation form",
+        description=(
+            "Sending questions replaces them. Answers already given keep the "
+            "question as it was asked at the time."
+        ),
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @extend_schema(
+        operation_id="providers_my_consultation_forms_destroy",
+        summary="Delete a consultation form",
+        description=(
+            "Retire it instead if you want to stop asking: bookings that "
+            "already used it keep their answers either way."
+        ),
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)

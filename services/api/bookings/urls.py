@@ -10,6 +10,7 @@ from bookings.views import (
     BookingListView,
     BookingRescheduleView,
     BookingStatusView,
+    ConsultationFormsView,
     QuoteView,
     WaitlistEntryDetailView,
     WaitlistOfferAcceptView,
@@ -23,6 +24,7 @@ app_name = "bookings"
 urlpatterns = [
     path("", BookingListView.as_view(), name="list"),
     path("quote/", QuoteView.as_view(), name="quote"),
+    path("consultation-forms/", ConsultationFormsView.as_view(), name="consultation-forms"),
     path("waitlist/", WaitlistView.as_view(), name="waitlist"),
     path("waitlist/offers/", WaitlistOfferListView.as_view(), name="waitlist-offers"),
     path(

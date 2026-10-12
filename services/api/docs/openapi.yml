@@ -4638,6 +4638,160 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/providers/me/consultation-forms/:
+    get:
+      operationId: providers_my_consultation_forms
+      description: Every form you have written, with its questions and the services
+        it applies to.
+      summary: Your consultation forms
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedConsultationFormList'
+          description: ''
+    post:
+      operationId: providers_my_consultation_forms_create
+      description: A form with nothing attached to a service is never asked, so service_ids
+        is what makes one live.
+      summary: Write a consultation form
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultationFormRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConsultationFormRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConsultationFormRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationForm'
+          description: ''
+  /api/v1/providers/me/consultation-forms/{id}/:
+    get:
+      operationId: providers_my_consultation_forms_retrieve
+      description: |-
+        The provider's own consultation forms.
+
+        Scoped to the caller on every action, including the ones that take an id.
+        A provider asked for somebody else's form gets a 404 rather than a 403,
+        because "this does not exist" and "this is not yours" are the same fact
+        from out here.
+      summary: One of your consultation forms
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationForm'
+          description: ''
+    patch:
+      operationId: providers_my_consultation_forms_update
+      description: Sending questions replaces them. Answers already given keep the
+        question as it was asked at the time.
+      summary: Edit a consultation form
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedConsultationFormRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedConsultationFormRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedConsultationFormRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationForm'
+          description: ''
+    delete:
+      operationId: providers_my_consultation_forms_destroy
+      description: 'Retire it instead if you want to stop asking: bookings that already
+        used it keep their answers either way.'
+      summary: Delete a consultation form
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - providers
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/providers/me/staff/:
     get:
       operationId: providers_my_staff_list
@@ -5601,6 +5755,36 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/bookings/consultation-forms/:
+    get:
+      operationId: bookings_consultation_forms
+      description: Every question attached to the selected services' forms, in order.
+        Sent with the booking so the shop has what it needs to start.
+      summary: What to ask before booking
+      parameters:
+      - in: query
+        name: provider
+        schema:
+          type: integer
+        description: Which shop those services belong to.
+      - in: query
+        name: services
+        schema:
+          type: string
+        description: Comma-separated service ids belonging to one provider.
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/bookings/waitlist/:
     get:
       operationId: bookings_waitlist_list
@@ -8570,6 +8754,24 @@ components:
           type: object
           additionalProperties: {}
           readOnly: true
+        consultation_answers:
+          type: array
+          items: {}
+          description: |-
+            The answers, with the sensitive ones withheld from everybody but
+            the barber who has to act on them.
+
+            Returned to the provider who owns *this* booking and to nobody else -
+            not the customer, not another shop, not a staff member elsewhere. The
+            check is against the booking's own provider, so a provider who later
+            takes a booking at a shop they once worked for still cannot read an
+            answer they were not given.
+
+            Withheld rather than replaced with a placeholder: a row that says
+            "hidden" still confirms how many questions there were and which ones
+            were sensitive, which is itself the information the flag exists to
+            protect.
+          readOnly: true
         status:
           allOf:
           - $ref: '#/components/schemas/BookingStatusEnum'
@@ -8684,6 +8886,7 @@ components:
       - cancellation_reason
       - cancellation_window_hours
       - cancelled_at
+      - consultation_answers
       - created_at
       - currency
       - customer
@@ -8745,6 +8948,11 @@ components:
           type: integer
           minimum: 0
           default: 0
+        answers:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
       required:
       - provider
       - services
@@ -8893,6 +9101,120 @@ components:
           type: string
           default: ''
           maxLength: 200
+    ConsultationForm:
+      type: object
+      description: A form and its questions, in the order they should be asked.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          description: Shown to the customer before they answer, so they know why
+            they are being asked.
+        is_active:
+          type: boolean
+          description: Retired forms stay on the bookings that used them but are no
+            longer asked.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsultationQuestion'
+        service_ids:
+          type: array
+          items:
+            type: integer
+      required:
+      - id
+      - name
+    ConsultationFormRequest:
+      type: object
+      description: A form and its questions, in the order they should be asked.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          description: Shown to the customer before they answer, so they know why
+            they are being asked.
+        is_active:
+          type: boolean
+          description: Retired forms stay on the bookings that used them but are no
+            longer asked.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsultationQuestionRequest'
+        service_ids:
+          type: array
+          items:
+            type: integer
+      required:
+      - name
+    ConsultationQuestion:
+      type: object
+      description: |-
+        One question, as the customer sees it.
+
+        Choices are validated against the question's own list, so a hand-crafted
+        request cannot store "maybe" as the answer to "yes or no".
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        label:
+          type: string
+          maxLength: 200
+        help_text:
+          type: string
+          maxLength: 300
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        choices: {}
+        is_required:
+          type: boolean
+        is_sensitive:
+          type: boolean
+        position:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - id
+      - label
+    ConsultationQuestionRequest:
+      type: object
+      description: |-
+        One question, as the customer sees it.
+
+        Choices are validated against the question's own list, so a hand-crafted
+        request cannot store "maybe" as the answer to "yes or no".
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        help_text:
+          type: string
+          maxLength: 300
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        choices: {}
+        is_required:
+          type: boolean
+        is_sensitive:
+          type: boolean
+        position:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - label
     CreateOrderRequest:
       type: object
       description: |-
@@ -8996,6 +9318,18 @@ components:
           type: boolean
           description: Whether the shop offers this at all. Lets you hide stock without
             deleting it.
+    KindEnum:
+      enum:
+      - short_text
+      - long_text
+      - choice
+      - yes_no
+      type: string
+      description: |-
+        * `short_text` - Short text
+        * `long_text` - Long text
+        * `choice` - Pick one
+        * `yes_no` - Yes or no
     LoginAudit:
       type: object
       properties:
@@ -9185,6 +9519,29 @@ components:
         * `collected` - Collected
         * `cancelled` - Cancelled
         * `refunded` - Refunded
+    PaginatedConsultationFormList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsultationForm'
     PasswordResetConfirmRequest:
       type: object
       properties:
@@ -9213,6 +9570,30 @@ components:
           minLength: 1
       required:
       - email
+    PatchedConsultationFormRequest:
+      type: object
+      description: A form and its questions, in the order they should be asked.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          description: Shown to the customer before they answer, so they know why
+            they are being asked.
+        is_active:
+          type: boolean
+          description: Retired forms stay on the bookings that used them but are no
+            longer asked.
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConsultationQuestionRequest'
+        service_ids:
+          type: array
+          items:
+            type: integer
     PatchedProviderWriteRequest:
       type: object
       description: |-

@@ -24,6 +24,9 @@ import type {
   ProductOrder,
   LedgerEntry,
   Payout,
+  ConsultationForm,
+  ConsultationFormPrompt,
+  ConsultationQuestion,
   PointsBalance,
   PointsEntry,
   ProviderAnalytics,
@@ -59,6 +62,43 @@ export const notificationPreferencesApi = {
     api.put<{ preferences: Record<string, boolean> }>('/me/notification-preferences/', {
       preferences,
     }),
+};
+
+export const consultationsApi = {
+  /** What the customer will be asked, for the services they have picked. */
+  forServices: (providerId: number, serviceIds: number[]) =>
+    api.get<ConsultationFormPrompt>('/bookings/consultation-forms/', {
+      provider: providerId,
+      services: serviceIds.join(','),
+    } as QueryParams),
+
+  myForms: () => api.get<ConsultationForm[]>('/providers/me/consultation-forms/'),
+
+  createForm: (body: {
+    name: string;
+    description?: string;
+    service_ids?: number[];
+    questions: {
+      label: string;
+      help_text?: string;
+      kind?: ConsultationQuestion['kind'];
+      choices?: string[];
+      is_required?: boolean;
+      is_sensitive?: boolean;
+    }[];
+  }) => api.post<ConsultationForm>('/providers/me/consultation-forms/', body),
+
+  updateForm: (
+    id: number,
+    body: Partial<{
+      name: string;
+      description: string;
+      is_active: boolean;
+      service_ids: number[];
+    }>,
+  ) => api.patch<ConsultationForm>(`/providers/me/consultation-forms/${id}/`, body),
+
+  deleteForm: (id: number) => api.delete(`/providers/me/consultation-forms/${id}/`),
 };
 
 export const loyaltyApi = {
@@ -383,6 +423,12 @@ export const bookingsApi = {
        */
       promo_code?: string;
       redeem_points?: number;
+      /**
+       * Answers to the selected services' consultation forms. Sent to be
+       * validated by the server, which refuses a booking whose required
+       * questions are unanswered - so a request that skips them cannot book.
+       */
+      answers?: { question: number; value: string }[];
     },
     /** Stable across retries, so a retry is a replay and not a second booking. */
     idempotencyKey?: string,

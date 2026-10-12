@@ -75,6 +75,27 @@ export function BookingRow({
         </Text>
       </View>
 
+      {/* Only from the provider's side: the customer was asked these, so
+          showing them back to the customer would be noise, and the sensitive
+          ones are not in this payload at all. */}
+      {perspective === 'provider' && (booking.consultation_answers ?? []).length > 0 ? (
+        <View
+          className="mt-2 gap-1 rounded-xl px-3 py-2"
+          style={{ backgroundColor: colors.surfaceRaised }}>
+          {(booking.consultation_answers ?? []).map((answer) => (
+            <View key={answer.id}>
+              <Text className="text-2xs font-semibold" style={{ color: colors.textSubtle }}>
+                {answer.label}
+                {answer.is_sensitive ? ' · private' : ''}
+              </Text>
+              <Text className="text-xs" style={{ color: colors.text }}>
+                {answer.value}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {/* Only shown when something is genuinely outstanding. A row reading
           "paid" under a captured deposit would be a lie the provider would
           act on by booking someone else into that chair. */}

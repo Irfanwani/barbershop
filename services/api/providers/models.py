@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.gis.db import models
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import F, Q
 from django.utils.text import slugify
@@ -415,6 +416,14 @@ class Service(TimeStampedModel):
     #: Zero means pay in full at booking, which is what most services want.
     #: A long colouring job that empties a chair for three hours is where this
     #: earns its keep — see the deposit research in TODOS.md P1.1.
+    #: Which consultation forms apply when this service is booked. A form with
+    #: nothing attached is never asked, so this is what makes one live.
+    consultation_forms = models.ManyToManyField(
+        "providers.ConsultationForm",
+        related_name="services",
+        blank=True,
+    )
+
     deposit_percent = models.PositiveSmallIntegerField(
         default=0,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
@@ -626,3 +635,142 @@ class StaffWorkingHours(models.Model):
 
     def __str__(self) -> str:
         return f"{self.staff.name} {self.get_weekday_display()}"
+
+
+class AnswerKind(models.TextChoices):
+    """What kind of thing the customer is being asked for.
+
+    A provider asking "anything else we should know?" wants a paragraph. Asking
+    "have you had colour before?" wants one tap. Making everything a text box
+    is how you get one-word answers to questions that needed a sentence, and
+    twelve taps for something that needed typing.
+    """
+
+    SHORT_TEXT = "short_text", "Short text"
+    LONG_TEXT = "long_text", "Long text"
+    CHOICE = "choice", "Pick one"
+    YES_NO = "yes_no", "Yes or no"
+
+
+class ConsultationForm(TimeStampedModel):
+    """A set of questions a provider asks before a particular service.
+
+    Attached to services rather than to the shop, because what a barber needs
+    to know about a beard trim is not what they need to know about a full
+    colour change. A form with nothing attached to it is dead weight the
+    customer never sees.
+    """
+
+    provider = models.ForeignKey(
+        ProviderProfile, on_delete=models.CASCADE, related_name="consultation_forms"
+    )
+
+    name = models.CharField(max_length=100)
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="Shown to the customer before they answer, so they know why they are being asked.",
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Retired forms stay on the bookings that used them but are no longer asked.",
+    )
+
+    class Meta:
+        db_table = "providers_consultation_form"
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "name"], name="providers_form_provider_name_uniq"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.provider.display_name})"
+
+
+class ConsultationQuestion(TimeStampedModel):
+    """One question on a form."""
+
+    form = models.ForeignKey(ConsultationForm, on_delete=models.CASCADE, related_name="questions")
+
+    label = models.CharField(max_length=200)
+    help_text = models.CharField(max_length=300, blank=True, default="")
+
+    kind = models.CharField(
+        max_length=16, choices=AnswerKind.choices, default=AnswerKind.SHORT_TEXT
+    )
+
+    #: Only used by ``CHOICE``. A list of strings, as JSON, because the
+    #: alternative - a second table for options - buys nothing for a question
+    #: that has a handful of fixed answers.
+    choices = models.JSONField(default=list, blank=True)
+
+    is_required = models.BooleanField(default=True)
+
+    #: Shown only to the provider this appointment belongs to. Not to the
+    #: customer afterwards, not to any other shop, and not in any list
+    #: endpoint. A flagged answer that leaks is worse than one never asked,
+    #: because the answer stops being worth asking.
+    is_sensitive = models.BooleanField(default=False)
+
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "providers_consultation_question"
+        ordering = ["position", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["form", "position"], name="providers_question_form_position_uniq"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+    def clean(self) -> None:
+        if self.kind == AnswerKind.CHOICE and not (self.choices or []):
+            raise ValidationError("A multiple-choice question needs some choices.")
+        if self.kind != AnswerKind.CHOICE and self.choices:
+            raise ValidationError("Only a multiple-choice question has choices.")
+
+
+class ConsultationAnswer(TimeStampedModel):
+    """A customer's answer, frozen onto the booking.
+
+    The question's text and its sensitive flag are copied rather than joined to.
+    A provider who rewords a question next month must not rewrite what the
+    customer said three weeks ago, and un-flagging a question must not quietly
+    turn every answer to it into something a customer can now read back.
+    """
+
+    booking = models.ForeignKey(
+        "bookings.Booking", on_delete=models.CASCADE, related_name="consultation_answers"
+    )
+
+    question = models.ForeignKey(
+        ConsultationQuestion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="answers",
+    )
+
+    label = models.CharField(max_length=200, help_text="Snapshot of the question as it was asked.")
+    value = models.TextField()
+    is_sensitive = models.BooleanField(
+        default=False, help_text="Snapshot. Never derived from the question at read time."
+    )
+
+    class Meta:
+        db_table = "bookings_consultation_answer"
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["booking", "question"], name="bookings_answer_booking_question_uniq"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.label}: {self.value[:40]}"

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import {
+  useConsultationPrompt,
   useCreateBooking,
   useJoinWaitlist,
   usePointsBalance,
@@ -16,7 +17,12 @@ import { Button, Divider, useColors } from '@/components/ui';
 import { Field, FormError } from '@/components/field';
 import { formatWhen } from '@/components/booking-row';
 import { cancellationNote, formatPaise } from '@/lib/money';
-import type { Availability, ProviderDetail, Service } from '@/types/api';
+import type {
+  Availability,
+  ConsultationQuestion,
+  ProviderDetail,
+  Service,
+} from '@/types/api';
 
 /**
  * Choosing services, a time and confirming the price.
@@ -52,9 +58,17 @@ export function BookingSheet({
   // the same thing here, and "" is what the server reads as "no code".
   const [promoCode, setPromoCode] = useState('');
   const [redeemPoints, setRedeemPoints] = useState(false);
+  // Answers keyed by question id. Empty string means "not answered", which is
+  // different from a question that is not on the form at all - only the second
+  // one may be left out.
+  const [answers, setAnswers] = useState<Record<number, string>>({});
 
   const quote = useQuote();
   const points = usePointsBalance(Boolean(slot));
+  const prompt = useConsultationPrompt(
+    provider.id,
+    useMemo(() => selected.map((service) => service.id), [selected]),
+  );
   const create = useCreateBooking();
   const joinWaitlist = useJoinWaitlist();
   const staff = useShopStaff(provider.id);
@@ -83,6 +97,10 @@ export function BookingSheet({
     );
     // The quote depends on the choice, so any previous one is now wrong.
     quote.reset();
+    // And so do the questions: a form attached to the service just added may
+    // ask things the previous selection did not, and an answer given to a
+    // question that is no longer on the form would be rejected at checkout.
+    setAnswers({});
   }
 
   async function chooseTime(startsAt: string) {
@@ -162,6 +180,10 @@ export function BookingSheet({
     if (!slot) return;
     setError(null);
     try {
+      const asked = (prompt.data?.questions ?? []).filter((question) => {
+        const value = (answers[question.id] ?? '').trim();
+        return value.length > 0;
+      });
       const booking = await create.mutateAsync({
         provider: provider.id,
         services: selected.map((service) => service.id),
@@ -169,6 +191,10 @@ export function BookingSheet({
         ...(staffId ? { staff: staffId } : {}),
         ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
         ...(redeemPoints && points.data ? { redeem_points: points.data.available } : {}),
+        answers: asked.map((question) => ({
+          question: question.id,
+          value: (answers[question.id] ?? '').trim(),
+        })),
       });
       onClose();
       router.replace(`/(customer)/booking/${booking.reference}`);
@@ -178,6 +204,10 @@ export function BookingSheet({
   }
 
   const priced = quote.data;
+  const questions = prompt.data?.questions ?? [];
+  const missingRequired = questions.filter(
+    (question) => question.is_required && !(answers[question.id] ?? '').trim(),
+  ).length;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -438,11 +468,34 @@ export function BookingSheet({
               </View>
             ) : null}
 
+            {questions.length > 0 ? (
+              <View className="gap-2">
+                <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
+                  4 · Before we start
+                </Text>
+                {prompt.data?.forms.map((form) =>
+                  form.description ? (
+                    <Text key={form.id} className="text-xs" style={{ color: colors.textSubtle }}>
+                      {form.description}
+                    </Text>
+                  ) : null,
+                )}
+                {questions.map((question) => (
+                  <ConsultationQuestionField
+                    key={question.id}
+                    question={question}
+                    value={answers[question.id] ?? ''}
+                    onChange={(next) => setAnswers((current) => ({ ...current, [question.id]: next }))}
+                  />
+                ))}
+              </View>
+            ) : null}
+
             {priced ? (
               <View className="gap-3">
                 <View className="gap-2">
                   <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
-                    4 · Discounts
+                    5 · Discounts
                   </Text>
                   <View className="flex-row items-end gap-2">
                     <View className="flex-1">
@@ -503,7 +556,7 @@ export function BookingSheet({
           <View className="border-t px-5 py-4" style={{ borderTopColor: colors.border }}>
             <Button
               onPress={confirm}
-              disabled={!slot || !priced || !priced.is_available}
+              disabled={!slot || !priced || !priced.is_available || missingRequired > 0}
               loading={create.isPending}
               testID="book-confirm">
               {priced
@@ -552,5 +605,101 @@ function StaffChip({
         {caption}
       </Text>
     </Pressable>
+  );
+}
+
+
+/**
+ * One consultation question, rendered by what was asked.
+ *
+ * A yes/no is two taps and a choice is a list; neither should be a keyboard. A
+ * barber asking "have you had colour before" wants an answer they can read at
+ * a glance down a column of clients, not a paragraph.
+ */
+function ConsultationQuestionField({
+  question,
+  value,
+  onChange,
+}: {
+  question: ConsultationQuestion;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const colors = useColors();
+
+  if (question.kind === 'yes_no') {
+    return (
+      <View className="gap-2">
+        <Text className="text-sm font-medium" style={{ color: colors.text }}>
+          {question.label}
+          {question.is_required ? ' *' : ''}
+        </Text>
+        <View className="flex-row gap-2">
+          {['yes', 'no'].map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: value === option }}
+              testID={`question-${question.id}-${option}`}>
+              <View
+                className="rounded-full px-4 py-2"
+                style={{ backgroundColor: value === option ? colors.accent : colors.surface }}>
+                <Text
+                  className="text-sm font-medium"
+                  style={{ color: value === option ? colors.accentText : colors.text }}>
+                  {option === 'yes' ? 'Yes' : 'No'}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  if (question.kind === 'choice') {
+    return (
+      <View className="gap-2">
+        <Text className="text-sm font-medium" style={{ color: colors.text }}>
+          {question.label}
+          {question.is_required ? ' *' : ''}
+        </Text>
+        <View className="gap-2">
+          {question.choices.map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => onChange(option)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: value === option }}
+              testID={`question-${question.id}-choice-${option}`}
+              className="rounded-2xl border px-4 py-2.5"
+              style={{
+                backgroundColor: value === option ? `${colors.accent}12` : colors.surface,
+                borderColor: value === option ? colors.accent : colors.border,
+              }}>
+              <Text className="text-sm" style={{ color: colors.text }}>
+                {option}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View className="gap-1">
+      <Field
+        label={question.label}
+        hint={question.help_text}
+        placeholder={question.is_required ? 'Needed to book you in' : 'Optional'}
+        value={value}
+        onChangeText={onChange}
+        multiline={question.kind === 'long_text'}
+        numberOfLines={question.kind === 'long_text' ? 3 : 1}
+        testID={`question-${question.id}`}
+      />
+    </View>
   );
 }

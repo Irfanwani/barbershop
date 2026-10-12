@@ -23,6 +23,7 @@ import {
   productsApi,
   notificationPreferencesApi,
   providersApi,
+  consultationsApi,
   loyaltyApi,
   savedShopsApi,
   reviewsApi,
@@ -349,6 +350,37 @@ function useIdempotentMutation<TVars, TData>(
   );
 
   return { ...inner, mutate: start, mutateAsync: startAsync };
+}
+
+/** What the customer will be asked for the services they have picked. */
+export function useConsultationPrompt(providerId: number | null, serviceIds: number[]) {
+  return useQuery({
+    queryKey: keys.consultationPrompt(providerId, serviceIds),
+    queryFn: () => consultationsApi.forServices(providerId!, serviceIds),
+    enabled: providerId !== null && serviceIds.length > 0,
+    retry: false,
+  });
+}
+
+export function useMyConsultationForms() {
+  return useQuery({ queryKey: keys.myConsultationForms, queryFn: consultationsApi.myForms });
+}
+
+export function useCreateConsultationForm() {
+  const invalidate = useQueryClient();
+  return useMutation({
+    mutationFn: consultationsApi.createForm,
+    onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
+  });
+}
+
+export function useUpdateConsultationForm() {
+  const invalidate = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Parameters<typeof consultationsApi.updateForm>[1] }) =>
+      consultationsApi.updateForm(id, body),
+    onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
+  });
 }
 
 /** What this customer has in their loyalty balance, for the checkout screen. */

@@ -11,6 +11,9 @@ from rest_framework import serializers
 from accounts.serializers import PointFieldSerializer, PublicUserSerializer
 from bookings.models import BLOCKING_STATUSES, Booking
 from providers.models import (
+    AnswerKind,
+    ConsultationForm,
+    ConsultationQuestion,
     ProviderPayout,
     ProviderProfile,
     Service,
@@ -556,3 +559,121 @@ class StaffWriteSerializer(serializers.ModelSerializer):
                 for row in hours
             ]
         )
+
+
+class ConsultationQuestionSerializer(serializers.ModelSerializer):
+    """One question, as the customer sees it.
+
+    Choices are validated against the question's own list, so a hand-crafted
+    request cannot store "maybe" as the answer to "yes or no".
+    """
+
+    class Meta:
+        model = ConsultationQuestion
+        fields = [
+            "id",
+            "label",
+            "help_text",
+            "kind",
+            "choices",
+            "is_required",
+            "is_sensitive",
+            "position",
+        ]
+
+    def validate(self, attrs):
+        kind = attrs.get("kind") or getattr(self.instance, "kind", None)
+        choices = attrs.get("choices")
+        if choices is None and self.instance is not None:
+            choices = self.instance.choices
+
+        if kind == AnswerKind.CHOICE and not (choices or []):
+            raise serializers.ValidationError(
+                {"choices": "A question you pick one of needs some choices."}
+            )
+        if kind != AnswerKind.CHOICE and choices:
+            raise serializers.ValidationError(
+                {"choices": "Only a question you pick one of has choices."}
+            )
+        return attrs
+
+
+class ConsultationFormSerializer(serializers.ModelSerializer):
+    """A form and its questions, in the order they should be asked."""
+
+    questions = ConsultationQuestionSerializer(many=True, required=False)
+
+    #: Which of the provider's services this applies to. Carried on the form so
+    #: the whole thing travels in one object rather than the app assembling it
+    #: from three calls.
+    service_ids = serializers.PrimaryKeyRelatedField(
+        source="services",
+        many=True,
+        queryset=Service.objects.all(),
+        required=False,
+    )
+
+    class Meta:
+        model = ConsultationForm
+        fields = ["id", "name", "description", "is_active", "questions", "service_ids"]
+
+    def validate_service_ids(self, value):
+        """Only ever the provider's own services.
+
+        Checked here rather than by narrowing the queryset, because the queryset
+        is built once at import and the provider is only known per request.
+        """
+        owner = self._owner()
+        foreign = [service.pk for service in value if service.provider_id != owner.pk]
+        if foreign:
+            raise serializers.ValidationError("Those services belong to another shop.")
+        return value
+
+    def _owner(self) -> ProviderProfile:
+        if self.instance is not None:
+            return self.instance.provider
+        request = self.context.get("request")
+        if request is None or not request.user.is_authenticated:
+            raise serializers.ValidationError("Sign in to manage your consultation forms.")
+        profile = ProviderProfile.objects.filter(user=request.user).first()
+        if profile is None:
+            raise serializers.ValidationError("Only a shop can have consultation forms.")
+        return profile
+
+    def create(self, validated_data):
+        questions = validated_data.pop("questions", [])
+        services = validated_data.pop("services", [])
+        form = ConsultationForm.objects.create(**validated_data)
+        _write_questions(form, questions)
+        form.services.set(services)
+        return form
+
+    def update(self, instance, validated_data):
+        questions = validated_data.pop("questions", None)
+        services = validated_data.pop("services", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+
+        if questions is not None:
+            _write_questions(instance, questions)
+        if services is not None:
+            instance.services.set(services)
+        return instance
+
+
+def _write_questions(form: ConsultationForm, questions: list[dict]) -> None:
+    """Replace a form's questions, keeping ids where the client sent one.
+
+    A question's own row is authoritative for who can see it, so this replaces
+    rather than soft-deletes: a question removed from the form leaves its
+    existing answers on past bookings, frozen, which is the point of freezing
+    them.
+    """
+    form.questions.all().delete()
+    for index, payload in enumerate(questions):
+        payload = dict(payload)
+        payload.pop("id", None)
+        payload["form"] = form
+        payload.setdefault("position", index)
+        ConsultationQuestion.objects.create(**payload)

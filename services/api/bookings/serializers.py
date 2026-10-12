@@ -15,6 +15,12 @@ from django.utils import timezone
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
+from bookings.consultation import (
+    AnswersRejected,
+    questions_for as consultation_questions_for,
+    record_answers,
+    validate_answers,
+)
 from bookings.models import (
     Booking,
     BookingItem,
@@ -94,6 +100,7 @@ class BookingSerializer(serializers.ModelSerializer):
     late_cancel_fee_display = serializers.SerializerMethodField()
     deposit_display = serializers.SerializerMethodField()
     balance_display = serializers.SerializerMethodField()
+    consultation_answers = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -103,6 +110,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "provider",
             "staff",
             "customer",
+            "consultation_answers",
             "status",
             "starts_at",
             "ends_at",
@@ -162,6 +170,43 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_platform_fee_display(self, obj: Booking) -> str:
         return format_minor(obj.platform_fee, obj.currency)
+
+    def get_consultation_answers(self, obj: Booking) -> list:
+        """The answers, with the sensitive ones withheld from everybody but
+        the barber who has to act on them.
+
+        Returned to the provider who owns *this* booking and to nobody else -
+        not the customer, not another shop, not a staff member elsewhere. The
+        check is against the booking's own provider, so a provider who later
+        takes a booking at a shop they once worked for still cannot read an
+        answer they were not given.
+
+        Withheld rather than replaced with a placeholder: a row that says
+        "hidden" still confirms how many questions there were and which ones
+        were sensitive, which is itself the information the flag exists to
+        protect.
+        """
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not user.is_authenticated:
+            return []
+        if not obj.provider.user_id == user.id:
+            return []
+
+        answers = obj.consultation_answers.all()
+        if not getattr(user, "is_provider", False):
+            # Staff see their own shop's bookings, so the same rule holds.
+            return []
+        return [
+            {
+                "id": answer.pk,
+                "question": answer.question_id,
+                "label": answer.label,
+                "value": answer.value,
+                "is_sensitive": answer.is_sensitive,
+            }
+            for answer in answers
+        ]
 
 
 class BookingListSerializer(BookingSerializer):
@@ -232,6 +277,10 @@ class BookingCreateSerializer(serializers.Serializer):
     #: worth and caps it, so a client cannot ask for a discount by sending a
     #: larger number here.
     redeem_points = serializers.IntegerField(required=False, min_value=0, default=0)
+    #: Answers to whatever consultation forms the selected services carry. Each
+    #: entry is ``{"question": <id>, "value": "..."}``. Validated against the
+    #: forms themselves, so a client cannot ask the shop arbitrary questions.
+    answers = serializers.ListField(child=serializers.DictField(), required=False, default=list)
 
     MAX_SERVICES = 10
 
@@ -311,10 +360,22 @@ class BookingCreateSerializer(serializers.Serializer):
         if not has_room(provider, starts_at, ends_at, staff=staff):
             raise BusinessRuleViolation("That slot is already taken. Pick another time.")
 
+        # Validated here rather than saved here, so a booking that cannot
+        # happen is refused before any row exists.
+        questions = consultation_questions_for(services)
+        try:
+            given = validate_answers(attrs.get("answers") or [], questions)
+        except AnswersRejected as rejected:
+            raise serializers.ValidationError(
+                {"answers": rejected.details.get("answers", {})}
+            ) from rejected
+
         attrs["provider_obj"] = provider
         attrs["staff_obj"] = staff
         attrs["service_objs"] = services
         attrs["ends_at"] = ends_at
+        attrs["consultation_questions"] = questions
+        attrs["consultation_answers"] = given
         return attrs
 
     def save(self, **kwargs) -> Booking:
@@ -401,9 +462,15 @@ class BookingCreateSerializer(serializers.Serializer):
                 ]
             )
 
-            # Inside the booking's transaction: if the redemption cannot be
-            # written, the booking rolls back rather than existing as a
-            # discount nobody can reconcile.
+            # Frozen onto the booking, inside the same transaction. A booking
+            # that exists without its answers is a barber reading an appointment
+            # as though nobody had said anything.
+            record_answers(
+                booking,
+                self.validated_data.get("consultation_answers", {}),
+                self.validated_data.get("consultation_questions", []),
+            )
+
             # Inside the booking's transaction: a redemption that cannot be
             # written must roll the booking back, not leave points spent
             # against an appointment that does not exist.
