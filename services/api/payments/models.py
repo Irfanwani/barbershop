@@ -195,12 +195,13 @@ class Payment(TimeStampedModel):
 
 
 class IdempotencyRecord(models.Model):
-    """What a request with a given key did, so a retry cannot do it again.
+    """What a request with a given key is doing, or did, so a retry cannot do
+    it again.
 
     A client on a flaky connection retries. Without this, retrying
     `POST /payments/verify/` is not merely wasteful — it is a second chance to
-    capture, and a payment that appears twice on a statement is the kind of
-    thing a customer does not forgive.
+    capture, and a payment that appears twice on a statement is the sort of thing
+    a customer does not forgive.
 
     Stored rather than held in memory because a retry arrives seconds or
     minutes later, usually at a different process from the original.
@@ -211,6 +212,15 @@ class IdempotencyRecord(models.Model):
     back somebody else's receipt.
     """
 
+    class State(models.TextChoices):
+        #: Written *before* the view runs, so two requests arriving together
+        #: collide on the insert instead of both doing the work. Recording only
+        #: the finished response left a window in which a second request found
+        #: nothing at all, and on a payment endpoint that window is a double
+        #: capture.
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETE = "complete", "Complete"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="idempotency_records"
     )
@@ -218,9 +228,16 @@ class IdempotencyRecord(models.Model):
     endpoint = models.CharField(max_length=64)
     fingerprint = models.CharField(max_length=64)
 
+    state = models.CharField(
+        max_length=16,
+        choices=State.choices,
+        default=State.COMPLETE,
+        help_text="Rows written before reservations existed are all finished responses.",
+    )
+
     #: The status and body to replay, as JSON. Stored rather than recomputed
     #: so a replay is byte-identical, including anything the gateway told us.
-    response_status = models.PositiveSmallIntegerField()
+    response_status = models.PositiveSmallIntegerField(null=True, blank=True)
     response_body = models.JSONField(default=dict)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -242,6 +259,11 @@ class IdempotencyRecord(models.Model):
     @property
     def age_seconds(self) -> float:
         return (timezone.now() - self.created_at).total_seconds()
+
+    @property
+    def is_replayable(self) -> bool:
+        """Only a finished request has an answer worth handing back again."""
+        return self.state == self.State.COMPLETE and self.response_status is not None
 
 
 class Tip(TimeStampedModel):

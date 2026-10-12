@@ -9,7 +9,7 @@ twice. All of that for a change of hour.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from typing import Any
 
 import pytest
@@ -64,6 +64,32 @@ def in_days(days: int, hour: int = 10) -> datetime:
     return day.replace(hour=hour, minute=0, second=0, microsecond=0)
 
 
+def soon(minutes: int = 120) -> datetime:
+    """The first bookable slot at least `minutes` away, inside working hours.
+
+    `in_days(0)` reads as "today at ten", which is in the past for most of the
+    day. Every test that wanted "a booking inside the late-cancellation window"
+    was therefore written against a wall clock that only worked before ten in
+    the morning - and failed for the rest of it, which is most of it.
+
+    Anchored to the clock instead, and nudged forward to the next slot inside
+    the shop's 09:00-20:00 so the booking is always bookable. Always within
+    about twelve hours, so it is always inside the 24-hour window these tests
+    are actually about.
+    """
+    moment = timezone.localtime() + timedelta(minutes=minutes)
+    for _ in range(8):
+        candidate = moment.replace(second=0, microsecond=0)
+        # Thirty minutes is the fixture service's duration; it has to finish
+        # before closing.
+        if candidate.time() >= time(9, 0) and (candidate + timedelta(minutes=30)).time() <= time(
+            20, 0
+        ):
+            return candidate
+        moment = (candidate + timedelta(days=1)).replace(hour=9, minute=0)
+    raise AssertionError("no bookable slot found within a week")
+
+
 @dataclass
 class Fixture:
     customer: Session
@@ -74,7 +100,9 @@ class Fixture:
     starts_at: datetime
 
 
-def a_booking(days: int = 3, *, deposit: bool = False) -> Fixture:
+def a_booking(
+    days: int = 3, *, deposit: bool = False, starts_at: datetime | None = None
+) -> Fixture:
     owner_user = make_provider_user(_next_name("shop"))
     client, token = logged_in(owner_user)
     provider = make_profile(owner_user, display_name="Sharp Cuts Studio")
@@ -83,7 +111,7 @@ def a_booking(days: int = 3, *, deposit: bool = False) -> Fixture:
     )
 
     customer = a_session("customer")
-    starts_at = in_days(days)
+    starts_at = starts_at if starts_at is not None else in_days(days)
 
     response = customer.client.post(
         f"{V1}/bookings/new/",
@@ -307,7 +335,7 @@ class TestPriceChanges:
 class TestTheCancellationWindowStillApplies:
     def test_a_late_move_cancels_instead_of_moving(self):
         """Otherwise "I need a different time" dodges the late-cancel fee."""
-        fixture = a_booking(days=0)
+        fixture = a_booking(starts_at=soon())
         original = fixture.booking.reference
 
         response = move(fixture, in_days(2))
@@ -321,13 +349,13 @@ class TestTheCancellationWindowStillApplies:
         assert booking.starts_at == fixture.starts_at
 
     def test_a_late_move_explains_why(self):
-        fixture = a_booking(days=0)
+        fixture = a_booking(starts_at=soon())
         response = move(fixture, in_days(2))
 
         assert "cancellation window" in response.data["message"]
 
     def test_a_late_move_reports_the_fee_that_was_charged(self):
-        fixture = a_booking(days=0, deposit=True)
+        fixture = a_booking(starts_at=soon(), deposit=True)
         expected = fixture.booking.late_cancel_fee
 
         response = move(fixture, in_days(2))
@@ -343,7 +371,7 @@ class TestTheCancellationWindowStillApplies:
 
     def test_a_provider_moving_a_late_booking_still_moves_it(self):
         """The fee only ever punishes the customer. The shop has the chair."""
-        fixture = a_booking(days=0)
+        fixture = a_booking(starts_at=soon())
         response = fixture.provider_owner.client.post(
             f"{V1}/bookings/{fixture.booking.reference}/reschedule/",
             {"starts_at": in_days(2).isoformat()},

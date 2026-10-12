@@ -122,6 +122,7 @@ class CreateOrderView(APIView):
         serializer.is_valid(raise_exception=True)
         return serializer.context["booking_obj"]
 
+    @idempotent("payments.order")
     def post(self, request):
         booking = self._booking_for(request)
 

@@ -50,6 +50,7 @@ from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from payments.due import amount_due, default_kind
+from payments.idempotency import idempotent
 from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
 from promotions import loyalty
 from promotions.models import PromoError, price, resolve
@@ -197,6 +198,7 @@ class BookingCreateView(APIView):
     throttle_scope = "booking"
 
     @extend_schema(operation_id="bookings_create")
+    @idempotent("bookings.create")
     def post(self, request):
         if request.user.is_provider:
             raise BusinessRuleViolation(

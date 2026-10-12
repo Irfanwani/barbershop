@@ -908,6 +908,36 @@ the fix that would let it turn them back on.
 **Acceptance:** two identical verify calls create one capture; the same key
 with a different body is rejected — tested.
 
+### The part that was wrong the first time
+
+Three bugs, found by writing the tests that the previous version was missing.
+The original note here claimed the feature was done; it was not safe to retry.
+
+- **The key was claimed after the work, not before.** The record was written
+  once the view had already run, so two requests arriving together both found
+  nothing, both ran the view, and both captured the payment. Whoever won the
+  insert kept the response and the other was thrown away — the money still
+  moved twice. The reservation now goes in first, and the unique insert is the
+  lock: the loser replays the winner's answer or is told to come back, and
+  never does the work. Reproduced by firing a second request from inside the
+  first one.
+- **The key was regenerated on every retry.** React Query re-invokes the
+  mutation function per attempt, and the key was built inside it, so each
+  attempt was an unrelated request as far as the server was concerned. Retries
+  were working exactly as designed and delivering precisely the wrong result.
+  The key now travels in the mutation variables, so it is fixed for the whole
+  operation and a new user-initiated call gets a new one.
+- **Two of the three retried endpoints ignored the header entirely.** Booking
+  creation and order creation were unguarded, so a retry booked the same slot
+  twice or produced a second Razorpay order. The header was travelling all the
+  way to the server and being dropped on the floor.
+
+Also fixed here: the stale-reschedule tests were clock-dependent — "today at
+ten" is in the past for most of the day, so four of them passed only when the
+suite happened to run before 10:00 and failed for the other sixteen hours. They
+now anchor to the clock and land inside working hours, verified green across a
+25-hour timezone spread.
+
 **The body is fingerprinted, and that is what makes it safe rather than
 merely convenient.** A *different* request wearing a used key is not a retry,
 it is a mistake; answering it with the first response would hand back
