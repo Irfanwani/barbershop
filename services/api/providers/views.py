@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import (
     Case,
     Count,
+    F,
     Func,
     IntegerField,
     OuterRef,
@@ -24,6 +25,7 @@ from django.db.models import (
     Value,
     When,
 )
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
@@ -250,19 +252,39 @@ class ProviderListView(APIView):
             #
             # This asks the database for each row's own wall clock, which keeps
             # the filter in the query and therefore correct with pagination.
-            # `COALESCE` because an empty zone is not a zone, and `AT TIME ZONE
-            # ''` is an error rather than a fallback. 'UTC' is written into the
-            # template rather than passed as a parameter: it is a constant, and
-            # a template argument the expression never references is how you
-            # get a placeholder count that does not match the parameters.
-            local_now = Func(
-                template=(
-                    "(CURRENT_TIMESTAMP AT TIME ZONE "
-                    "COALESCE(NULLIF(providers_profile.timezone_name, ''), 'UTC'))::time"
-                ),
-                output_field=TimeField(),
-            )
-            queryset = queryset.filter(opening_time__lte=local_now, closing_time__gte=local_now)
+            # forcing the join to the account, whose zone is the fallback.
+            queryset = queryset.annotate(_account_zone=F("user__timezone_name"))
+
+            # The chain matches `ProviderProfile.tz()` - shop, then account,
+            # then server - because a shop that never set its own zone still
+            # has to open. Falling straight to UTC here meant the search list
+            # disagreed with the shop's own page by however far the account's
+            # zone was from Greenwich.
+            #
+            # Written as raw SQL with no bound parameters, because a
+            # `Func` template that interpolates an expression carrying its own
+            # parameters miscounts its placeholders. 'UTC' is inlined for the
+            # same reason: a template argument the expression never references
+            # is how you get a placeholder count that does not match the
+            # parameters.
+            #
+            # `accounts_user` only appears because the annotation above forces
+            # the join. Naming a table the compiler never brought in is the
+            # other way to get a 500.
+            def local_now() -> Func:
+                return Func(
+                    RawSQL(
+                        "COALESCE("
+                        "NULLIF(providers_profile.timezone_name, ''), "
+                        "NULLIF(accounts_user.timezone_name, ''), "
+                        "'UTC')",
+                        (),
+                    ),
+                    template="(CURRENT_TIMESTAMP AT TIME ZONE %(expressions)s)::time",
+                    output_field=TimeField(),
+                )
+
+            queryset = queryset.filter(opening_time__lte=local_now(), closing_time__gte=local_now())
 
         min_rating = _m(request.query_params.get("min_rating"))
         if min_rating is not None:

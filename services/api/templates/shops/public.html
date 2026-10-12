@@ -67,6 +67,10 @@
         border: 1px solid #e0e0e6; border-radius: 999px; padding: 6px 12px; font-size: 0.9rem;
       }
       .review { border-top: 1px solid #ececf0; padding: 14px 0; }
+      .review-photo {
+        margin-top: 10px; border-radius: 10px; width: 100%; max-width: 320px;
+        display: block;
+      }
       .stars { color: #b45309; }
       footer { border-top: 1px solid #e6e6ea; background: #fff; }
       footer .wrap { padding: 20px; font-size: 0.9rem; color: #6b6b73; }
@@ -125,7 +129,23 @@
           {% for review in reviews %}
             <div class="review">
               <div class="stars">{{ review.rating }}&#9733;</div>
-              <div>{{ review.body|truncatechars:220 }}</div>
+              {# `comment`, not `body`. The page rendered stars with no text
+                 under them for as long as reviews existed, because Django
+                 treats a missing attribute as empty rather than as an error. #}
+              {% if review.comment %}
+                <div>{{ review.comment|truncatechars:220 }}</div>
+              {% endif %}
+              {# The photo is the whole reason to ask for one. A review that
+                 carries a picture is what a person deciding on a haircut looks
+                 at first, so it belongs on the page rather than only in the
+                 API response the tests were checking. #}
+              {% if review.photo %}
+                <img
+                  class="review-photo"
+                  src="{{ review.photo.url }}"
+                  alt="Photo from {{ review.customer.display_name|default:'a customer' }}'s visit"
+                  loading="lazy" />
+              {% endif %}
             </div>
           {% endfor %}
         {% endif %}

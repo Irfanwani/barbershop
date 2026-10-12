@@ -749,6 +749,16 @@ periods you have to page backwards through.
   rate at zero; and the counts behind the rate were never exposed, which is
   why that went unnoticed
 
+### The `?open_now=` filter, which disagreed with the shop's own page
+
+`ProviderProfile.tz()` resolves shop, then account, then server. The search
+filter resolved shop, then UTC. A shop that never set its own zone but whose
+owner had one was filtered by the wrong clock, so `?open_now=true` could hide a
+shop that was open. Every existing test set both zones to the same value, or
+both to nothing, so the two had nowhere to disagree. There is now a frozen-clock
+test, across all three cases in the chain, asserting the filter agrees with
+`is_open_at`.
+
 ## P4.2 Client notes and consultation forms
 
 **Status:** todo
@@ -853,7 +863,22 @@ already right. Nobody is being asked for one.
 - A provider can request removal only for abuse, not for being rated badly
 
 **Acceptance:** a completed booking is nudged once; a review with a photo
-renders on the shop page — tested, 18 tests.
+renders on the shop page — tested, 22 tests.
+
+### Three bugs the existing tests could not see
+
+- **The shop page rendered `review.body`.** The field is `comment`, so every
+  review showed a star rating and no words under it. Django treats a missing
+  attribute as empty rather than raising, so nothing looked broken.
+- **The photo was never rendered at all.** The acceptance criterion was being
+  met by a JSON response nobody reads. There is now a test that fetches the
+  page.
+- **The opt-out could never be false.** It required three notification
+  categories to be off at once, and `bookingChanges` is required, so the server
+  forces it back on. Nobody who turned notifications off was ever spared a
+  review request. It now follows the reminders switch, which is optional and is
+  the category somebody turns off when they want to stop being buzzed about
+  their own appointments.
 
 **The window is one day to a month.** Immediately after an appointment nobody
 has an opinion yet; three months on, the review is about the platform rather

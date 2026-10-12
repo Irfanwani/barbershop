@@ -299,3 +299,78 @@ class TestTheTask:
 
         assert counts["sent"] == 1
         assert len(sent) == 1
+
+
+class TestThePhotoIsActuallyOnThePage:
+    """A review with a photo that renders on the shop page.
+
+    The API test above asserted the upload was stored and returned. It never
+    looked at the page - and the page did not render the photo at all, so the
+    acceptance criterion was met in a JSON response nobody reads.
+    """
+
+    def test_it_shows_on_the_public_shop_page(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        customer, profile, booking = a_completed()
+        client, token = logged_in(customer)
+        client.post(
+            f"{REVIEWS}new/",
+            {
+                "provider": profile.pk,
+                "rating": 5,
+                "comment": "Exactly what I asked for.",
+                "booking": booking.pk,
+                "photo": SimpleUploadedFile("cut.png", _a_png(), content_type="image/png"),
+            },
+            **auth_header(token),
+        )
+
+        page = client.get(f"/shops/{profile.slug}/")
+
+        assert page.status_code == 200
+        html = page.content.decode()
+        assert "Exactly what I asked for" in html, "the review is not on the page at all"
+        assert Review.objects.get().photo.url in html, "the review is there but the photo is not"
+
+    def test_a_page_without_one_is_unaffected(self):
+        _customer, profile, _booking = a_completed()
+        client, _token = logged_in(_customer)
+
+        page = client.get(f"/shops/{profile.slug}/")
+
+        assert page.status_code == 200
+        assert 'class="review-photo"' not in page.content.decode()
+
+
+class TestAnOptOutThatIsActuallyAnOptOut:
+    """Review requests have to stop when somebody says stop.
+
+    The check required three categories to be off at once, one of which the
+    server forces back on - so it could never be false, and nobody who turned
+    notifications off was ever spared a review request.
+    """
+
+    def _opts_out_of_reminders(self, user) -> None:
+        from accounts.models import NotificationKey, NotificationPreference
+
+        NotificationPreference.objects.update_or_create(
+            user=user,
+            key=NotificationKey.BOOKING_REMINDERS,
+            defaults={"enabled": False},
+        )
+
+    def test_somebody_who_opted_out_is_left_alone(self):
+        from reviews.requests import _wants
+
+        customer, _profile, _booking = a_completed()
+        self._opts_out_of_reminders(customer)
+
+        assert _wants(customer) is False
+
+    def test_the_default_is_still_to_ask(self):
+        from reviews.requests import _wants
+
+        customer, _profile, _booking = a_completed()
+
+        assert _wants(customer) is True

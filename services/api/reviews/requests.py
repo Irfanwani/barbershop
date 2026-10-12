@@ -140,17 +140,20 @@ def send_requests(now: datetime | None = None) -> dict[str, int]:
 def _wants(user: Any) -> bool:
     """Whether this account has agreed to hear about this.
 
-    Reviews are not marketing, so they do not need an opt-in — but somebody
-    who has turned everything off has said something, and this is the moment to
-    hear it.
+    A review request is transactional - it is about an appointment that already
+    happened - so it does not need an opt-in. It does follow one switch: the
+    reminders opt-out, which is the category a person turns off when they want
+    to stop being buzzed about their own appointments.
+
+    The previous version required *every* category to be off at once. That could
+    never be true: `bookingChanges` is required and the server forces it back
+    on, so the condition was dead code and the opt-out it appeared to honour was
+    never actually read by anybody. A preference check that cannot be false is
+    worse than no check, because it looks like consent was respected.
     """
     from accounts.models import NotificationKey, wants_notification
 
-    return not (
-        wants_notification(user, NotificationKey.BOOKING_REMINDERS) is False
-        and wants_notification(user, NotificationKey.OFFERS_AND_PROMOTIONS) is False
-        and wants_notification(user, NotificationKey.BOOKING_CHANGES) is False
-    )
+    return wants_notification(user, NotificationKey.BOOKING_REMINDERS) is not False
 
 
 def notify_provider(review) -> bool:

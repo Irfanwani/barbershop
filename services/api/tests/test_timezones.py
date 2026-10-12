@@ -189,3 +189,57 @@ class TestStaffHireTheShopClockToo:
         assert person.is_open_on(shop.local_now().weekday()) == shop.is_open_on(
             shop.local_now().weekday()
         )
+
+
+class TestOpenNowFollowsTheSameChainTheShopPageDoes:
+    """`ProviderProfile.tz()` resolves shop, then account, then server.
+
+    The search filter resolved shop, then UTC. A shop that never set its own
+    zone but whose owner had one was filtered by the wrong clock - so
+    `?open_now=true` could hide a shop that was, by its own account's clock,
+    open right now. Every existing test set both zones to the same value, or
+    both to nothing, so the disagreement between the two had nowhere to show.
+    """
+
+    @pytest.mark.parametrize(
+        ("shop_zone", "account_zone", "expected_zone"),
+        [
+            ("Asia/Kolkata", "Europe/London", "Asia/Kolkata"),  # shop wins
+            ("", "Asia/Kolkata", "Asia/Kolkata"),  # account is the fallback
+            ("", "", "UTC"),  # and UTC is the last resort
+        ],
+    )
+    def test_the_filter_agrees_with_the_shop_page(self, shop_zone, account_zone, expected_zone):
+        """Frozen at 10:00 UTC, which is 15:30 in Kolkata and 11:00 in London.
+
+        Hours are set to a window that is open in the expected zone and shut in
+        the others, so a filter reading the wrong clock returns the opposite
+        answer rather than a coincidence.
+        """
+        from freezegun import freeze_time
+
+        local_hour = {
+            "Asia/Kolkata": 15,
+            "Europe/London": 11,
+            "UTC": 10,
+        }[expected_zone]
+        window = time(local_hour - 1, 0)
+
+        shop = a_shop(
+            shop_zone,
+            opening=window,
+            closing=time(local_hour + 1, 0),
+        )
+        shop.user.timezone_name = account_zone
+        shop.user.save(update_fields=["timezone_name"])
+
+        client, token = logged_in(make_user())
+
+        with freeze_time("2026-03-01 10:00:00", tz_offset=0):
+            response = client.get(f"{PROVIDERS}?open_now=true", **auth_header(token))
+
+        assert response.status_code == 200
+        listed = shop.pk in [row["id"] for row in response.data["results"]]
+        # The shop's own page is the reference: if it says open, the search must
+        # agree, and the two are computed by completely different code.
+        assert listed is shop.is_open_at(timezone.now())
