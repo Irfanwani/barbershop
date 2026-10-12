@@ -558,8 +558,10 @@ def is_within_working_hours(
     opening/closing pair when it has none. A closed weekday produces no slots at
     all, which is the point of the toggle: the shop is off.
     """
-    local_start = timezone.localtime(starts_at)
-    local_end = timezone.localtime(ends_at)
+    # The shop's clock, not the server's. These are naive local times because
+    # a barber says "I open at nine" and means nine where they work.
+    local_start = provider.localtime(starts_at)
+    local_end = provider.localtime(ends_at)
 
     # A booking that runs over midnight is not a haircut; it is a bug in whatever
     # produced it, and admitting it would show the shop as open for 24 hours.

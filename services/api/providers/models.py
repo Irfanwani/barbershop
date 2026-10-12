@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import time
+from datetime import datetime, time
 from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.gis.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import F, Q
-from django.utils import timezone
 from django.utils.text import slugify
 
 from accounts.models import ReminderPreferencesMixin
@@ -64,6 +63,24 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
     #: start again on a name it has outgrown, because the old one would
     #: shadow it forever.
     slug = models.SlugField(max_length=80, unique=True, blank=True)
+
+    #: The zone this shop's opening hours are written in.
+    #:
+    #: Blank means "ask the account", and failing that the server's own. Hours
+    #: are stored as naive local times — a barber says "I open at nine" and
+    #: means nine where they work — so somewhere that value has to be anchored
+    #: to a real place, and this is where.
+    #:
+    #: Every previous interpretation used the *server's* timezone, which is
+    #: correct for a single-country marketplace and quietly wrong the moment
+    #: the second one exists: a 09:00 opening in Bengaluru checked against UTC
+    #: is 14:30, so the shop appears open four and a half hours late and closes
+    #: at 02:30 local.
+    timezone_name = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="IANA zone for this shop's hours, e.g. Asia/Kolkata. Falls back to the account.",
+    )
     description = models.TextField(blank=True, default="")
 
     service_type = models.CharField(
@@ -173,7 +190,7 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
         return format_minor(price) if price is not None else None
 
     def is_open_at(self, moment=None) -> bool:
-        moment = moment or timezone.localtime()
+        moment = moment or self.local_now()
         return self.opening_time <= moment.time() <= self.closing_time
 
     def refresh_rating(self, save: bool = True) -> Decimal:
@@ -221,6 +238,41 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
             # Sunday is the exception, not the rule.
             return weekday != 6
         return not hours.is_closed
+
+    def tz(self):
+        """This shop's zone, resolved as far down a chain as it goes.
+
+        Shop, then the account, then the server. A missing value must not be
+        an exception: a shop that has not set one still has to open.
+        """
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        from django.conf import settings
+
+        for name in (
+            self.timezone_name,
+            getattr(getattr(self, "user", None), "timezone_name", ""),
+            settings.TIME_ZONE,
+        ):
+            if not name:
+                continue
+            try:
+                return ZoneInfo(name)
+            except (ZoneInfoNotFoundError, ValueError):
+                # A saved zone that the host no longer knows about — usually an
+                # OS database change. Better to fall through than to 500 on
+                # every request this shop receives.
+                continue
+
+        return ZoneInfo("UTC")
+
+    def local_now(self) -> datetime:
+        """The current time where this shop is."""
+        return datetime.now(self.tz())
+
+    def localtime(self, moment: datetime) -> datetime:
+        """Where ``moment`` falls on this shop's clock."""
+        return moment.astimezone(self.tz())
 
     def ensure_slug(self) -> str:
         """Give this shop an address, and never hand the same one to two shops.

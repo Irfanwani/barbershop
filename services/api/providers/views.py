@@ -12,10 +12,20 @@ from datetime import time
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 from django.db import transaction
-from django.db.models import Case, Count, IntegerField, OuterRef, Q, Subquery, Value, When
+from django.db.models import (
+    Case,
+    Count,
+    Func,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    TimeField,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -229,8 +239,28 @@ class ProviderListView(APIView):
             ).filter(matched=len(wanted))
 
         if request.query_params.get("open_now") in {"1", "true", "True"}:
-            now = timezone.localtime()
-            queryset = queryset.filter(opening_time__lte=now.time(), closing_time__gte=now.time())
+            # Per-shop local time, in SQL.
+            #
+            # The obvious version compares one `now.time()` against every shop,
+            # which is correct only while every shop shares the server's zone —
+            # and silently wrong the moment one does not. A Bengaluru shop
+            # opening at 09:00 checked against UTC is not open until 14:30.
+            #
+            # This asks the database for each row's own wall clock, which keeps
+            # the filter in the query and therefore correct with pagination.
+            # `COALESCE` because an empty zone is not a zone, and `AT TIME ZONE
+            # ''` is an error rather than a fallback. 'UTC' is written into the
+            # template rather than passed as a parameter: it is a constant, and
+            # a template argument the expression never references is how you
+            # get a placeholder count that does not match the parameters.
+            local_now = Func(
+                template=(
+                    "(CURRENT_TIMESTAMP AT TIME ZONE "
+                    "COALESCE(NULLIF(providers_profile.timezone_name, ''), 'UTC'))::time"
+                ),
+                output_field=TimeField(),
+            )
+            queryset = queryset.filter(opening_time__lte=local_now, closing_time__gte=local_now)
 
         min_rating = _m(request.query_params.get("min_rating"))
         if min_rating is not None:

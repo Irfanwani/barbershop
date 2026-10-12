@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 import requests
 from django.conf import settings
-from django.utils import timezone
 
 if TYPE_CHECKING:
     from bookings.models import Booking
@@ -65,7 +64,7 @@ def deliver_push(
 
 def format_appointment_time(booking: Booking) -> str:
     """A time the recipient can read, in the shop's own timezone."""
-    local = timezone.localtime(booking.starts_at)
+    local = booking.provider.localtime(booking.starts_at)
     return local.strftime("%a %d %b, %I:%M %p")
 
 

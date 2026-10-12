@@ -937,7 +937,7 @@ tracker.
 
 ## P5.6 Timezone correctness
 
-**Status:** todo
+**Status:** done (backend); app renders in the device zone
 
 Shop hours are naive `TimeField`s and the Celery beat runs on UTC. Works for a
 single-country marketplace and silently corrupts once it is not one. The
@@ -948,8 +948,32 @@ customer profile already carries `timezone_name`; the shop does not.
 - Reminder lead times computed in local time, so a 3-hour lead before a 09:00
   appointment is 06:00 local and not 06:00 UTC
 
-**Acceptance:** a shop in a non-UTC timezone gets its reminders at the right
-local hour.
+**Acceptance:** a shop in a non-UTC timezone reads its hours correctly —
+tested, 13 tests, including a shop at UTC+5:45 so the day does not start on
+the hour.
+
+**The bug was that nothing anchored the hours at all.** Every "local time" in
+the codebase meant *the server's* local time: `timezone.localtime()`. Correct
+for a single-country marketplace, quietly wrong the moment a second one
+exists. A Bengaluru shop opening at 09:00, checked against UTC, opens at
+14:30 and closes at 02:30 the next morning.
+
+Resolved shop, then account, then server. A zone the host no longer knows
+about falls through rather than 500-ing every request that shop receives.
+
+**`open_now` is filtered per row, in SQL.** The obvious version compares one
+`now.time()` against every shop, which cannot be right across zones. The
+database is asked for each row's own wall clock
+(`CURRENT_TIMESTAMP AT TIME ZONE COALESCE(NULLIF(timezone_name, ''), 'UTC')`),
+so the filter stays in the query and stays correct with pagination.
+
+**Reminder lead times were already right.** A lead is an absolute number of
+hours before a UTC instant, so "three hours before a 09:00 appointment is
+06:00 local" holds by construction. What was broken was the hour the
+appointment was *judged* at.
+
+**Still to do:** the app renders appointment times in the device's zone rather
+than the shop's.
 
 ---
 

@@ -195,21 +195,22 @@ def _notify(entry: WaitlistEntry, slot: FreedSlot, offer: WaitlistOffer) -> None
         tokens,
         title="A slot just opened",
         body=(
-            f"{slot.shop_name} has a free {format_slot_time(slot.starts_at)} — "
-            f"yours until {format_slot_time(offer.expires_at)}."
+            f"{slot.shop_name} has a free {format_slot_time(slot.starts_at, slot.provider)} — "
+            f"yours until {format_slot_time(offer.expires_at, slot.provider)}."
         ),
         data={"screen": "waitlist", "offer_id": offer.pk},
     )
 
 
-def format_slot_time(moment: datetime) -> str:
+def format_slot_time(moment: datetime, provider=None) -> str:
     """ "3pm" today, "tomorrow 10am" otherwise.
 
     A bare clock time in a notification is ambiguous the first time someone
-    reads it the day after.
+    reads it the day after — and "3pm" is only meaningful relative to somebody's
+    clock, so this asks the shop's when it knows which shop.
     """
-    local = timezone.localtime(moment)
-    now = timezone.localtime()
+    local = provider.localtime(moment) if provider is not None else timezone.localtime(moment)
+    now = provider.local_now() if provider is not None else timezone.localtime()
     clock = local.strftime("%-I%p").lower()
     if local.date() == now.date():
         return f"{clock} today"

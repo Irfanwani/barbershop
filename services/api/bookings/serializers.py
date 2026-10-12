@@ -302,7 +302,7 @@ class BookingCreateSerializer(serializers.Serializer):
             if bounds is None:
                 raise BusinessRuleViolation(f"{staff.name} is not working that day.")
             opens_at, closes_at = bounds
-            local = timezone.localtime(starts_at)
+            local = provider.localtime(starts_at)
             if not (opens_at <= local.time() and local.time() < closes_at):
                 raise BusinessRuleViolation(
                     f"{staff.name} works {opens_at:%H:%M} to {closes_at:%H:%M} on that day."

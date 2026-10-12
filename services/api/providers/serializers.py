@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import time
 
 from django.contrib.gis.geos import Point
-from django.utils import timezone
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
@@ -459,9 +458,10 @@ class StaffSerializer(serializers.ModelSerializer):
 
     def get_is_open_today(self, obj: Staff) -> bool:
         # The shop's own definition of "open today" — a person's hours when
-        # they set any, the shop's otherwise. Two different notions of "today"
-        # on one screen is the kind of thing a customer reports as a bug.
-        return obj.is_open_on(timezone.localtime().weekday())
+        # they set any, the shop's otherwise, and *their* clock rather than the
+        # server's. Three different notions of "today" on one screen is the
+        # kind of thing a customer reports as a bug.
+        return obj.is_open_on(obj.provider.local_now().weekday())
 
     def get_hours(self, obj: Staff) -> list[dict]:
         rows = obj.hours.all()
