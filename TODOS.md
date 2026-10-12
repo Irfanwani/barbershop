@@ -76,12 +76,12 @@ against a reverted fix: five of them fail without it.
 
 ## P0.2 The marketing site advertises a feature that does not exist
 
-**Status:** the claim is being made true
+**Status:** backend done; app screens outstanding
 
-`apps/web/index.html` said the app has "saved shops". It does not. It is
-being built as [P2.4](#p24-saved-shops) rather than deleted from the copy,
-because saved shops are the cheapest retention feature available and the
-backbone of the rebooking work in [P3.2](#p32-rebooking-nudges-for-lapsed-customers).
+`apps/web` said the app has "saved shops". It did not. It is being built as
+[P2.4](#p24-saved-shops) rather than deleted from the copy, because saved
+shops are the cheapest retention feature available and the backbone of the
+rebooking work in [P3.2](#p32-rebooking-nudges-for-lapsed-customers).
 
 ---
 
@@ -426,7 +426,7 @@ that was charged named.
 
 ## P2.4 Saved shops
 
-**Status:** todo
+**Status:** done (backend); app screens outstanding
 
 The marketing site currently promises this. It is also the cheapest possible
 retention feature and the backbone of the rebooking and lapsed-customer work
@@ -439,7 +439,24 @@ in P2.7.
   shows, greyed
 
 **Acceptance:** saving twice is idempotent; a customer sees saved shops
-first on browse; a shop that stops taking bookings still appears in the list.
+first on browse; a shop that stops taking bookings still appears in the list —
+all three tested, 17 tests.
+
+**A paused shop stays saved.** Somebody's usual barber does not stop existing
+because they took a holiday. It shows greyed with its current price, and
+saving it does not bypass the pause — a bookmark is not a way round a closed
+shop.
+
+**Browse puts saved shops first**, before the shops nearest to wherever the
+customer happens to be standing.
+
+**A live bug found on the way.** `is_accepting_bookings` was never in the
+public search response, so every shop on the marketing site rendered as "Not
+taking bookings" with no price. The website code read it correctly; the field
+simply was not sent. Found by writing a test about what a client depends on,
+which is the only thing that catches this class of bug — the code looks fine.
+
+**Still to do:** no app screen.
 
 ## P2.5 Public booking link per shop
 

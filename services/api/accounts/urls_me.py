@@ -13,6 +13,8 @@ from accounts.views import (
     MeView,
     ProviderProfileCreateView,
     ProviderProfileView,
+    SavedShopsView,
+    SavedShopView,
     delete_push_tokens,
     login_history,
     push_token_detail,
@@ -23,6 +25,12 @@ app_name = "me"
 
 urlpatterns = [
     path("", MeView.as_view(), name="me"),
+    path("saved-shops/", SavedShopsView.as_view(), name="saved-shops"),
+    path(
+        "saved-shops/<int:provider_id>/",
+        SavedShopView.as_view(),
+        name="saved-shop",
+    ),
     path("password/", ChangePasswordView.as_view(), name="change-password"),
     path("profile/", CustomerProfileView.as_view(), name="customer-profile"),
     path("shop/", ProviderProfileView.as_view(), name="provider-profile"),

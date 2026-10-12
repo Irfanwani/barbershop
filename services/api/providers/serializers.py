@@ -104,6 +104,9 @@ class ProviderListSerializer(serializers.ModelSerializer):
     approximate_location = serializers.SerializerMethodField()
     is_open_now = serializers.SerializerMethodField()
     next_available = serializers.SerializerMethodField()
+    #: Whether this customer has saved the shop. Annotated by the view for
+    #: the signed-in case; always False for a browse that is not theirs.
+    is_saved = serializers.SerializerMethodField()
 
     class Meta:
         model = ProviderProfile
@@ -121,6 +124,11 @@ class ProviderListSerializer(serializers.ModelSerializer):
             "next_available",
             "opening_time",
             "closing_time",
+            # The public site reads this to decide between showing a price and
+            # saying "not taking bookings". It was missing from this list, so
+            # every shop on the marketing site rendered as paused.
+            "is_accepting_bookings",
+            "is_saved",
             "employee_count",
             "requires_approval",
             "rating_average",
@@ -161,6 +169,9 @@ class ProviderListSerializer(serializers.ModelSerializer):
 
     def get_is_open_now(self, obj: ProviderProfile) -> bool:
         return obj.is_open_at()
+
+    def get_is_saved(self, obj: ProviderProfile) -> bool:
+        return bool(getattr(obj, "is_saved", 0))
 
     def get_next_available(self, obj: ProviderProfile) -> str | None:
         # Precomputed by the view in one query per page. Falling back to
@@ -281,10 +292,12 @@ class ProviderWriteSerializer(ProviderSelfSerializer):
     """
 
     class Meta(ProviderSelfSerializer.Meta):
+        # `is_saved` is excluded with the rest: it is an annotation the list
+        # view adds, not something a shop can declare about itself.
         fields = [
             field
             for field in ProviderSelfSerializer.Meta.fields
-            if field not in {"services", "owner", "starting_price_display"}
+            if field not in {"services", "owner", "starting_price_display", "is_saved"}
         ]
         # Everything except the three fields a shop genuinely cannot be without
         # has a model default. Blanket `required=False` here would let a shop be

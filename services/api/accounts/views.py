@@ -33,6 +33,7 @@ from accounts.models import (
     LoginAudit,
     PushToken,
     Role,
+    SavedShop,
     User,
     VerificationCode,
 )
@@ -46,6 +47,8 @@ from accounts.serializers import (
     PasswordResetRequestSerializer,
     PushTokenSerializer,
     RegisterSerializer,
+    SavedShopSerializer,
+    SaveShopSerializer,
     UpdateProfileSerializer,
     VerifyEmailSerializer,
 )
@@ -730,3 +733,78 @@ class LogoutView(KnoxLogoutView):
 )
 class LogoutAllView(KnoxLogoutAllView):
     """Revoke every token for the account, on every device."""
+
+
+class SavedShopsView(APIView):
+    """The shops this customer has saved.
+
+    Saving twice is a no-op rather than an error, because every customer who
+    taps a heart twice is doing it on purpose and refusing them is a strange
+    thing to do over a second tap.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="accounts_saved_shops",
+        summary="Your saved shops",
+        description=(
+            "Most recently touched first. A shop that has stopped taking "
+            "bookings is still here — greyed rather than gone."
+        ),
+        responses={200: SavedShopSerializer(many=True)},
+    )
+    def get(self, request):
+        saved = (
+            SavedShop.objects.filter(customer=request.user)
+            .select_related("provider", "provider__user")
+            .prefetch_related("provider__services", "provider__hours")
+        )
+        return Response(SavedShopSerializer(saved, many=True, context={"request": request}).data)
+
+
+class SavedShopView(APIView):
+    """Save, note, or unsave one shop."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _shop(self, request, provider_id: int) -> SavedShop:
+        provider = get_object_or_404(
+            ProviderProfile.objects.select_related("user").prefetch_related("services"),
+            pk=provider_id,
+        )
+        saved, _created = SavedShop.objects.get_or_create(
+            customer=request.user,
+            provider=provider,
+        )
+        return saved
+
+    @extend_schema(
+        operation_id="accounts_save_shop",
+        summary="Save a shop",
+        description="Saving a shop that is already saved returns the same one.",
+        request=SaveShopSerializer,
+        responses={201: SavedShopSerializer},
+    )
+    def post(self, request, provider_id: int):
+        body = SaveShopSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+
+        saved = self._shop(request, provider_id)
+        if body.validated_data["note"]:
+            saved.note = body.validated_data["note"]
+            saved.save(update_fields=["note", "updated_at"])
+
+        return Response(
+            SavedShopSerializer(saved, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        operation_id="accounts_unsave_shop",
+        summary="Remove a saved shop",
+        responses={204: None},
+    )
+    def delete(self, request, provider_id: int):
+        SavedShop.objects.filter(customer=request.user, provider_id=provider_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

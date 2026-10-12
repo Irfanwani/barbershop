@@ -259,3 +259,39 @@ class LoginAudit(TimeStampedModel):
     def __str__(self) -> str:
         outcome = "ok" if self.succeeded else "failed"
         return f"{self.email_attempted} {outcome}"
+
+
+class SavedShop(TimeStampedModel):
+    """A shop this customer wants to find again.
+
+    The cheapest retention feature available, and the backbone of everything
+    that tries to get a lapsed customer back: rebooking, nudges, "book again"
+    from here.
+
+    A note, because "my usual place" is not something the customer can infer
+    later — it is the thing they would otherwise write in their head and
+    forget.
+
+    Unique per customer and shop, so saving twice is a no-op rather than a
+    duplicate row that shows up twice in the list.
+    """
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_shops"
+    )
+    provider = models.ForeignKey(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="saved_by"
+    )
+    note = models.CharField(max_length=120, blank=True, default="")
+
+    class Meta:
+        db_table = "accounts_saved_shop"
+        ordering = ["-updated_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["customer", "provider"], name="accounts_savedshop_unique_per_pair"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.customer} saved {self.provider}"

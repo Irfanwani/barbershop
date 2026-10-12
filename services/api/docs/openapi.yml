@@ -1005,6 +1005,78 @@ paths:
                       details: null
                   summary: Well-formed, but not allowed right now
           description: Malformed request, or one that breaks a business rule
+  /api/v1/me/saved-shops/:
+    get:
+      operationId: accounts_saved_shops
+      description: Most recently touched first. A shop that has stopped taking bookings
+        is still here — greyed rather than gone.
+      summary: Your saved shops
+      tags:
+      - me
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavedShop'
+          description: ''
+  /api/v1/me/saved-shops/{provider_id}/:
+    post:
+      operationId: accounts_save_shop
+      description: Saving a shop that is already saved returns the same one.
+      summary: Save a shop
+      parameters:
+      - in: path
+        name: provider_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveShopRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SaveShopRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SaveShopRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedShop'
+          description: ''
+    delete:
+      operationId: accounts_unsave_shop
+      description: Save, note, or unsave one shop.
+      summary: Remove a saved shop
+      parameters:
+      - in: path
+        name: provider_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/me/password/:
     post:
       operationId: me_change_password
@@ -9309,6 +9381,12 @@ components:
           type: string
           format: time
           readOnly: true
+        is_accepting_bookings:
+          type: boolean
+          readOnly: true
+        is_saved:
+          type: boolean
+          readOnly: true
         employee_count:
           type: integer
           readOnly: true
@@ -9372,7 +9450,9 @@ components:
       - display_name
       - employee_count
       - id
+      - is_accepting_bookings
       - is_open_now
+      - is_saved
       - next_available
       - opening_time
       - owner
@@ -9895,6 +9975,42 @@ components:
       description: |-
         * `customer` - Customer
         * `provider` - Service provider
+    SaveShopRequest:
+      type: object
+      description: Saving a shop. The note is optional; everything else is in the
+        path.
+      properties:
+        note:
+          type: string
+          default: ''
+          maxLength: 120
+    SavedShop:
+      type: object
+      description: |-
+        A saved shop, with enough of the shop to be useful on a list.
+
+        The live fields matter: a shop that has stopped taking bookings is still
+        saved and still shown, greyed rather than hidden. Somebody's usual barber
+        does not stop existing because they took a holiday.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        provider:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        note:
+          type: string
+          maxLength: 120
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - provider
     Service:
       type: object
       properties:

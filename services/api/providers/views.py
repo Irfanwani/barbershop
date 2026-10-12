@@ -12,7 +12,7 @@ from datetime import time
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 from django.db import transaction
-from django.db.models import Count, OuterRef, Q, Subquery, Value
+from django.db.models import Case, Count, IntegerField, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -23,6 +23,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticate
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import SavedShop
 from bookings.models import slot_grid
 from core.pagination import DefaultPagination
 from core.permissions import IsProvider
@@ -177,6 +178,24 @@ class ProviderListView(APIView):
                 )
             )
         )
+
+        # Saved shops first, for a signed-in customer who has any. Cheapest
+        # retention there is: the shops somebody already chose, before the
+        # shops nearest to where they happen to be standing.
+        if request.user.is_authenticated:
+            saved_ids = list(
+                SavedShop.objects.filter(customer=request.user).values_list(
+                    "provider_id", flat=True
+                )
+            )
+            queryset = queryset.annotate(
+                is_saved=Case(
+                    When(pk__in=saved_ids, then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            )
+            queryset = queryset.order_by("-is_saved", "display_name", "id")
 
         radius_km = min(_m(request.query_params.get("radius_km")) or 25, 100)
 

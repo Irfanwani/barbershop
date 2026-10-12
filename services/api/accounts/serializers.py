@@ -9,7 +9,7 @@ from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from accounts.models import CustomerProfile, LoginAudit, PushToken, Role, User
+from accounts.models import CustomerProfile, LoginAudit, PushToken, Role, SavedShop, User
 from providers.models import ProviderProfile
 
 # ---------------------------------------------------------------------------
@@ -301,3 +301,34 @@ class AccountStateSerializer(UserSerializer):
 
     def get_onboarding_complete(self, obj: User) -> bool:
         return obj.onboarding_complete
+
+
+class SavedShopSerializer(serializers.ModelSerializer):
+    """A saved shop, with enough of the shop to be useful on a list.
+
+    The live fields matter: a shop that has stopped taking bookings is still
+    saved and still shown, greyed rather than hidden. Somebody's usual barber
+    does not stop existing because they took a holiday.
+    """
+
+    provider = serializers.SerializerMethodField()
+    note = serializers.CharField(required=False, allow_blank=True, max_length=120)
+
+    class Meta:
+        model = SavedShop
+        fields = ["id", "provider", "note", "created_at"]
+        read_only_fields = ["created_at"]
+
+    def get_provider(self, obj: SavedShop) -> dict:
+        from providers.serializers import ProviderListSerializer
+
+        return ProviderListSerializer(
+            obj.provider,
+            context={"request": self.context.get("request")},
+        ).data
+
+
+class SaveShopSerializer(serializers.Serializer):
+    """Saving a shop. The note is optional; everything else is in the path."""
+
+    note = serializers.CharField(required=False, allow_blank=True, max_length=120, default="")
