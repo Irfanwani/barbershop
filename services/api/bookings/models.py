@@ -202,8 +202,22 @@ class Booking(TimeStampedModel):
 
     @property
     def amount_paid(self) -> int:
-        """Captured against this booking, deposit and balance together."""
-        return sum(payment.amount for payment in self.payments.all() if payment.is_captured)
+        """Net of refunds: what this booking has actually kept.
+
+        Refunds come *out*. Counting a partially-refunded payment as its full
+        amount made `is_paid` true and `amount_due` zero while money had
+        already gone back — the customer looked fully paid and the shop saw no
+        balance due. Never negative, in case a payment is over-refunded by a
+        gateway-side adjustment.
+        """
+        return max(
+            sum(
+                payment.amount - (payment.refunded_amount or 0)
+                for payment in self.payments.all()
+                if payment.is_captured
+            ),
+            0,
+        )
 
     @property
     def is_paid(self) -> bool:
@@ -234,8 +248,16 @@ class Booking(TimeStampedModel):
 
     @property
     def has_captured_deposit(self) -> bool:
+        """Whether a deposit is actually held.
+
+        A deposit that was refunded is not money we have. Counting it as
+        captured made `requires_deposit` false on a booking whose deposit had
+        been handed straight back, so the shop was never asked for it again.
+        """
         return any(
-            payment.is_captured and payment.kind == PaymentKind.DEPOSIT
+            payment.is_captured
+            and payment.kind == PaymentKind.DEPOSIT
+            and payment.refunded_amount < payment.amount
             for payment in self.payments.all()
         )
 

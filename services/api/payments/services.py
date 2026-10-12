@@ -45,6 +45,22 @@ def verify_webhook_signature(body: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected, signature)
 
 
+def sign_webhook_payload(body: bytes) -> str:
+    """Sign a body the way Razorpay would.
+
+    Only used by tests, so it is the one place the signing side of the HMAC
+    lives. If this and :func:`verify_webhook_signature` ever disagreed, every
+    webhook test would pass and no webhook would work — which is the sort of
+    thing a test suite is supposed to make impossible rather than merely
+    unlikely.
+    """
+    import hashlib
+    import hmac
+
+    secret = settings.RAZORPAY_WEBHOOK_SECRET
+    return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+
 def create_order(amount: int, currency: str, receipt: str, notes: dict | None = None) -> dict:
     """Create a Razorpay order for ``amount`` in the smallest currency unit."""
     if not credentials_configured():

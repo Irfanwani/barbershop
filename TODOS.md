@@ -176,7 +176,8 @@ booking made before the change.
 
 ## P1.3 Refunds
 
-**Status:** done
+**Status:** done (two accounting bugs found and fixed after shipping — see
+below)
 
 The scaffolding is complete and inert: `PaymentStatus.REFUNDED`,
 `Payment.refunded_at`, `Payment.refund_id` and `BookingStatus.REFUNDED` all
@@ -332,6 +333,25 @@ When a slot frees, it sits empty. The entire niche is built on this —
   served, with a hold window before it goes public
 - Push notification to the offered customer
 - Declining or letting the hold expire releases it to the next in line
+
+**Two bugs, found after this shipped and since fixed.** Both are the kind
+that do not fail loudly: the code ran, the refund succeeded, the tests
+passed.
+
+- **A refunded payment still counted as paid.** `amount_paid` summed captured
+  payments without subtracting `refunded_amount`, so a *partial* refund left
+  the booking reading as fully paid and `amount_due` at zero while the money
+  had already gone back. The customer looked paid up and the shop saw no
+  balance due. `amount_paid` is now net of refunds.
+- **A refunded deposit still counted as held**, so `requires_deposit` was
+  false on a booking whose deposit had been handed straight back and the shop
+  was never asked for it again.
+- **The refund webhook was never handled.** `refund.processed` and
+  `refund.failed` were acknowledged and dropped, so `reconcile` — written,
+  tested, and wired to nothing — never ran. A refund initiated synchronously
+  but settled by the gateway days later left the booking looking like money
+  still owed. Both events are handled now, and the gateway is treated as the
+  authority on what was actually refunded.
 
 **Acceptance:** cancelling a booked slot notifies the first matching waitlist
 entry; if they decline, the next is offered; the slot returns to public after

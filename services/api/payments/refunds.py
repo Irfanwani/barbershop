@@ -180,16 +180,77 @@ def refund_booking_payment(booking, *, amount: int | None = None, reason: str = 
 
 
 def reconcile(payment: Payment, remote: dict) -> Payment:
-    """Settle a refund's final state from a gateway webhook."""
+    """Settle a refund's final state from a gateway webhook.
+
+    Handles both halves of the gap between "we asked" and "the money moved".
+
+    **A processed refund** adds up the amounts the gateway says were refunded,
+    so a refund we initiated but never confirmed stops looking outstanding.
+    Without this a customer who has been made whole is still showing as
+    waiting on money that has already gone.
+
+    **A failed one** releases the claim: the money was never refunded, so it
+    is still owed to the shop as far as this record is concerned, and the
+    reason is kept so nobody has to guess later.
+    """
     status = remote.get("status", "")
+
     if status in {"processed", "refunded"}:
+        # The gateway is the authority on what was actually refunded.
+        refunded = remote_amounts(remote)
+        if refunded is not None:
+            payment.refunded_amount = min(refunded, payment.amount)
+            payment.refunded_at = timezone.now()
+
+        if remote.get("refund_id"):
+            payment.refund_id = str(remote["refund_id"])[:64]
+
         payment.status = (
             PaymentStatus.REFUNDED
             if (payment.refunded_amount or 0) >= payment.amount
             else PaymentStatus.CAPTURED
         )
-        payment.save(update_fields=["status", "updated_at"])
+        # A refund that worked must not keep showing the failure that preceded
+        # it, or the booking reads as refunded *and* failed.
+        payment.failure_reason = ""
+        payment.save(
+            update_fields=[
+                "refunded_amount",
+                "refunded_at",
+                "refund_id",
+                "status",
+                "failure_reason",
+                "updated_at",
+            ]
+        )
+
     elif status == "failed":
         payment.failure_reason = str(remote.get("error_description", "Refund failed"))[:255]
         payment.save(update_fields=["failure_reason", "updated_at"])
+
     return payment
+
+
+def remote_amounts(remote: dict) -> int | None:
+    """Total refunded according to the gateway, if it says.
+
+    Returns None when the payload does not carry enough to tell, so the local
+    figure is left alone rather than being overwritten with a guess.
+    """
+    if "amount" in remote:
+        raw = remote.get("amount")
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    refunded = remote.get("refunded")
+    if refunded is None or isinstance(refunded, bool):
+        return None
+
+    try:
+        return int(refunded)
+    except (TypeError, ValueError):
+        return None

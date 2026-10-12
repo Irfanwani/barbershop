@@ -33,6 +33,7 @@ from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
 from payments.due import amount_due, default_kind, requested_kind
 from payments.models import Payment, PaymentStatus
+from payments.refunds import reconcile
 from payments.serializers import (
     CreateOrderSerializer,
     PaymentSerializer,
@@ -46,6 +47,10 @@ from payments.services import (
     verify_payment_signature,
     verify_webhook_signature,
 )
+
+#: Refunds are initiated synchronously but settle asynchronously, so these
+#: have to be handled or a refund that succeeded looks like one still owed.
+REFUND_EVENTS = {"refund.processed", "refund.failed"}
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +265,34 @@ class PaymentWebhookView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    def _refund_event(self, event: str, payload: dict):
+        """Settle a refund the gateway has finished with.
+
+        A refund is initiated synchronously, but "initiated" is not "done": the
+        gateway can take days to process one, and it can fail one outright.
+        Without handling these, a refund that succeeded leaves the booking
+        looking like money still owed, and a refund that failed looks like it
+        succeeded.
+        """
+        entity = (payload.get("refund", {}) or {}).get("entity", {}) or {}
+        refund_id = str(entity.get("id", ""))
+        payment = (
+            Payment.objects.filter(refund_id=refund_id).select_related("booking").first()
+            if refund_id
+            else None
+        )
+
+        if payment is None:
+            # We record `refund_id` when we ask for the refund, so an unknown
+            # one is either not ours or was initiated before this existed.
+            # Not retried: it will never become known.
+            logger.warning("Refund webhook for an unknown refund: %s", refund_id)
+            return Response({"handled": False, "event": event})
+
+        reconcile(payment, {**entity, "refund_id": refund_id})
+        logger.info("Settled refund %s as %s", refund_id, entity.get("status", "unknown"))
+        return Response({"handled": True, "event": event})
+
     @extend_schema(operation_id="payments_webhook")
     def post(self, request):
         signature = request.headers.get("X-Razorpay-Signature", "")
@@ -274,7 +307,12 @@ class PaymentWebhookView(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
         event = body.get("event", "")
-        entity = (body.get("payload", {}).get("payment", {}) or {}).get("entity", {}) or {}
+        payload = body.get("payload", {}) or {}
+
+        if event in REFUND_EVENTS:
+            return self._refund_event(event, payload)
+
+        entity = (payload.get("payment", {}) or {}).get("entity", {}) or {}
 
         if event not in {"payment.captured", "payment.failed"}:
             # Acknowledge everything else. Returning non-2xx makes Razorpay retry
