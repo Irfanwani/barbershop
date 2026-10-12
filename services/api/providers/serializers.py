@@ -229,6 +229,11 @@ class ProviderSelfSerializer(serializers.ModelSerializer):
     coords = PointFieldSerializer()
     starting_price_display = serializers.CharField(read_only=True)
     payout_registered = serializers.SerializerMethodField()
+    #: What the hours are actually being read in, after shop -> account ->
+    #: server. Written out rather than left implicit, because "I open at nine"
+    #: means a different minute in Bengaluru and in London and the shop has no
+    #: other way to tell which one its own opening time refers to.
+    timezone = serializers.SerializerMethodField()
 
     class Meta:
         model = ProviderProfile
@@ -246,6 +251,8 @@ class ProviderSelfSerializer(serializers.ModelSerializer):
             "opening_time",
             "closing_time",
             "slot_interval_minutes",
+            "timezone_name",
+            "timezone",
             "is_accepting_bookings",
             "requires_approval",
             "rating_average",
@@ -268,6 +275,29 @@ class ProviderSelfSerializer(serializers.ModelSerializer):
 
     def get_payout_registered(self, obj: ProviderProfile) -> bool:
         return hasattr(obj, "payout")
+
+    def get_timezone(self, obj: ProviderProfile) -> str:
+        return str(obj.tz())
+
+    def validate_timezone_name(self, value: str) -> str:
+        """Refuse a zone the server cannot resolve.
+
+        Stored unvalidated, it becomes a 500 the first time somebody searches
+        for the shop by `?open_now=true` - which is the one moment the value
+        matters most, and the least convenient moment to find out it is wrong.
+        """
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        name = (value or "").strip()
+        if not name:
+            return ""
+        try:
+            ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise serializers.ValidationError(
+                f"{name!r} is not a time zone we know about."
+            ) from exc
+        return name
 
     def validate_opening_time(self, value):
         instance = getattr(self, "instance", None)

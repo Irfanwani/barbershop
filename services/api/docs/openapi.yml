@@ -9261,6 +9261,11 @@ components:
           maximum: 240
           minimum: 5
           description: Granularity of the bookable slots.
+        timezone_name:
+          type: string
+          description: IANA zone for this shop's hours, e.g. Asia/Kolkata. Falls back
+            to the account.
+          maxLength: 64
         is_accepting_bookings:
           type: boolean
         requires_approval:
@@ -9804,6 +9809,14 @@ components:
           maximum: 240
           minimum: 5
           description: Granularity of the bookable slots.
+        timezone_name:
+          type: string
+          description: IANA zone for this shop's hours, e.g. Asia/Kolkata. Falls back
+            to the account.
+          maxLength: 64
+        timezone:
+          type: string
+          readOnly: true
         is_accepting_bookings:
           type: boolean
         requires_approval:
@@ -9852,6 +9865,7 @@ components:
       - rating_count
       - services
       - starting_price_display
+      - timezone
       - updated_at
     ProviderSummary:
       type: object
@@ -9933,6 +9947,14 @@ components:
           maximum: 240
           minimum: 5
           description: Granularity of the bookable slots.
+        timezone_name:
+          type: string
+          description: IANA zone for this shop's hours, e.g. Asia/Kolkata. Falls back
+            to the account.
+          maxLength: 64
+        timezone:
+          type: string
+          readOnly: true
         is_accepting_bookings:
           type: boolean
         requires_approval:
@@ -9967,6 +9989,7 @@ components:
       - rating_average
       - rating_count
       - service_type
+      - timezone
       - updated_at
     ProviderWriteRequest:
       type: object
@@ -10016,6 +10039,11 @@ components:
           maximum: 240
           minimum: 5
           description: Granularity of the bookable slots.
+        timezone_name:
+          type: string
+          description: IANA zone for this shop's hours, e.g. Asia/Kolkata. Falls back
+            to the account.
+          maxLength: 64
         is_accepting_bookings:
           type: boolean
         requires_approval:

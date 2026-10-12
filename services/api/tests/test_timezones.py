@@ -243,3 +243,88 @@ class TestOpenNowFollowsTheSameChainTheShopPageDoes:
         # The shop's own page is the reference: if it says open, the search must
         # agree, and the two are computed by completely different code.
         assert listed is shop.is_open_at(timezone.now())
+
+
+class TestTheShopCanSetItsZone:
+    """The field existed and the search filter used it, but nothing could write
+    it and nothing read it back. A provider setting "I open at nine" had no way
+    to say which nine, and no way to check which one the shop was using."""
+
+    def test_it_is_returned(self):
+        shop = a_shop("Asia/Kolkata")
+        client, token = logged_in(shop.user)
+
+        response = client.get(f"{V1}/providers/me/", **auth_header(token))
+
+        assert response.status_code == 200
+        assert response.data["timezone_name"] == "Asia/Kolkata"
+
+    def test_it_is_writable(self):
+        shop = a_shop("")
+        client, token = logged_in(shop.user)
+
+        response = client.patch(
+            f"{V1}/providers/me/",
+            {"timezone_name": "Europe/London"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 200, response.data
+        shop.refresh_from_db()
+        assert shop.timezone_name == "Europe/London"
+
+    def test_the_resolved_zone_is_shown_too(self):
+        """The one the hours are read in, which is not always the one set.
+
+        A shop with no zone of its own still has one, and it is not obvious
+        which. Stating it is the difference between "my hours are wrong" and a
+        fix.
+        """
+        shop = a_shop("")
+        shop.user.timezone_name = "Asia/Kolkata"
+        shop.user.save(update_fields=["timezone_name"])
+        client, token = logged_in(shop.user)
+
+        response = client.get(f"{V1}/providers/me/", **auth_header(token))
+
+        assert response.data["timezone"] == "Asia/Kolkata"
+
+    def test_a_zone_the_server_cannot_resolve_is_refused(self):
+        """Not stored and hoped for.
+
+        An unresolvable zone becomes a 500 the first time somebody searches
+        `?open_now=true` - which is the moment it matters most and the least
+        convenient moment to discover it is wrong.
+        """
+        shop = a_shop("Asia/Kolkata")
+        client, token = logged_in(shop.user)
+
+        response = client.patch(
+            f"{V1}/providers/me/",
+            {"timezone_name": "Middle-earth/Under-mines"},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 400
+        shop.refresh_from_db()
+        assert shop.timezone_name == "Asia/Kolkata", "a bad zone was stored anyway"
+
+    def test_clearing_it_falls_back_rather_than_breaking(self):
+        shop = a_shop("Asia/Kolkata")
+        client, token = logged_in(shop.user)
+
+        response = client.patch(
+            f"{V1}/providers/me/",
+            {"timezone_name": ""},
+            content_type="application/json",
+            **auth_header(token),
+        )
+
+        assert response.status_code == 200
+        shop.refresh_from_db()
+        assert shop.timezone_name == ""
+        # Still opens, on somebody's clock.
+        assert shop.tz() is not None
+        assert response.data["timezone"] == str(shop.tz())

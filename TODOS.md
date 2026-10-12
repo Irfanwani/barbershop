@@ -1093,7 +1093,7 @@ tracker.
 
 ## P5.6 Timezone correctness
 
-**Status:** done (backend); app renders in the device zone
+**Status:** done
 
 Shop hours are naive `TimeField`s and the Celery beat runs on UTC. Works for a
 single-country marketplace and silently corrupts once it is not one. The
@@ -1105,8 +1105,19 @@ customer profile already carries `timezone_name`; the shop does not.
   appointment is 06:00 local and not 06:00 UTC
 
 **Acceptance:** a shop in a non-UTC timezone reads its hours correctly —
-tested, 13 tests, including a shop at UTC+5:45 so the day does not start on
+tested, 21 tests, including a shop at UTC+5:45 so the day does not start on
 the hour.
+
+**The zone was there, writable by nobody.** The field existed and the search
+filter used it, but the provider's own record did not expose it — not to read,
+not to write — so a barber saying "I open at nine" had no way to say which nine
+and no way to check which one the shop was using. It is now part of the shop
+record, and the resolved zone is written back alongside the one that was set,
+because the one the hours are read in is not always the one that was saved.
+
+**An unresolvable zone is refused at the door.** Stored unvalidated it becomes
+a 500 the first time somebody searches `?open_now=true`, which is the moment it
+matters most and the least convenient moment to find out it was wrong.
 
 **The bug was that nothing anchored the hours at all.** Every "local time" in
 the codebase meant *the server's* local time: `timezone.localtime()`. Correct

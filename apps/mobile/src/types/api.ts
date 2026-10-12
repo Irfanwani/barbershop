@@ -167,6 +167,15 @@ export interface ProviderSelf {
   employee_count: number;
   opening_time: string;
   closing_time: string;
+  /**
+   * The zone this shop's opening hours are written in.
+   *
+   * Empty means "not set", not "UTC" - the account's zone is used next, and
+   * then the server's. `timezone` is that resolved answer, so the shop can see
+   * which clock its own hours are being read in.
+   */
+  timezone_name: string;
+  timezone: string;
   slot_interval_minutes: number;
   requires_approval: boolean;
   rating_average: string;

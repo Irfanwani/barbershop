@@ -44,6 +44,9 @@ export default function AvailabilityScreen() {
   const availability = useAvailability(shop.data?.id ?? null, 14);
 
   const [opening, setOpening] = useState(shop.data?.opening_time ?? '09:00');
+  // Empty string is meaningful here: it means "not set", and the account's zone
+  // is used next. So it cannot be defaulted to something.
+  const [zone, setZone] = useState(shop.data?.timezone_name ?? '');
   const [closing, setClosing] = useState(shop.data?.closing_time ?? '20:00');
   const [interval, setIntervalValue] = useState(
     String(shop.data?.slot_interval_minutes ?? 30),
@@ -94,6 +97,7 @@ export default function AvailabilityScreen() {
         opening_time: opening.trim(),
         closing_time: closing.trim(),
         slot_interval_minutes: minutes,
+        timezone_name: zone.trim(),
       });
       await saveHours.mutateAsync(toApiDays(days ?? []));
     } catch (caught) {
@@ -196,6 +200,21 @@ export default function AvailabilityScreen() {
             onChangeText={setIntervalValue}
             hint="How long one appointment holds."
             testID="hours-interval"
+          />
+
+          <Field
+            label="Time zone"
+            placeholder="Asia/Kolkata"
+            value={zone}
+            onChangeText={setZone}
+            autoCapitalize="none"
+            autoCorrect={false}
+            hint={
+              shop.data?.timezone
+                ? `Your hours are read as ${shop.data.timezone}. Leave this blank to use your account's zone.`
+                : 'Leave blank to use your account zone.'
+            }
+            testID="hours-timezone"
           />
         </Card>
       </View>
