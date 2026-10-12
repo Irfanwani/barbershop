@@ -150,7 +150,7 @@ export function RescheduleSheet({
               ) : slots.length === 0 ? (
                 <Text className="text-sm" style={{ color: colors.textMuted }}>
                   Nothing free in the next fortnight. Try again closer to the day, or join
-                  the waitlist on the shop's page.
+                  the waitlist from the shop&apos;s page.
                 </Text>
               ) : (
                 slots.slice(0, 40).map((slot) => (

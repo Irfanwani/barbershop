@@ -27,6 +27,13 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
+        name="saved"
+        options={{
+          title: 'Saved',
+          tabBarIcon: ({ color, size }) => <Ionicons name="heart" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="waitlist"
         options={{
           title: 'Waitlist',

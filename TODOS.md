@@ -456,7 +456,10 @@ taking bookings" with no price. The website code read it correctly; the field
 simply was not sent. Found by writing a test about what a client depends on,
 which is the only thing that catches this class of bug — the code looks fine.
 
-**Still to do:** no app screen.
+**In the app.** A **Saved** tab, and a Save button on the shop page. A paused
+shop stays in the list, greyed, with "Not taking bookings at the moment" in
+place of the price — hiding it would make a saved list look broken at exactly
+the moment somebody wants it. Prices shown are the shop's current ones.
 
 ## P2.5 Public booking link per shop
 

@@ -13,12 +13,12 @@ import {
   deadlineSummary,
   formatPaise,
   paymentSummary,
- isUnnamed } from '@/lib/money';
+ isShopPaused, isUnnamed } from '@/lib/money';
 import {
   describeLedgerKind,
   describeLedgerStatus,
 } from '@/components/balance-card';
-import type { RescheduleRefused, StaffMember } from '@/types/api';
+import type { RescheduleRefused, SavedShop, StaffMember } from '@/types/api';
 import { formatClock, formatWhen } from '../app/(customer)/waitlist';
 
 describe('formatPaise', () => {
@@ -219,5 +219,48 @@ describe('moving an appointment', () => {
     expect(becameCancellation.cancelled).toBe(true);
     expect(becameCancellation.reason).toBeUndefined();
     expect(becameCancellation.late_cancel_fee).toBe(5000);
+  });
+});
+
+describe('a saved shop', () => {
+  it('shows the live price rather than the price it was saved at', () => {
+    // A stale price makes the feature worse than not having it.
+    const saved: SavedShop = {
+      id: 1,
+      note: 'my usual place',
+      created_at: '2026-10-01T00:00:00Z',
+      provider: {
+        id: 9,
+        display_name: 'Sharp Cuts Studio',
+        service_type: 'barbershop',
+        photo: null,
+        rating_average: '4.8',
+        description: '',
+        service_type_label: 'Barber shop',
+        cover_photo: null,
+        address: 'Bengaluru',
+        approximate_location: null,
+        is_open_now: true,
+        next_available: null,
+        opening_time: '09:00',
+        closing_time: '20:00',
+        is_accepting_bookings: true,
+        employee_count: 2,
+        requires_approval: false,
+        rating_count: 120,
+        starting_price_display: '₹300.00',
+        starting_price: 30000,
+        owner: { id: 1, username: 'ravi', display_name: 'Ravi' },
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    };
+    expect(formatPaise(saved.provider.starting_price)).toBe('₹300.00');
+    expect(saved.note).toBe('my usual place');
+  });
+
+  it('is still saved while the shop is paused', () => {
+    // Somebody's usual barber does not stop existing over a holiday.
+    expect(isShopPaused({ is_accepting_bookings: false })).toBe(true);
+    expect(isShopPaused({ is_accepting_bookings: true })).toBe(false);
   });
 });

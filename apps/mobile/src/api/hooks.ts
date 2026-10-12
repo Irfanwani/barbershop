@@ -21,6 +21,7 @@ import {
   paymentsApi,
   productsApi,
   providersApi,
+  savedShopsApi,
   reviewsApi,
   type ProviderSearch,
   type StaffHoursInput,
@@ -648,5 +649,26 @@ export function useRescheduleBooking() {
       acceptPriceChange?: boolean;
     }) => bookingsApi.reschedule(reference, starts_at, acceptPriceChange),
     onSuccess: () => void invalidate(),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Saved shops
+// ---------------------------------------------------------------------------
+
+export function useSavedShops() {
+  return useQuery({ queryKey: keys.savedShops, queryFn: savedShopsApi.list });
+}
+
+export function useToggleSavedShop() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ providerId, saved }: { providerId: number; saved: boolean }) =>
+      saved ? savedShopsApi.unsave(providerId) : savedShopsApi.save(providerId),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.savedShops });
+      // Search results carry `is_saved`, so the heart state changes there too.
+      void client.invalidateQueries({ queryKey: ['providers'] });
+    },
   });
 }

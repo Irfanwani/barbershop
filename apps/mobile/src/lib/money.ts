@@ -85,3 +85,14 @@ export function deadlineSummary(booking: {
 export function isUnnamed(member: Pick<StaffMember, 'is_placeholder' | 'name'>): boolean {
   return member.is_placeholder || member.name.trim().length === 0;
 }
+
+/**
+ * Whether a shop is currently taking bookings.
+ *
+ * A saved shop that is paused is still saved and still listed — greyed. It is
+ * how somebody knows to check back, which is the only thing that brings them
+ * back at all.
+ */
+export function isShopPaused(shop: { is_accepting_bookings: boolean }): boolean {
+  return !shop.is_accepting_bookings;
+}

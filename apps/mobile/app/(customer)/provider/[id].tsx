@@ -5,7 +5,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
-import { useAvailability, useCustomerProfile, useProvider, useReviews } from '@/api/hooks';
+import {
+  useAvailability,
+  useCustomerProfile,
+  useProvider,
+  useReviews,
+  useToggleSavedShop,
+} from '@/api/hooks';
 import { Badge, Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
 import { ReviewList } from '@/components/review-list';
 import { BookingSheet } from '@/components/booking-sheet';
@@ -85,13 +91,16 @@ export default function ProviderDetailScreen() {
           <View
             className="gap-3 rounded-3xl p-5"
             style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }}>
-            <View className="gap-1">
-              <Text className="text-2xl font-bold tracking-tight" style={{ color: colors.text }}>
-                {shop.display_name}
-              </Text>
-              <Text className="text-sm" style={{ color: colors.textMuted }}>
-                {shop.service_type_label} · {shop.address}
-              </Text>
+            <View className="flex-row items-start justify-between gap-3">
+              <View className="flex-1 gap-1">
+                <Text className="text-2xl font-bold tracking-tight" style={{ color: colors.text }}>
+                  {shop.display_name}
+                </Text>
+                <Text className="text-sm" style={{ color: colors.textMuted }}>
+                  {shop.service_type_label} · {shop.address}
+                </Text>
+              </View>
+              <SaveHeart providerId={shop.id} isSaved={shop.is_saved ?? false} />
             </View>
 
             <View className="flex-row items-center gap-4">
@@ -219,3 +228,23 @@ function formatClock(value: string): string {
 }
 
 export { Pressable };
+
+/**
+ * Save this shop.
+ *
+ * Tapping it twice is not an error the customer should see: the mutation is
+ * idempotent on the server, so the button simply flips back.
+ */
+function SaveHeart({ providerId, isSaved }: { providerId: number; isSaved: boolean }) {
+  const toggle = useToggleSavedShop();
+
+  return (
+    <Button
+      variant="ghost"
+      onPress={() => toggle.mutate({ providerId, saved: isSaved })}
+      loading={toggle.isPending}
+      testID={`save-shop-${providerId}`}>
+      {isSaved ? 'Saved' : 'Save'}
+    </Button>
+  );
+}

@@ -36,6 +36,7 @@ import type {
   User,
   WorkingHours,
   RescheduleRefused,
+  SavedShop,
   StaffMember,
   WaitlistEntry,
   WaitlistOffer,
@@ -47,6 +48,15 @@ import type {
  * `cancelled` means it fell inside the cancellation window and became a
  * cancellation instead — the honest outcome, not an error to hide.
  */
+export const savedShopsApi = {
+  list: () => api.get<SavedShop[]>('/me/saved-shops/'),
+
+  save: (providerId: number, note = '') =>
+    api.post<SavedShop>(`/me/saved-shops/${providerId}/`, { note }),
+
+  unsave: (providerId: number) => api.delete(`/me/saved-shops/${providerId}/`),
+};
+
 export interface StaffHoursInput {
   weekday: number;
   is_closed: boolean;

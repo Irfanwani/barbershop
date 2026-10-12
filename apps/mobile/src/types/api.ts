@@ -120,6 +120,10 @@ export interface ProviderSummary {
 }
 
 export interface ProviderListItem extends ProviderSummary {
+  /** Whether the shop is currently taking bookings at all. */
+  is_accepting_bookings: boolean;
+  /** Whether *this* customer has saved the shop. */
+  is_saved?: boolean;
   description: string;
   service_type_label: string;
   cover_photo: string | null;
@@ -133,6 +137,7 @@ export interface ProviderListItem extends ProviderSummary {
   requires_approval: boolean;
   rating_count: number;
   starting_price_display: string | null;
+  starting_price?: number | null;
   owner: { id: number; username: string; display_name: string };
   created_at: string;
   /** Only present when the search had an origin. */
@@ -151,6 +156,7 @@ export interface ProviderDetail extends ProviderListItem {
 export interface ProviderSelf {
   id: number;
   display_name: string;
+  is_accepting_bookings: boolean;
   description: string;
   service_type: ServiceType;
   photo: string | null;
@@ -162,7 +168,6 @@ export interface ProviderSelf {
   opening_time: string;
   closing_time: string;
   slot_interval_minutes: number;
-  is_accepting_bookings: boolean;
   requires_approval: boolean;
   rating_average: string;
   rating_count: number;
@@ -215,6 +220,19 @@ export interface WaitlistOffer {
   expires_at: string;
   seconds_left: number;
   can_accept: boolean;
+}
+
+/**
+ * A shop this customer saved.
+ *
+ * Carries the live shop fields, not a snapshot: a saved shop shows its
+ * current price and whether it is still taking bookings.
+ */
+export interface SavedShop {
+  id: number;
+  note: string;
+  created_at: string;
+  provider: ProviderListItem;
 }
 
 export interface StaffMember {
