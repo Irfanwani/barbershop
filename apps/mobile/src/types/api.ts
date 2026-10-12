@@ -470,6 +470,13 @@ export interface Booking {
   reference: string;
   provider: ProviderSummary;
   customer: { id: number; username: string; display_name: string };
+  /**
+   * Who did the job, frozen onto the booking. `null` for the shop itself.
+   *
+   * Not just a display name: a tip is attributed to this person, so the
+   * endpoint needs the id.
+   */
+  staff: { id: number; name: string; photo: string | null } | null;
   status: BookingStatus;
   starts_at: string;
   ends_at: string;

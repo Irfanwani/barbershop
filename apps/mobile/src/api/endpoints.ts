@@ -429,6 +429,22 @@ export const paymentsApi = {
   ) => api.post<Payment>('/payments/verify/', body, undefined, idempotencyKey),
 
   get: (orderId: string) => api.get<Payment>(`/payments/${orderId}/`),
+
+  /**
+   * Start a tip.
+   *
+   * Separate from the booking payment on purpose: a tip is not part of what
+   * the appointment cost, so it must not move the deposit split or the total.
+   */
+  createTipOrder: (bookingReference: string, amount: number, staff?: number) =>
+    api.post<{
+      payment: Payment;
+      razorpay: { key_id: string; order_id: string; amount: number; currency: string };
+      amount_display: string;
+    }>('/payments/bookings/' + bookingReference + '/tip/', {
+      amount,
+      ...(staff === undefined ? {} : { staff }),
+    }),
 };
 
 /** Which screen the app should open, given the account's state. */

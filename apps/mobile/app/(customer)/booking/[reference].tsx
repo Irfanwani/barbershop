@@ -7,7 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { errorMessage } from '@/api/client';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
 import { deadlineSummary, formatPaise, paymentSummary } from '@/lib/money';
-import { useBooking, useCancelBooking, useCreateOrder, useCreateReview } from '@/api/hooks';
+import {
+  useBooking,
+  useCancelBooking,
+  useCreateOrder,
+  useCreateReview,
+  useCreateTipOrder,
+} from '@/api/hooks';
 import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
 import { Field, FormError } from '@/components/field';
 import { formatRelative, formatWhen } from '@/components/booking-row';
@@ -27,6 +33,7 @@ export default function BookingDetailScreen() {
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [showTip, setShowTip] = useState(false);
 
   if (booking.isLoading) {
     return (
@@ -231,13 +238,22 @@ export default function BookingDetailScreen() {
         />
 
         {record.status === 'completed' ? (
-          <Button
-            variant="secondary"
-            icon="star-outline"
-            onPress={() => setShowReview(true)}
-            testID="booking-review">
-            Leave a review
-          </Button>
+          <View className="gap-2">
+            <Button
+              variant="secondary"
+              icon="star-outline"
+              onPress={() => setShowReview(true)}
+              testID="booking-review">
+              Leave a review
+            </Button>
+            <Button
+              variant="ghost"
+              icon="gift-outline"
+              onPress={() => setShowTip(true)}
+              testID="booking-tip">
+              Add a tip
+            </Button>
+          </View>
         ) : null}
 
         {record.notes ? (
@@ -248,6 +264,15 @@ export default function BookingDetailScreen() {
           </Card>
         ) : null}
       </ScrollView>
+
+      {showTip ? (
+        <TipSheet
+          reference={record.reference}
+          staffId={record.staff?.id ?? null}
+          onClose={() => setShowTip(false)}
+          onDone={() => setShowTip(false)}
+        />
+      ) : null}
 
       {showReview ? (
         <ReviewSheet
@@ -341,6 +366,103 @@ function ReviewSheet({
 
         <Button onPress={submit} loading={create.isPending} testID="review-submit">
           Post review
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A tip on a finished appointment.
+ *
+ * Presented beside "leave a review" because that is the moment somebody is
+ * thinking about the person who just cut their hair, and a tip asked for
+ * somewhere else is a tip that never arrives.
+ */
+function TipSheet({
+  reference,
+  staffId,
+  onClose,
+  onDone,
+}: {
+  reference: string;
+  staffId: number | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const tip = useCreateTipOrder();
+  const booking = useBooking(reference);
+
+  const [amount, setAmount] = useState(5000);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null);
+    try {
+      const result = await tip.mutateAsync({
+        reference,
+        amount,
+        ...(staffId === null ? {} : { staff: staffId }),
+      });
+      const razorpay = (result as { razorpay?: { key_id: string; order_id: string } })?.razorpay;
+      if (!razorpay) throw new Error('missing checkout details');
+      const { default: RazorpayCheckout } = await import('react-native-razorpay');
+      await RazorpayCheckout.open({ key: razorpay.key_id, order_id: razorpay.order_id });
+      await booking.refetch();
+      onDone();
+    } catch (caught) {
+      setError(errorMessage(caught, 'Could not send that tip.'));
+    }
+  }
+
+  return (
+    <View className="absolute inset-0 justify-end" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <View
+        className="gap-4 rounded-t-3xl p-5"
+        style={{ backgroundColor: colors.background, paddingBottom: insets.bottom + 24 }}>
+        <View className="flex-row items-center justify-between">
+          <Text className="text-lg font-semibold" style={{ color: colors.text }}>
+            Add a tip
+          </Text>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+            <Ionicons name="close" size={22} color={colors.textMuted} />
+          </Pressable>
+        </View>
+
+        <Text className="text-sm" style={{ color: colors.textMuted }}>
+          The whole amount goes to {booking.data?.staff?.name ?? 'the shop'} - the platform takes no
+          cut of a tip.
+        </Text>
+
+        <View className="flex-row flex-wrap gap-2">
+          {[2000, 5000, 10000, 20000].map((value) => (
+            <Pressable
+              key={value}
+              onPress={() => setAmount(value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: amount === value }}
+              testID={`tip-amount-${value}`}>
+              <View
+                className="rounded-full px-4 py-2"
+                style={{
+                  backgroundColor: amount === value ? colors.accent : colors.surface,
+                }}>
+                <Text
+                  className="text-sm font-medium"
+                  style={{ color: amount === value ? colors.accentText : colors.text }}>
+                  {formatPaise(value)}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        <FormError message={error} />
+
+        <Button onPress={submit} loading={tip.isPending} testID="tip-submit">
+          Send {formatPaise(amount)}
         </Button>
       </View>
     </View>

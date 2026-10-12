@@ -776,7 +776,7 @@ and visible on the provider's booking detail.
 
 ## P4.3 Tips
 
-**Status:** done (backend); app screen outstanding
+**Status:** done
 
 Universal in this category, absent here. Complicated by our fee model — a tip
 is not part of the booking total, so it must not touch the platform fee.
@@ -786,7 +786,23 @@ is not part of the booking total, so it must not touch the platform fee.
 - Provider sees per-barber tips, and they are excluded from the fee
 
 **Acceptance:** a tip is paid once, recorded against the staff member, and
-never counted as platform revenue — tested, 16 tests.
+never counted as platform revenue — tested, 21 tests.
+
+**Offered where the review is**, on the screen for an appointment that already
+happened. That is the only moment somebody is thinking about the person who just
+cut their hair, and a tip asked for somewhere else is a tip that never arrives.
+It does not appear on a booking that has not happened.
+
+**A partial capture is not possible here.** `capture()` is one transaction, so a
+failure while recording the tip rolls the payment status back as well. Checked
+rather than assumed: a test fails the second half on purpose and asserts
+nothing was left captured, then asserts the retry afterwards still pays out.
+
+**What it did find**, one layer down: `capture()` returned early when the object
+in hand said captured, but a rolled-back attempt leaves that object still
+claiming it was while the row says otherwise. A retry holding the same instance
+skipped the work entirely — captured payment, no tip, nobody credited. It now
+re-reads the status, costing a query only on the retry path.
 
 **A tip is not part of what the appointment cost**, and almost everything here
 follows from refusing to pretend otherwise. It does not touch the booking's

@@ -418,6 +418,21 @@ export function useCreateOrder() {
   return useMutation({ mutationFn: paymentsApi.createOrder });
 }
 
+/**
+ * Start a tip on a finished appointment.
+ *
+ * A tip is paid through Razorpay on its own order rather than folded into the
+ * booking, so the appointment's total and deposit split stay exactly as they
+ * were and the provider is credited the whole amount.
+ */
+export function useCreateTipOrder() {
+  const invalidate = useInvalidateBookings();
+  return useIdempotentMutation<{ reference: string; amount: number; staff?: number }, unknown>(
+    ({ reference, amount, staff }) => paymentsApi.createTipOrder(reference, amount, staff),
+    { onSuccess: () => invalidate() },
+  );
+}
+
 export function useVerifyPayment() {
   const invalidate = useInvalidateBookings();
   return useIdempotentMutation<Parameters<typeof paymentsApi.verify>[0], unknown>(
