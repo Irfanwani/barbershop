@@ -62,6 +62,7 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/bookings/waitlist/offers/{id}/accept/",
     "/api/v1/bookings/waitlist/offers/{id}/decline/",
     "/api/v1/bookings/waitlist/{id}/",
+    "/api/v1/me/notification-preferences/",
     "/api/v1/me/saved-shops/",
     "/api/v1/me/saved-shops/{provider_id}/",
     "/api/v1/providers/me/staff/",

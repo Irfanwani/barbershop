@@ -11,6 +11,7 @@ from accounts.views import (
     ChangePasswordView,
     CustomerProfileView,
     MeView,
+    NotificationPreferencesView,
     ProviderProfileCreateView,
     ProviderProfileView,
     SavedShopsView,
@@ -25,6 +26,11 @@ app_name = "me"
 
 urlpatterns = [
     path("", MeView.as_view(), name="me"),
+    path(
+        "notification-preferences/",
+        NotificationPreferencesView.as_view(),
+        name="notification-preferences",
+    ),
     path("saved-shops/", SavedShopsView.as_view(), name="saved-shops"),
     path(
         "saved-shops/<int:provider_id>/",

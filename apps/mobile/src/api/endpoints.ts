@@ -48,6 +48,16 @@ import type {
  * `cancelled` means it fell inside the cancellation window and became a
  * cancellation instead — the honest outcome, not an error to hide.
  */
+export const notificationPreferencesApi = {
+  get: () =>
+    api.get<{ preferences: Record<string, boolean> }>('/me/notification-preferences/'),
+
+  put: (preferences: Record<string, boolean>) =>
+    api.put<{ preferences: Record<string, boolean> }>('/me/notification-preferences/', {
+      preferences,
+    }),
+};
+
 export const savedShopsApi = {
   list: () => api.get<SavedShop[]>('/me/saved-shops/'),
 

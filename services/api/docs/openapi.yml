@@ -1005,6 +1005,53 @@ paths:
                       details: null
                   summary: Well-formed, but not allowed right now
           description: Malformed request, or one that breaks a business rule
+  /api/v1/me/notification-preferences/:
+    get:
+      operationId: accounts_notification_preferences
+      description: Every category, with the effective answer for this account.
+      summary: Your notification preferences
+      tags:
+      - me
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    put:
+      operationId: accounts_update_notification_preferences
+      description: Send only the categories you are changing. Booking confirmations
+        and messages cannot be switched off, whatever is sent.
+      summary: Change your notification preferences
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferencesRequest'
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/me/saved-shops/:
     get:
       operationId: accounts_saved_shops
@@ -8753,6 +8800,18 @@ components:
       required:
       - identifier
       - password
+    NotificationPreferencesRequest:
+      type: object
+      description: |-
+        One account's answer for every category.
+
+        Returns every key rather than only the ones with a stored opinion, so the
+        client never has to know the defaults to render the screen.
+      properties:
+        preferences:
+          type: object
+          additionalProperties:
+            type: boolean
     Order:
       type: object
       properties:

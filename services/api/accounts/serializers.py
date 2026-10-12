@@ -9,7 +9,15 @@ from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from accounts.models import CustomerProfile, LoginAudit, PushToken, Role, SavedShop, User
+from accounts.models import (
+    DEFAULT_PREFERENCES,
+    CustomerProfile,
+    LoginAudit,
+    PushToken,
+    Role,
+    SavedShop,
+    User,
+)
 from providers.models import ProviderProfile
 
 # ---------------------------------------------------------------------------
@@ -332,3 +340,23 @@ class SaveShopSerializer(serializers.Serializer):
     """Saving a shop. The note is optional; everything else is in the path."""
 
     note = serializers.CharField(required=False, allow_blank=True, max_length=120, default="")
+
+
+class NotificationPreferencesSerializer(serializers.Serializer):
+    """One account's answer for every category.
+
+    Returns every key rather than only the ones with a stored opinion, so the
+    client never has to know the defaults to render the screen.
+    """
+
+    preferences = serializers.DictField(
+        child=serializers.BooleanField(), allow_empty=False, required=False
+    )
+
+    def validate_preferences(self, value: dict) -> dict:
+        unknown = set(value) - set(DEFAULT_PREFERENCES)
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown notification categories: {', '.join(sorted(unknown))}."
+            )
+        return value

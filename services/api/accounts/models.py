@@ -295,3 +295,107 @@ class SavedShop(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.customer} saved {self.provider}"
+
+
+class NotificationKey(models.TextChoices):
+    """The things this account can be told about.
+
+    The same keys the app's settings screen shows. A booking confirmation is
+    not the same category as "a new shop opened near you", and treating them
+    the same is how notifications get muted wholesale — which then costs us
+    the booking confirmations too.
+    """
+
+    BOOKING_CONFIRMATIONS = "bookingConfirmations", "Booking confirmations"
+    BOOKING_REMINDERS = "bookingReminders", "Reminders"
+    BOOKING_CHANGES = "bookingChanges", "Requests and messages"
+    OFFERS_AND_PROMOTIONS = "offersAndPromotions", "Offers and promotions"
+    NEW_SHOPS_NEARBY = "newShopsNearby", "New shops nearby"
+    PRODUCT_NEWS = "productNews", "Product news"
+
+
+#: Off unless the account says otherwise. Nothing may be opted in on the
+#: user's behalf, which is the only way a preferences screen is trustworthy.
+DEFAULT_PREFERENCES: dict[str, bool] = {
+    NotificationKey.BOOKING_CONFIRMATIONS: True,
+    NotificationKey.BOOKING_REMINDERS: True,
+    NotificationKey.BOOKING_CHANGES: True,
+    NotificationKey.OFFERS_AND_PROMOTIONS: False,
+    NotificationKey.NEW_SHOPS_NEARBY: False,
+    NotificationKey.PRODUCT_NEWS: False,
+}
+
+#: The two keys a provider cannot switch off, whatever the account says.
+#:
+#: A cancellation notice is not marketing. Letting someone opt out of being
+#: told their own appointment was cancelled would be a bug with a settings
+#: screen in front of it.
+REQUIRED_KEYS = {NotificationKey.BOOKING_CONFIRMATIONS, NotificationKey.BOOKING_CHANGES}
+
+
+class NotificationPreference(TimeStampedModel):
+    """One account's answer for one category.
+
+    Per key rather than one blob, so the reminder task can ask "who wants
+    reminders?" in a query instead of loading every account and reading JSON.
+
+    A row means "this account has an opinion". No row means the default
+    applies, which is what every existing account should keep.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_preferences"
+    )
+    key = models.CharField(max_length=32, choices=NotificationKey.choices)
+    enabled = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "accounts_notification_preference"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "key"], name="accounts_notifpref_unique"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user} · {self.key}={'on' if self.enabled else 'off'}"
+
+
+def notification_preferences(user) -> dict[str, bool]:
+    """This account's effective answer for every category.
+
+    One query. The task that sends reminders runs over every booking due, so
+    it cannot afford to load a preference row per booking per person.
+    """
+    stored = dict(NotificationPreference.objects.filter(user=user).values_list("key", "enabled"))
+    return {
+        str(key): bool(stored.get(str(key), default))
+        for key, default in DEFAULT_PREFERENCES.items()
+    }
+
+
+def wants_notification(user, key) -> bool:
+    """Whether this account has agreed to be told about one thing.
+
+    Required categories are always on. An account with no stored opinion gets
+    the default.
+    """
+    if key in REQUIRED_KEYS:
+        return True
+    stored = NotificationPreference.objects.filter(user=user, key=key).first()
+    if stored is None:
+        return DEFAULT_PREFERENCES.get(key, False)
+    return stored.enabled
+
+
+def set_notification_preferences(user, wanted: dict[str, bool]) -> dict[str, bool]:
+    """Record an account's answers, ignoring any attempt to mute a required one."""
+    for key, value in wanted.items():
+        if key not in DEFAULT_PREFERENCES:
+            continue
+        # Silently forced on rather than refused: the screen shows it as locked,
+        # so a client sending false for it is out of date, not malicious.
+        enabled = True if key in REQUIRED_KEYS else bool(value)
+        NotificationPreference.objects.update_or_create(
+            user=user, key=key, defaults={"enabled": enabled}
+        )
+
+    return notification_preferences(user)

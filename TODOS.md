@@ -588,7 +588,7 @@ completion, not on booking.
 
 ## P3.5 Push preferences synced to the server
 
-**Status:** todo
+**Status:** done
 
 A real inconsistency today: the mobile app keeps notification preferences in
 AsyncStorage, while the backend already has `reminders_enabled` and
@@ -601,7 +601,30 @@ motivated the single-app rebuild.
 - Reminder tasks already read the profile; this makes the app agree with them
 
 **Acceptance:** switching off on one device changes the other on next fetch;
-the reminder task and the settings screen cannot disagree.
+the reminder task and the settings screen cannot disagree — all tested.
+
+**Six categories, not two.** The app had six granular switches and the
+server had two coarse flags, which is a mapping nobody could implement
+honestly. Both are now six, stored per key, so "reminders" means one thing
+in both places.
+
+**A row means the account has an opinion; no row means the default.** Every
+existing account keeps what it had, and nothing is opted in on anyone's
+behalf.
+
+**Booking confirmations and messages cannot be switched off**, whatever is
+sent. Letting someone opt out of being told their own appointment was
+cancelled would be a bug with a settings screen in front of it.
+
+**The coarse profile flags are rewritten from the granular answer**, because
+the reminder task filters on `reminders_enabled` in several places. Two
+sources of truth would drift again the moment a new caller appeared.
+
+**In the app** the store is now a cache: switches render instantly and work
+offline, every change writes through, and the server's answer replaces the
+cache wholesale whenever it answers. The screen says "Syncing with your
+account…" until it has, because a switch that is confidently wrong is worse
+than one that admits it is guessing.
 
 ## P3.6 Two-way WhatsApp confirmations
 

@@ -10,6 +10,7 @@ import logging
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from knox.models import AuthToken
 from knox.views import (
@@ -31,11 +32,14 @@ from accounts.email import (
 from accounts.models import (
     CustomerProfile,
     LoginAudit,
+    NotificationKey,
     PushToken,
     Role,
     SavedShop,
     User,
     VerificationCode,
+    notification_preferences,
+    set_notification_preferences,
 )
 from accounts.serializers import (
     AccountStateSerializer,
@@ -43,6 +47,7 @@ from accounts.serializers import (
     CustomerProfileSerializer,
     LoginAuditSerializer,
     LoginSerializer,
+    NotificationPreferencesSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     PushTokenSerializer,
@@ -808,3 +813,74 @@ class SavedShopView(APIView):
     def delete(self, request, provider_id: int):
         SavedShop.objects.filter(customer=request.user, provider_id=provider_id).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationPreferencesView(APIView):
+    """Which notifications this account has agreed to.
+
+    The server is the answer; the device is a cache of it. They used to
+    disagree — the app kept preferences in local storage while the reminder
+    task read flags on the profile — so somebody who turned reminders off on
+    one phone kept getting them on another, which is exactly the complaint
+    that caused the single-app rebuild in the first place.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="accounts_notification_preferences",
+        summary="Your notification preferences",
+        description="Every category, with the effective answer for this account.",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        return Response({"preferences": notification_preferences(request.user)})
+
+    @extend_schema(
+        operation_id="accounts_update_notification_preferences",
+        summary="Change your notification preferences",
+        description=(
+            "Send only the categories you are changing. Booking confirmations "
+            "and messages cannot be switched off, whatever is sent."
+        ),
+        request=NotificationPreferencesSerializer,
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def put(self, request):
+        body = NotificationPreferencesSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+
+        updated = set_notification_preferences(
+            request.user, body.validated_data.get("preferences", {})
+        )
+
+        # The coarse profile flags now agree with the granular answer, so the
+        # reminder task and this screen cannot drift apart again.
+        sync_profile_flags(request.user, updated)
+
+        return Response({"preferences": updated})
+
+
+def sync_profile_flags(user, preferences: dict[str, bool]) -> None:
+    """Keep the profile's coarse flags in step with the granular answer.
+
+    The reminder task already filters on `reminders_enabled`. Rewriting the
+    task to read per-key preferences would be the tidier fix, but these flags
+    are read in several places and the two would then disagree whenever an
+    account predates the granular rows.
+    """
+    from accounts.models import CustomerProfile
+
+    changes = {}
+    if NotificationKey.BOOKING_REMINDERS in preferences:
+        changes["reminders_enabled"] = preferences[NotificationKey.BOOKING_REMINDERS]
+    if NotificationKey.OFFERS_AND_PROMOTIONS in preferences:
+        changes["marketing_enabled"] = preferences[NotificationKey.OFFERS_AND_PROMOTIONS]
+
+    if not changes:
+        return
+
+    for profile in (CustomerProfile, ProviderProfile):
+        updated = profile.objects.filter(user=user).update(**changes)
+        if updated and profile is ProviderProfile:
+            return

@@ -7,8 +7,16 @@
  * category as "a new shop opened near you", and treating them the same is how
  * notifications get muted wholesale.
  *
- * Kept on the device for now and synced when the API grows the endpoint; the
- * store is written so that swapping the backing store is a one-file change.
+ * The **server is the answer**. This store is a cache of it, so switching
+ * reminders off on one phone switches them off on the other. They used to
+ * disagree — the app kept preferences here while the reminder task read flags
+ * on the profile — so somebody who turned reminders off on one phone kept
+ * getting them on another, which is exactly the complaint that caused the
+ * single-app rebuild in the first place.
+ *
+ * Cached locally so the switches render instantly and still work offline. The
+ * cache is written back to the server on every change, and replaced wholesale
+ * whenever the server answers.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -80,9 +88,13 @@ const DEFAULTS = Object.fromEntries(
 interface NotificationState {
   preferences: NotificationPreferences;
   hydrated: boolean;
+  /** True once the server has answered. Before that, this is a guess. */
+  synced: boolean;
   isEnabled: (key: NotificationKey) => boolean;
   set: (key: NotificationKey, enabled: boolean) => void;
   hydrate: () => Promise<void>;
+  /** Replace the cache with the server's answer. */
+  acceptFromServer: (preferences: Partial<NotificationPreferences>) => void;
 }
 
 export const useNotificationPreferencesStore = create<NotificationState>()(
@@ -90,6 +102,7 @@ export const useNotificationPreferencesStore = create<NotificationState>()(
     (set, get) => ({
       preferences: DEFAULTS,
       hydrated: false,
+      synced: false,
 
       isEnabled: (key) => {
         // Default to on for anything the store has not seen, so a partial or
@@ -100,9 +113,18 @@ export const useNotificationPreferencesStore = create<NotificationState>()(
       set: (key, enabled) => {
         const entry = NOTIFICATION_CATALOGUE.find((item) => item.key === key);
         if (entry?.required && !enabled) return;
+
+        // Optimistic, then reconciled. A switch that waits for a round trip
+        // feels broken; a switch that never reconciles is the bug this whole
+        // change is about.
         set((state) => ({
           preferences: { ...state.preferences, [key]: enabled },
         }));
+        void pushToServer({ [key]: enabled });
+      },
+
+      acceptFromServer: (preferences) => {
+        set({ preferences: { ...DEFAULTS, ...preferences }, synced: true });
       },
 
       async hydrate() {
@@ -119,6 +141,23 @@ export const useNotificationPreferencesStore = create<NotificationState>()(
     },
   ),
 );
+
+async function pushToServer(preferences: Partial<NotificationPreferences>) {
+  try {
+    const { notificationPreferencesApi } = await import('@/api/endpoints');
+    const body = await notificationPreferencesApi.put(
+      preferences as Record<string, boolean>,
+    );
+    // Take the server's answer rather than assuming ours was accepted: a
+    // required category stays on whatever we sent.
+    useNotificationPreferencesStore
+      .getState()
+      .acceptFromServer(body.preferences as Partial<NotificationPreferences>);
+  } catch {
+    // Offline, or the session expired. The cache keeps working and the next
+    // sync reconciles it.
+  }
+}
 
 /** Read a preference outside React — used by the push registration helper. */
 export function notificationEnabled(key: NotificationKey): boolean {

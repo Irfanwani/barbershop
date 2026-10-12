@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -11,6 +11,7 @@ import {
   NOTIFICATION_CATALOGUE,
   useNotificationPreferencesStore,
 } from '@/store/notification-preferences';
+import { useNotificationPreferences } from '@/api/hooks';
 
 /**
  * Security and notifications.
@@ -125,9 +126,27 @@ function NotificationSettings() {
   const colors = useColors();
   const preferences = useNotificationPreferencesStore((state) => state.preferences);
   const setPreference = useNotificationPreferencesStore((state) => state.set);
+  const synced = useNotificationPreferencesStore((state) => state.synced);
+
+  // Pull the server's answer whenever this screen is opened, so a change made
+  // on another phone is reflected before anybody touches a switch.
+  const { data } = useNotificationPreferences();
+  const acceptFromServer = useNotificationPreferencesStore((state) => state.acceptFromServer);
+
+  useEffect(() => {
+    if (data?.preferences) {
+      acceptFromServer(data.preferences as Partial<typeof preferences>);
+    }
+  }, [data, acceptFromServer]);
 
   return (
     <View className="gap-2">
+      {!synced ? (
+        <Text className="text-xs" style={{ color: colors.textSubtle }}>
+          Syncing with your account…
+        </Text>
+      ) : null}
+
       <Text
         className="text-xs font-semibold uppercase tracking-wide"
         style={{ color: colors.textSubtle }}>

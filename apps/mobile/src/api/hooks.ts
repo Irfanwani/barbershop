@@ -20,6 +20,7 @@ import {
   ordersApi,
   paymentsApi,
   productsApi,
+  notificationPreferencesApi,
   providersApi,
   savedShopsApi,
   reviewsApi,
@@ -670,5 +671,15 @@ export function useToggleSavedShop() {
       // Search results carry `is_saved`, so the heart state changes there too.
       void client.invalidateQueries({ queryKey: ['providers'] });
     },
+  });
+}
+
+export function useNotificationPreferences() {
+  // Not cached forever: the whole point is that another device can change this,
+  // and a stale answer would silently undo what they did.
+  return useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: notificationPreferencesApi.get,
+    staleTime: 60_000,
   });
 }
