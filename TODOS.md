@@ -750,7 +750,7 @@ and visible on the provider's booking detail.
 
 ## P4.3 Tips
 
-**Status:** todo
+**Status:** done (backend); app screen outstanding
 
 Universal in this category, absent here. Complicated by our fee model — a tip
 is not part of the booking total, so it must not touch the platform fee.
@@ -760,7 +760,31 @@ is not part of the booking total, so it must not touch the platform fee.
 - Provider sees per-barber tips, and they are excluded from the fee
 
 **Acceptance:** a tip is paid once, recorded against the staff member, and
-never counted as platform revenue.
+never counted as platform revenue — tested, 16 tests.
+
+**A tip is not part of what the appointment cost**, and almost everything here
+follows from refusing to pretend otherwise. It does not touch the booking's
+total, the deposit split, or the booking's status. Folding it into the total
+would move all three, plus anything measured off "total" — and a completed
+appointment would look like it had not been paid.
+
+**A separate payment and a separate order.** The booking is already paid and
+closed; moving money on it again is the thing to avoid.
+
+**The provider keeps all of it.** One ledger entry, no fee line. A percentage
+on somebody's thank-you is not a fee. There is a test that tips ₹1000 and
+asserts the provider's balance goes up by 1000 rather than 990 — so the
+decision is written down rather than assumed.
+
+**One tip per booking**, from a constraint that already existed for every other
+payment kind. It protects against a retried flow charging twice, and a second
+tip is better made on the next appointment than by loosening something every
+payment relies on.
+
+**Grouped by barber**, because a figure for the shop as a whole cannot be acted
+on by the person whose chair it was.
+
+**Still to do:** no app screen to leave one.
 
 ## P4.4 Promo and discount codes
 

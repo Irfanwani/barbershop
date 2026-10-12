@@ -7556,6 +7556,60 @@ paths:
                 required:
                 - error
           description: No such resource, or not yours to see. Deliberately indistinguishable.
+  /api/v1/payments/bookings/{reference}/tip/:
+    post:
+      operationId: payments_create_tip
+      description: Only on an appointment that actually happened.
+      summary: Start a tip
+      parameters:
+      - in: path
+        name: reference
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TipOrderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TipOrderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TipOrderRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/payments/me/tips/:
+    get:
+      operationId: payments_my_tips
+      description: Grouped by the person they were for, most recent first.
+      summary: Tips received
+      tags:
+      - payments
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/payments/{order_id}/:
     get:
       operationId: payments_retrieve
@@ -10409,6 +10463,24 @@ components:
             $ref: '#/components/schemas/StaffWorkingHoursRequest'
       required:
       - name
+    TipOrderRequest:
+      type: object
+      description: |-
+        How much to tip, and who it is for.
+
+        An amount is sent, unlike every other payment endpoint, because there is no
+        server figure to compute: a tip has no owed balance behind it. The bound is
+        a sanity check, not a rule — refusing a large tip would be absurd.
+      properties:
+        amount:
+          type: integer
+          maximum: 1000000
+          minimum: 1
+        staff:
+          type: integer
+          nullable: true
+      required:
+      - amount
     VerifyEmailRequest:
       type: object
       properties:

@@ -14,3 +14,7 @@ class PaymentKind(models.TextChoices):
     DEPOSIT = "deposit", "Deposit"
     BALANCE = "balance", "Balance"
     FULL = "full", "Paid in full"
+    #: Not part of what is owed for the appointment. A tip is a separate act
+    #: of generosity, and folding it into the booking total would let it move
+    #: the deposit split, the platform fee, and anything measured off "total".
+    TIP = "tip", "Tip"

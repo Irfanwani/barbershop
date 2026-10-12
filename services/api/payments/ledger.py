@@ -38,6 +38,7 @@ class EntryKind:
     PLATFORM_FEE = "platform_fee"
     REFUND = "refund"
     LATE_CANCEL_FEE = "late_cancel_fee"
+    TIP = "tip"
     PAYOUT = "payout"
     ADJUSTMENT = "adjustment"
 
@@ -130,6 +131,35 @@ def credit_earning(provider: ProviderProfile, *, gross: int, booking_reference: 
             description="BarberShop fee",
         )
     logger.info("Credited %s to %s for %s", fee, provider.display_name, booking_reference)
+
+
+def credit_tip(
+    provider: ProviderProfile,
+    *,
+    gross: int,
+    staff_name: str = "",
+    booking_reference: str = "",
+) -> None:
+    """Record a tip as money the provider has earned, in full.
+
+    One entry, and **no fee line**, because a tip is not platform revenue.
+    Charging a percentage on somebody's thank-you is the kind of thing a
+    marketplace does once and is never forgiven for.
+
+    The booking's own total is untouched: a tip is a separate payment against a
+    completed appointment, not an adjustment to what the appointment cost.
+    """
+    from payments.models import LedgerEntry
+
+    LedgerEntry.objects.create(
+        provider=provider,
+        kind=EntryKind.TIP,
+        amount=gross,
+        currency="INR",
+        status=LedgerEntry.Status.CLEARED,
+        reference=f"{booking_reference}:tip" if booking_reference else "",
+        description=f"Tip{f' for {staff_name}' if staff_name else ''}",
+    )
 
 
 def _fee_for(gross: int) -> int:

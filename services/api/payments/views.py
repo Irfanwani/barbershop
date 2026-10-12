@@ -20,6 +20,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -28,12 +29,14 @@ from rest_framework.views import APIView
 
 from bookings.models import Booking, BookingStatus
 from bookings.serializers import BookingSerializer
+from bookings.views import visible_bookings
 from core.exceptions import BusinessRuleViolation
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, UNAUTHORIZED
+from payments.choices import PaymentKind
 from payments.due import amount_due, default_kind, requested_kind
 from payments.idempotency import idempotent
-from payments.models import Payment, PaymentStatus
+from payments.models import Payment, PaymentStatus, Tip
 from payments.refunds import reconcile
 from payments.serializers import (
     CreateOrderSerializer,
@@ -48,6 +51,7 @@ from payments.services import (
     verify_payment_signature,
     verify_webhook_signature,
 )
+from providers.models import ProviderProfile, Staff
 
 #: Refunds are initiated synchronously but settle asynchronously, so these
 #: have to be handled or a refund that succeeded looks like one still owed.
@@ -456,6 +460,14 @@ def capture(payment: Payment, payment_id: str, signature: str) -> Payment:
     )
 
     booking = payment.booking
+
+    if payment.kind == PaymentKind.TIP:
+        # A tip is not part of the appointment's price, so the booking's total,
+        # deposit split and status are all left exactly as they were. It credits
+        # the provider in full and is recorded separately.
+        _record_tip(payment, booking)
+        return payment
+
     if booking.status == BookingStatus.PENDING_PAYMENT:
         booking.status = (
             BookingStatus.AWAITING_CONFIRMATION
@@ -467,7 +479,175 @@ def capture(payment: Payment, payment_id: str, signature: str) -> Payment:
     return payment
 
 
+def _record_tip(payment: Payment, booking) -> None:
+    """Attach the money to a person and credit the provider, fee-free.
+
+    Guarded by the payment's own state, so a webhook retry cannot produce a
+    second tip row or a second credit.
+    """
+    from payments.models import Tip
+
+    if Tip.objects.filter(payment=payment).exists():
+        return
+
+    Tip.objects.create(
+        booking=booking,
+        customer=booking.customer,
+        provider=booking.provider,
+        staff=booking.staff,
+        payment=payment,
+        amount=payment.amount,
+    )
+
+    from payments.ledger import credit_tip
+
+    credit_tip(
+        booking.provider,
+        gross=payment.amount,
+        staff_name=booking.staff.name if booking.staff else "",
+        booking_reference=booking.reference,
+    )
+
+
 def format_minor_amount(amount: int, currency: str) -> str:
     from core.money import format_minor
 
     return format_minor(amount, currency)
+
+
+class TipOrderSerializer(serializers.Serializer):
+    """How much to tip, and who it is for.
+
+    An amount is sent, unlike every other payment endpoint, because there is no
+    server figure to compute: a tip has no owed balance behind it. The bound is
+    a sanity check, not a rule — refusing a large tip would be absurd.
+    """
+
+    amount = serializers.IntegerField(min_value=1, max_value=1_000_000)
+    staff = serializers.IntegerField(required=False, allow_null=True)
+
+
+class CreateTipOrderView(APIView):
+    """Start a tip payment on a finished appointment.
+
+    A separate order from the booking, on purpose. The booking is already paid
+    and closed, and folding a tip into it would mean moving money that has
+    already been accounted for.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="payments_create_tip",
+        summary="Start a tip",
+        description="Only on an appointment that actually happened.",
+        request=TipOrderSerializer,
+        responses={201: OpenApiTypes.OBJECT},
+    )
+    def post(self, request, reference: str):
+        body = TipOrderSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+
+        booking = get_object_or_404(
+            Booking.objects.filter(visible_bookings(request.user)).select_related(
+                "provider", "provider__user", "staff", "customer"
+            ),
+            reference=reference,
+        )
+
+        if booking.status != BookingStatus.COMPLETED:
+            raise BusinessRuleViolation("You can only tip once the appointment has happened.")
+
+        staff = None
+        if body.validated_data.get("staff") is not None:
+            staff = Staff.objects.filter(
+                pk=body.validated_data["staff"], provider=booking.provider, is_active=True
+            ).first()
+            if staff is None:
+                raise BusinessRuleViolation("That person does not work at this shop.")
+
+        amount = body.validated_data["amount"]
+
+        if not credentials_configured():
+            raise BusinessRuleViolation("Payments are not configured on this server yet.")
+
+        try:
+            order = create_order(
+                amount=amount,
+                currency=booking.currency,
+                receipt=booking.reference,
+                notes={"booking": booking.reference, "kind": PaymentKind.TIP},
+            )
+        except Exception as exc:
+            logger.exception("Tip order creation failed for %s", booking.reference)
+            raise BusinessRuleViolation(
+                "We could not start the payment. Please try again in a moment."
+            ) from exc
+
+        payment = Payment.objects.create(
+            booking=booking,
+            kind=PaymentKind.TIP,
+            amount=amount,
+            currency=booking.currency,
+            status=PaymentStatus.CREATED,
+            razorpay_order_id=order["id"],
+        )
+        # The barber is remembered on the payment as well as the tip, because
+        # the tip row is only written at capture and the provider's screen must
+        # show what is pending.
+        payment.staff = staff
+        payment.save(update_fields=["staff", "updated_at"])
+
+        return Response(
+            {
+                "payment_id": payment.pk,
+                "razorpay_order_id": order["id"],
+                "amount": amount,
+                "amount_display": format_minor_amount(amount, booking.currency),
+                "currency": booking.currency,
+                "staff": staff.name if staff else None,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class TipListView(APIView):
+    """Tips a shop has received, per barber.
+
+    Per barber because that is the question being asked. A figure for the shop
+    as a whole cannot be acted on by the person whose chair it was.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="payments_my_tips",
+        summary="Tips received",
+        description="Grouped by the person they were for, most recent first.",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        provider = get_object_or_404(ProviderProfile, user=request.user)
+
+        tips = Tip.objects.filter(provider=provider).select_related("staff", "customer")
+
+        grouped: dict[str, dict] = {}
+        total = 0
+        for tip in tips:
+            key = tip.staff.name if tip.staff else "The shop"
+            row = grouped.setdefault(
+                key, {"who": key, "count": 0, "total": 0, "total_display": "₹0"}
+            )
+            row["count"] += 1
+            row["total"] += tip.amount
+            total += tip.amount
+
+        return Response(
+            {
+                "total": total,
+                "total_display": format_minor_amount(total, "INR"),
+                "by_staff": sorted(grouped.values(), key=lambda row: -row["total"]),
+                # Stated so nobody assumes it is being skimmed.
+                "platform_fee_taken": 0,
+            }
+        )

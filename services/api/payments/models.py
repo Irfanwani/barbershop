@@ -119,6 +119,18 @@ class Payment(TimeStampedModel):
         help_text="Which part of what is owed this charge settles.",
     )
 
+    #: For a tip, which barber it is for. Nullable, and meaningless for every
+    #: other kind. Carried on the payment rather than only on the tip because
+    #: the tip row is written at capture, and the provider's screen has to show
+    #: what is still pending.
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payments",
+    )
+
     razorpay_order_id = models.CharField(max_length=64, unique=True, db_index=True)
     razorpay_payment_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
     razorpay_signature = models.CharField(max_length=256, blank=True, default="")
@@ -230,3 +242,47 @@ class IdempotencyRecord(models.Model):
     @property
     def age_seconds(self) -> float:
         return (timezone.now() - self.created_at).total_seconds()
+
+
+class Tip(TimeStampedModel):
+    """A tip on a completed appointment.
+
+    Separate from the booking on purpose. A tip is not part of what the
+    appointment cost, so it must not touch ``total``, the deposit split, or
+    anything measured off the total. It is also not credited to the provider as
+    revenue to which the platform takes a percentage: a fee on somebody's
+    thank-you is the kind of thing a marketplace does once and is never
+    forgiven for.
+
+    One row per payment. A ``OneToOne`` on the payment, so "a tip is paid once"
+    is a database statement rather than a convention.
+    """
+
+    booking = models.ForeignKey("bookings.Booking", on_delete=models.CASCADE, related_name="tips")
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tips_given"
+    )
+    provider = models.ForeignKey(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="tips_received"
+    )
+    #: Which barber, when the shop named them. Nullable because a tip can be
+    #: for the shop rather than a person.
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tips",
+    )
+    payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name="tip")
+    amount = models.PositiveIntegerField(help_text="In the smallest currency unit.")
+
+    class Meta:
+        db_table = "payments_tip"
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name="payments_tip_positive"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.amount} on {self.booking_id}"
