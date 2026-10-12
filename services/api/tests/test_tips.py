@@ -288,3 +288,61 @@ class TestWhatTheProviderSees:
 
         response = client.get(f"{PAYMENTS}me/tips/", **auth_header(token))
         assert response.status_code in (403, 404)
+
+
+class TestAHalfFinishedTip:
+    """A tip is two writes: the payment is captured, and the money is attached
+    to a person and credited.
+
+    The worry is the gap between them. `capture()` saves the payment as
+    CAPTURED and then records the tip; if the second half fails after the first
+    has been saved, a retry sees a captured payment, returns early, and the
+    barber is never paid for the tip they were given. The provider's balance
+    stays wrong with no way to correct it from the outside.
+
+    It does not happen, because `capture()` is one transaction - and the only
+    way to know that is to make the second half fail on purpose.
+    """
+
+    def test_a_failure_partway_through_leaves_nothing_captured(self, monkeypatch):
+        import payments.views as views
+
+        _customer, profile, booking = a_completed_booking()
+        payment = a_tip_payment(booking, amount=5000)
+
+        def explode(*args, **kwargs):
+            raise RuntimeError("the ledger is down")
+
+        monkeypatch.setattr(views, "_record_tip", explode)
+
+        with pytest.raises(RuntimeError):
+            views.capture(payment, "pay_x", "")
+
+        payment.refresh_from_db()
+        assert payment.status != PaymentStatus.CAPTURED, (
+            "the payment stayed captured with no tip recorded against it"
+        )
+        assert not Tip.objects.exists()
+        assert balance_for(profile).total == 0
+
+    def test_and_the_retry_afterwards_still_works(self, monkeypatch):
+        """The point of rolling back: the client's next attempt can succeed."""
+        import payments.views as views
+
+        _customer, profile, booking = a_completed_booking()
+        payment = a_tip_payment(booking, amount=5000)
+
+        def explode(*args, **kwargs):
+            raise RuntimeError("the ledger is down")
+
+        monkeypatch.setattr(views, "_record_tip", explode)
+        with pytest.raises(RuntimeError):
+            views.capture(payment, "pay_x", "")
+
+        monkeypatch.undo()
+        views.capture(payment, "pay_x", "")
+
+        payment.refresh_from_db()
+        assert payment.status == PaymentStatus.CAPTURED
+        assert Tip.objects.count() == 1
+        assert balance_for(profile).total == 5000

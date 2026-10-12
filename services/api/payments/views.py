@@ -444,7 +444,16 @@ def capture(payment: Payment, payment_id: str, signature: str) -> Payment:
     double-count anything. The booking status only moves forward.
     """
     if payment.status == PaymentStatus.CAPTURED:
-        return payment
+        # Trust the row, not this instance. A failed attempt rolls the
+        # transaction back but leaves the *object* claiming it was captured, so
+        # a retry holding the same instance would skip the work and the tip
+        # would never be recorded - a captured payment with nothing behind it.
+        #
+        # Only re-read on the retry path, so the common case still costs no
+        # extra query.
+        payment.refresh_from_db(fields=["status"])
+        if payment.status == PaymentStatus.CAPTURED:
+            return payment
 
     payment.status = PaymentStatus.CAPTURED
     payment.razorpay_payment_id = payment_id or payment.razorpay_payment_id
