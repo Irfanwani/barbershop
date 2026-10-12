@@ -13,11 +13,14 @@ import {
   deadlineSummary,
   formatPaise,
   paymentSummary,
- isShopPaused, isUnnamed } from '@/lib/money';
+ isShopPaused,
+ isUnnamed,
+} from '@/lib/money';
 import {
   describeLedgerKind,
   describeLedgerStatus,
 } from '@/components/balance-card';
+import { newIdempotencyKey } from '@/api/client';
 import type { RescheduleRefused, SavedShop, StaffMember } from '@/types/api';
 import { formatClock, formatWhen } from '../app/(customer)/waitlist';
 
@@ -262,5 +265,18 @@ describe('a saved shop', () => {
     // Somebody's usual barber does not stop existing over a holiday.
     expect(isShopPaused({ is_accepting_bookings: false })).toBe(true);
     expect(isShopPaused({ is_accepting_bookings: true })).toBe(false);
+  });
+});
+
+describe('retrying a write', () => {
+  it('gives every operation a key that identifies it', () => {
+    const first = newIdempotencyKey();
+    const second = newIdempotencyKey();
+
+    // A key identifies one logical operation. Two calls to the same operation
+    // share one key; two operations never collide.
+    expect(first).not.toBe(second);
+    expect(first.length).toBeGreaterThan(8);
+    expect(first).toMatch(/^[a-z0-9-]+$/);
   });
 });

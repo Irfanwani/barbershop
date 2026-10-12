@@ -340,14 +340,18 @@ export const bookingsApi = {
   quote: (body: { provider: number; services: number[]; starts_at: string }) =>
     api.post<Quote>('/bookings/quote/', body),
 
-  create: (body: {
-    provider: number;
-    services: number[];
-    starts_at: string;
-    notes?: string;
-    /** Who is doing the job. Omitted means "whoever is free". */
-    staff?: number;
-  }) => api.post<Booking>('/bookings/new/', body),
+  create: (
+    body: {
+      provider: number;
+      services: number[];
+      starts_at: string;
+      notes?: string;
+      /** Who is doing the job. Omitted means "whoever is free". */
+      staff?: number;
+    },
+    /** Stable across retries, so a retry is a replay and not a second booking. */
+    idempotencyKey?: string,
+  ) => api.post<Booking>('/bookings/new/', body, undefined, idempotencyKey),
 
   cancel: (reference: string, reason = '') =>
     api.post<Booking>(`/bookings/${reference}/cancel/`, { reason }),
@@ -404,11 +408,14 @@ export const paymentsApi = {
       amount_display: string;
     }>('/payments/orders/', { booking: bookingReference }),
 
-  verify: (body: {
-    razorpay_order_id: string;
-    razorpay_payment_id: string;
-    razorpay_signature: string;
-  }) => api.post<Payment>('/payments/verify/', body),
+  verify: (
+    body: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    },
+    idempotencyKey?: string,
+  ) => api.post<Payment>('/payments/verify/', body, undefined, idempotencyKey),
 
   get: (orderId: string) => api.get<Payment>(`/payments/${orderId}/`),
 };

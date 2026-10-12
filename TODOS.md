@@ -78,10 +78,14 @@ against a reverted fix: five of them fail without it.
 
 **Status:** done
 
-`apps/web` said the app has "saved shops". It did not. It is being built as
+`apps/web` said the app has "saved shops". It did not. It is now built as
 [P2.4](#p24-saved-shops) rather than deleted from the copy, because saved
 shops are the cheapest retention feature available and the backbone of the
 rebooking work in [P3.2](#p32-rebooking-nudges-for-lapsed-customers).
+
+Building it turned up a live bug nobody had looked for: `is_accepting_bookings`
+was never in the public search response, so **every shop on the marketing site
+had been rendering as "Not taking bookings"** since launch.
 
 ---
 
@@ -446,7 +450,7 @@ that was charged named.
 
 ## P2.4 Saved shops
 
-**Status:** done (backend); app screens outstanding
+**Status:** done
 
 The marketing site currently promises this. It is also the cheapest possible
 retention feature and the backbone of the rebooking and lapsed-customer work
@@ -724,7 +728,7 @@ renders on the shop page.
 
 ## P5.1 Idempotency keys on payment endpoints
 
-**Status:** done (backend); app sends no keys yet
+**Status:** done
 
 `capture()` is internally idempotent for webhook retries, but a client
 retrying `POST /payments/verify/` on a flaky connection is not protected. The
@@ -761,8 +765,19 @@ rather than per *operation* is not locked out of the endpoint forever.
 
 **No key means no change.** Nothing is required of any existing client.
 
-**Still to do:** the app does not send keys yet. Until it does, mutation
-retries stay disabled there — which is the whole point of the next step.
+**In the app.** Every write now carries an `Idempotency-Key`, so a retried
+booking or verify replays the first response instead of doing the thing
+twice. **Mutation retries are switched back on** — they were disabled with a
+comment saying mutations are not idempotent, which was true and is the reason
+a dropped connection during checkout used to lose the booking.
+
+The query layer still does not retry a 4xx. A 400 will be a 400 again, and
+retrying it only delays the error the user needs to see.
+
+The old test that asserted `mutations.retry === false` was not deleted when
+the behaviour changed; it was rewritten to assert the new one, because the
+comment explaining *why* it was false is the thing that would otherwise get
+lost.
 
 ## P5.2 API keys for third parties
 

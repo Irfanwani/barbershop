@@ -377,7 +377,18 @@ describe('query client', () => {
     expect(query.refetchOnWindowFocus).toBe(false);
   });
 
-  it('does not retry mutations, which are not idempotent', () => {
-    expect(queryClient.getDefaultOptions().mutations?.retry).toBe(false);
+  it('retries mutations, because they now carry idempotency keys', () => {
+    // This used to be `false`, with a comment explaining that mutations are
+    // not idempotent. That was true and it is what made a dropped connection
+    // during checkout a lost booking. Every write now carries an
+    // Idempotency-Key, so a retry replays the first response instead of doing
+    // the thing twice.
+    expect(queryClient.getDefaultOptions().mutations?.retry).not.toBe(false);
+  });
+
+  it('still does not retry a 4xx, which will be a 4xx again', () => {
+    const retry = queryClient.getDefaultOptions().mutations?.retry;
+    if (typeof retry !== 'function') throw new Error('expected a retry function');
+    expect(retry(0, new ApiError('nope', 400, 'invalid'))).toBe(false);
   });
 });

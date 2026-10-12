@@ -27,6 +27,7 @@ import {
   type ProviderSearch,
   type StaffHoursInput,
 } from '@/api/endpoints';
+import { newIdempotencyKey } from '@/api/client';
 import { keys } from '@/lib/query-client';
 import type {
   Availability,
@@ -311,7 +312,10 @@ export function useQuote() {
 export function useCreateBooking() {
   const invalidate = useInvalidateBookings();
   return useMutation({
-    mutationFn: bookingsApi.create,
+    // One key per attempt, not per attempt *to the network*. A retry after a
+    // dropped connection is the same booking, and must not become a second one.
+    mutationFn: (body: Parameters<typeof bookingsApi.create>[0]) =>
+      bookingsApi.create(body, newIdempotencyKey()),
     onSuccess: (booking: Booking) => invalidate(booking.reference),
   });
 }
@@ -379,7 +383,10 @@ export function useCreateOrder() {
 export function useVerifyPayment() {
   const invalidate = useInvalidateBookings();
   return useMutation({
-    mutationFn: paymentsApi.verify,
+    // The one place this really matters: a retried verify is a second chance to
+    // charge somebody the same amount twice.
+    mutationFn: (body: Parameters<typeof paymentsApi.verify>[0]) =>
+      paymentsApi.verify(body, newIdempotencyKey()),
     onSuccess: () => invalidate(),
   });
 }

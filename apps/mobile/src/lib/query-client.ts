@@ -8,6 +8,11 @@ import { ApiError } from '@/api/client';
  * `retry` deliberately does not retry 4xx. A 400 means the request is wrong and
  * will be wrong again; retrying it just delays the error the user needs to see.
  * A 5xx or a dropped connection is worth another go.
+ *
+ * Mutations retry too, and they did not until the server grew idempotency
+ * keys. Every write now carries an `Idempotency-Key`, so a retry replays the
+ * first response instead of doing the thing again — which is the difference
+ * between "try again" and "charge them twice".
  */
 function shouldRetry(failureCount: number, error: unknown): boolean {
   if (error instanceof ApiError) {
@@ -26,7 +31,10 @@ export function createQueryClient(): QueryClient {
         refetchOnWindowFocus: false,
       },
       mutations: {
-        retry: false,
+        retry: shouldRetry,
+        // One go. A second attempt at something the user is watching is long
+        // enough to read as "this is broken".
+        retryDelay: 1_000,
       },
     },
   });

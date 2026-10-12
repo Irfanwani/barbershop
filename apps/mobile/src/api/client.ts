@@ -97,6 +97,25 @@ export interface RequestOptions {
   /** Set for endpoints the server calls with a signature instead of a token. */
   skipAuth?: boolean;
   signal?: AbortSignal;
+  /**
+   * Reuse an idempotency key across retries of one logical operation.
+   *
+   * Left unset, a key is generated per request — which protects against a
+   * *resend of the same request* but not against a retry, because a retry is a
+   * new request. Callers that the query layer might retry pass a stable key so
+   * both cases land on the same record.
+   */
+  idempotencyKey?: string;
+}
+
+/**
+ * A key that identifies one logical operation, not one HTTP request.
+ *
+ * Without it, a retried payment request is a second chance to charge.
+ */
+export function newIdempotencyKey(): string {
+  const random = Math.random().toString(36).slice(2, 12);
+  return `${Date.now().toString(36)}-${random}`;
 }
 
 async function readError(response: Response): Promise<ApiError> {
@@ -129,7 +148,7 @@ async function readError(response: Response): Promise<ApiError> {
 export const buildUrlForTest = buildUrl;
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, params, skipAuth = false, signal } = options;
+  const { method = 'GET', body, params, skipAuth = false, signal, idempotencyKey } = options;
 
   const headers: Record<string, string> = { Accept: 'application/json' };
 
@@ -142,6 +161,13 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (!skipAuth) {
     const token = getToken();
     if (token) headers.Authorization = `Token ${token}`;
+  }
+
+  // Sent on every write. The server replays the first response for a repeated
+  // key and refuses a repeated key with a different body — which is the whole
+  // reason a retry of a payment is safe.
+  if (method !== 'GET') {
+    headers['Idempotency-Key'] = idempotencyKey ?? newIdempotencyKey();
   }
 
   let response: Response;
@@ -178,11 +204,14 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 export const api = {
   get: <T>(path: string, params?: QueryParams, signal?: AbortSignal) =>
     request<T>(path, { params, signal }),
-  post: <T>(path: string, body?: unknown, params?: QueryParams) =>
-    request<T>(path, { method: 'POST', body, params }),
-  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  post: <T>(path: string, body?: unknown, params?: QueryParams, idempotencyKey?: string) =>
+    request<T>(path, { method: 'POST', body, params, idempotencyKey }),
+  put: <T>(path: string, body?: unknown, idempotencyKey?: string) =>
+    request<T>(path, { method: 'PUT', body, idempotencyKey }),
+  patch: <T>(path: string, body?: unknown, idempotencyKey?: string) =>
+    request<T>(path, { method: 'PATCH', body, idempotencyKey }),
+  delete: <T>(path: string, idempotencyKey?: string) =>
+    request<T>(path, { method: 'DELETE', idempotencyKey }),
 };
 
 /** True when the error is one the user can do something about. */
