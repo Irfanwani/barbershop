@@ -721,7 +721,7 @@ never counted as platform revenue.
 
 ## P4.4 Promo and discount codes
 
-**Status:** todo
+**Status:** done
 
 - Percentage or fixed amount, with an expiry and a usage cap
 - Scoped to a shop, a service, or the platform
@@ -729,7 +729,33 @@ never counted as platform revenue.
 - The fee is calculated on the discounted amount, and that is stated plainly
 
 **Acceptance:** an expired code is refused at quote and at checkout; the
-discount reduces the fee base and the customer is shown that.
+discount reduces the fee base and the customer is shown that — tested, 27
+tests.
+
+**Quote and checkout share one pricing function**, so a code that expires
+between them is caught at both rather than being quietly ignored at one. A
+test asserts the quoted total and the paid total are identical.
+
+**The fee is taken on the discounted amount, and the reduced fee is shown
+beside the full one.** The alternative — holding the fee at its full amount —
+shows a total nobody can reconcile from the numbers on the screen. The
+platform ends up funding part of its own promotion, which is cheaper than a
+support ticket.
+
+**The percentage cap does not apply to a fixed amount.** It exists to stop a
+mistyped "90% off" giving away the chair. A shop offering ₹500 off has said
+what it means, and reducing that to the cap is the code not doing its job; a
+fixed amount is bounded by the basket instead.
+
+**Codes are normalised on the way in**, so somebody typing one into a phone
+gets it to work. A lookup that silently misses is indistinguishable from "this
+code does not work".
+
+**Every refusal has its own sentence.** "Expired" and "used up" and "does not
+apply here" are different problems with different fixes, and calling all three
+"invalid code" is a lie the customer will check.
+
+**Still to do:** no app screen for entering a code at checkout.
 
 ## P4.5 Review reminders and photo reviews
 

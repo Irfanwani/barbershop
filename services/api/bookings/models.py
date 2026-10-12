@@ -173,8 +173,16 @@ class Booking(TimeStampedModel):
             models.CheckConstraint(
                 condition=Q(ends_at__gt=F("starts_at")), name="bookings_ends_after_starts"
             ),
+            # What this actually has to guarantee is that the customer is
+            # never charged more than the items plus the fee, and never a
+            # negative amount. The old rule — total >= subtotal — read as if
+            # the total could never be below the menu price, which is exactly
+            # what a discount is, so the first promo code made a legitimate
+            # booking impossible to save.
+            models.CheckConstraint(condition=Q(total__gte=0), name="bookings_total_not_negative"),
             models.CheckConstraint(
-                condition=Q(total__gte=F("subtotal")), name="bookings_total_gte_subtotal"
+                condition=Q(total__lte=F("subtotal") + F("platform_fee")),
+                name="bookings_total_within_items_plus_fee",
             ),
         ]
 

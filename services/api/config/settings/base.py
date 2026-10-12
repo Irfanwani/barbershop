@@ -75,6 +75,7 @@ LOCAL_APPS = [
     "core",
     "accounts",
     "providers",
+    "promotions",
     "bookings",
     "reviews",
     "payments",

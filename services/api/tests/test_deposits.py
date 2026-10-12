@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 
 from bookings.models import Booking, BookingStatus
-from core.money import compute_deposit, quote
+from core.money import compute_deposit, compute_platform_fee, quote
 from payments.choices import PaymentKind
 from payments.due import amount_due, default_kind, requested_kind
 from payments.models import Payment, PaymentStatus
@@ -47,7 +47,11 @@ def booking_with_deposit(percent: int = 30, price: int = 300000):
         starts_at=next_slot(hour=14),
         ends_at=next_slot(hour=17),
         subtotal=price,
-        platform_fee=compute_deposit(price, 1)[0] // 100 or 1,
+        # 1% of the price, which is what the total below adds. This was
+        # compute_deposit(...)[0] // 100 — a divide by a hundred too many,
+        # producing a fee of 30 against a total 3000 higher. A check
+        # constraint on the booking is what caught it.
+        platform_fee=compute_platform_fee(price, 1),
         total=price + 3000,
         deposit=compute_deposit(price + 3000, percent)[0],
         balance=compute_deposit(price + 3000, percent)[1],

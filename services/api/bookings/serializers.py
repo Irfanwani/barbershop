@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -27,7 +26,8 @@ from bookings.models import (
     is_within_working_hours,
 )
 from core.exceptions import BusinessRuleViolation
-from core.money import CURRENCY, compute_deposit, compute_platform_fee, format_minor
+from core.money import CURRENCY, compute_deposit, format_minor
+from promotions.models import PromoCode, PromoError, PromoRedemption, price, resolve
 from providers.models import ProviderProfile, Service, Staff
 from providers.serializers import ProviderSummarySerializer
 
@@ -176,6 +176,8 @@ class QuoteRequestSerializer(serializers.Serializer):
     provider = serializers.IntegerField()
     services = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     starts_at = serializers.DateTimeField()
+    #: Optional. Priced server-side; the client never sends an amount.
+    promo_code = serializers.CharField(required=False, allow_blank=True, max_length=32)
 
     def validate_services(self, value: list[int]) -> list[int]:
         if len(value) != len(set(value)):
@@ -221,6 +223,7 @@ class BookingCreateSerializer(serializers.Serializer):
     services = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     starts_at = serializers.DateTimeField()
     notes = serializers.CharField(required=False, allow_blank=True, max_length=500, default="")
+    promo_code = serializers.CharField(required=False, allow_blank=True, max_length=32)
 
     MAX_SERVICES = 10
 
@@ -313,8 +316,23 @@ class BookingCreateSerializer(serializers.Serializer):
         ends_at = self.validated_data["ends_at"]
 
         subtotal = sum(service.price for service in services)
-        platform_fee = compute_platform_fee(subtotal, settings.PLATFORM_FEE_PERCENT)
-        total = subtotal + platform_fee
+
+        # Same resolution, same pricing function as the quote. A code that
+        # expired in between is refused here rather than quietly ignored.
+        try:
+            promo = resolve(
+                self.validated_data.get("promo_code"),
+                provider=provider,
+                service_ids={service.pk for service in services},
+            )
+        except PromoError as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        breakdown = price(subtotal, code=promo)
+        platform_fee = breakdown.platform_fee
+        total = breakdown.total
+        self.discount = breakdown.discount
+        self.promo = promo
 
         # The strictest requirement across the basket. A customer booking a
         # colour service and a trim has agreed to the colour service's deposit;
@@ -366,6 +384,18 @@ class BookingCreateSerializer(serializers.Serializer):
                     for service in services
                 ]
             )
+
+            # Inside the booking's transaction: if the redemption cannot be
+            # written, the booking rolls back rather than existing as a
+            # discount nobody can reconcile.
+            promo = getattr(self, "promo", None)
+            if promo is not None:
+                PromoRedemption.objects.create(
+                    code=promo,
+                    booking=booking,
+                    discount=getattr(self, "discount", 0),
+                )
+                PromoCode.objects.filter(pk=promo.pk).update(times_used=promo.times_used + 1)
 
         return booking
 

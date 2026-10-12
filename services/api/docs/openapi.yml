@@ -8511,6 +8511,9 @@ components:
           type: string
           default: ''
           maxLength: 500
+        promo_code:
+          type: string
+          maxLength: 32
       required:
       - provider
       - services
@@ -9878,6 +9881,9 @@ components:
         starts_at:
           type: string
           format: date-time
+        promo_code:
+          type: string
+          maxLength: 32
       required:
       - provider
       - services

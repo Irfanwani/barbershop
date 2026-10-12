@@ -330,7 +330,30 @@ class TestBooking:
                 ends_at=factories.next_slot() - timedelta(minutes=5),
             )
 
-    def test_total_cannot_be_less_than_subtotal(self):
+    def test_a_total_below_the_subtotal_is_allowed_because_of_discounts(self):
+        """The old rule was total >= subtotal.
+
+        That reads as if the total could never be below the menu price — which
+        is precisely what a discount is. The first promo code made a
+        legitimate booking impossible to save, and the database refused it
+        before any code could be written.
+
+        What the rule was actually for is catching a *miscalculation* — a fee
+        computed wrong, a total that is not the items plus the fee. That is
+        what the two rules below check instead.
+        """
+        booking = Booking.objects.create(
+            customer=factories.make_user(),
+            provider=factories.make_profile(),
+            starts_at=factories.next_slot(),
+            ends_at=factories.next_slot() + timedelta(minutes=30),
+            subtotal=10000,
+            platform_fee=0,
+            total=8000,
+        )
+        assert booking.total < booking.subtotal
+
+    def test_a_total_above_the_items_plus_the_fee_is_refused(self):
         with pytest.raises(IntegrityError):
             Booking.objects.create(
                 customer=factories.make_user(),
@@ -338,7 +361,20 @@ class TestBooking:
                 starts_at=factories.next_slot(),
                 ends_at=factories.next_slot() + timedelta(minutes=30),
                 subtotal=10000,
-                total=500,
+                platform_fee=100,
+                total=50000,
+            )
+
+    def test_a_negative_total_is_refused(self):
+        with pytest.raises(IntegrityError):
+            Booking.objects.create(
+                customer=factories.make_user(),
+                provider=factories.make_profile(),
+                starts_at=factories.next_slot(),
+                ends_at=factories.next_slot() + timedelta(minutes=30),
+                subtotal=10000,
+                platform_fee=0,
+                total=-1,
             )
 
     def test_item_snapshot_survives_a_price_change(self):

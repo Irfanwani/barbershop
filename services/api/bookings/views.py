@@ -44,13 +44,14 @@ from bookings.waitlist import (
     slot_from_booking,
 )
 from core.exceptions import BusinessRuleViolation
-from core.money import compute_deposit, compute_platform_fee, format_minor
+from core.money import compute_deposit, format_minor
 from core.notifications import format_appointment_time
 from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from payments.due import amount_due, default_kind
 from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
+from promotions.models import PromoError, price, resolve
 from providers.models import ProviderProfile, Service
 
 logger = logging.getLogger(__name__)
@@ -509,8 +510,21 @@ class QuoteView(APIView):
         ends_at = starts_at + duration
 
         subtotal = sum(service.price for service in services)
-        platform_fee = compute_platform_fee(subtotal, settings.PLATFORM_FEE_PERCENT)
-        total = subtotal + platform_fee
+
+        # The code is resolved here and priced here, from the same function the
+        # checkout uses. A client that sends a discount of its own is ignored,
+        # and a code that expires between quote and checkout is caught at both.
+        try:
+            promo = resolve(
+                payload.get("promo_code"),
+                provider=provider,
+                service_ids={service.pk for service in services},
+            )
+        except PromoError as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        breakdown = price(subtotal, code=promo)
+        total = breakdown.total
 
         deposit_percent = max((service.deposit_percent for service in services), default=0)
         deposit, balance = compute_deposit(total, deposit_percent)
@@ -518,13 +532,11 @@ class QuoteView(APIView):
 
         return Response(
             {
-                "currency": "INR",
-                "subtotal": subtotal,
-                "subtotal_display": format_minor(subtotal),
-                "platform_fee": platform_fee,
-                "platform_fee_display": format_minor(platform_fee),
-                "total": total,
-                "total_display": format_minor(total),
+                **breakdown.as_payload(),
+                # Stated in words, because "the fee is 1% of what you pay"
+                # is otherwise a puzzle on the screen.
+                "promo_code": promo.code if promo else None,
+                "promo_description": promo.description if promo else "",
                 # Shown before checkout, never applied after. A deposit the
                 # customer discovers at the payment screen is a complaint.
                 "deposit_percent": deposit_percent,
@@ -607,7 +619,6 @@ def send_push(tokens: list[str], *, title: str, body: str, data: dict) -> None:
     Swallows every failure on purpose — see :func:`notify_provider`.
     """
     import requests
-    from django.conf import settings
 
     if not settings.PUSH_NOTIFICATION_URL:
         logger.debug("No PUSH_NOTIFICATION_URL configured; skipping push for %s", title)
