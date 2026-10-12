@@ -546,7 +546,7 @@ the marketplace.
 
 ## P3.2 Rebooking nudges for lapsed customers
 
-**Status:** todo
+**Status:** done
 
 "Most salon owners have no idea how many clients rebook within 6 to 8 weeks"
 (SchedulingKit). Neither do we, and this is the cheapest revenue on the
@@ -557,7 +557,31 @@ platform: the customer already liked the haircut.
 - The message contains a booking link, not a marketing blast
 
 **Acceptance:** a customer 7 weeks past their last booking is nudged exactly
-once; a customer with reminders off is not.
+once; a customer with reminders off is not — tested.
+
+**Grouped per customer, not per shop.** The question is "has this person
+stopped coming back", not "has this person stopped coming back to *that*
+shop". Somebody who moved to a competitor three shops over is not ours to
+nudge back into this one, and telling them about a shop they have moved on
+from is the fastest way to get a category muted.
+
+**The window is 5 to 8 weeks, and the top end is a hard stop.** Somebody
+mid-routine is not lapsed; nudging them is nagging. Past six months they are
+gone rather than lapsed, and a message unsettles rather than helps.
+
+**Once per customer per shop, ever, and the record of it is its own table.**
+This cannot be derived from booking dates: a customer who rebooks and lapses a
+second time looks exactly like one being nudged for the first time, and the
+second message is the one that gets everything muted.
+
+**Somebody who opted out is not nudged *and not recorded*.** Recording them
+would mean opting out later would not stop a nudge that was already due.
+
+**A link to the shop's page, not an offer.** They already know this shop.
+What they have forgotten is that it exists — and the link is a web page, not a
+deep link, because they may not have the app.
+
+18 new tests, 835 total.
 
 ## P3.3 Recurring bookings
 

@@ -399,3 +399,38 @@ def set_notification_preferences(user, wanted: dict[str, bool]) -> dict[str, boo
         )
 
     return notification_preferences(user)
+
+
+class RebookingNudge(TimeStampedModel):
+    """That this person has been told to come back to that shop.
+
+    Once, ever, per pair. This cannot be derived from booking dates: a customer
+    who rebooks and lapses a second time would look identical to one being
+    nudged for the first time, and the second message is the one that gets the
+    whole category muted.
+    """
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="rebooking_nudges"
+    )
+    provider = models.ForeignKey(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="rebooking_nudges"
+    )
+    sent_at = models.DateTimeField(auto_now_add=True)
+    #: The booking we reasoned about, kept for the record rather than because
+    #: anything reads it.
+    last_booking = models.ForeignKey(
+        "bookings.Booking", on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        db_table = "accounts_rebooking_nudge"
+        ordering = ["-sent_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["customer", "provider"], name="accounts_rebookingnudge_once_per_pair"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.customer} nudged about {self.provider}"

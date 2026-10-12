@@ -45,6 +45,13 @@ app.conf.beat_schedule = {
         "task": "bookings.waitlist.expire_offers",
         "schedule": crontab(minute="*/5"),
     },
+    # Cheapest revenue on the platform: the customer already liked the haircut.
+    # Daily, because the window is measured in weeks and the record of who has
+    # been told means a missed run is not a missed customer forever.
+    "rebooking-nudges": {
+        "task": "bookings.reminders.send_rebooking_nudges",
+        "schedule": crontab(hour=11, minute=30),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

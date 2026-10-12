@@ -176,3 +176,17 @@ def expire_waitlist_offers() -> dict[str, int]:
     from bookings.waitlist import expire_offers
 
     return expire_offers()
+
+
+@shared_task(name="bookings.reminders.send_rebooking_nudges")
+def send_rebooking_nudges() -> dict[str, int]:
+    """Tell lapsed customers their barber is still there.
+
+    Runs daily. Once per customer per shop, ever — the record of who has been
+    told is what stops this becoming a newsletter, and that record cannot be
+    derived from booking dates, because a customer who rebooks and lapses a
+    second time looks exactly like one being nudged for the first time.
+    """
+    from accounts.reengagement import send_nudges
+
+    return send_nudges()
