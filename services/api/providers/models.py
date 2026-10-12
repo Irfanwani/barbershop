@@ -10,6 +10,7 @@ from django.contrib.gis.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.text import slugify
 
 from accounts.models import ReminderPreferencesMixin
 from core.fields import EncryptedTextField
@@ -50,6 +51,19 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
     )
 
     display_name = models.CharField(max_length=120)
+
+    #: The shop's own address on the public web.
+    #:
+    #: This is the acquisition channel for an independent — a link pasted into
+    #: an Instagram bio, a WhatsApp status, a signature. It has to be
+    #: memorable enough to type and stable enough to print on a leaflet, so it
+    #: is the shop's own and can be changed when a shop rebrands.
+    #:
+    #: Changing it breaks the old URL, deliberately: a redirect would keep
+    #: every printed leaflet working, but would also mean the shop can never
+    #: start again on a name it has outgrown, because the old one would
+    #: shadow it forever.
+    slug = models.SlugField(max_length=80, unique=True, blank=True)
     description = models.TextField(blank=True, default="")
 
     service_type = models.CharField(
@@ -207,6 +221,31 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
             # Sunday is the exception, not the rule.
             return weekday != 6
         return not hours.is_closed
+
+    def ensure_slug(self) -> str:
+        """Give this shop an address, and never hand the same one to two shops.
+
+        Called on save rather than by a signal, because a slug that only
+        exists once a second thing has run is a slug that is missing when
+        somebody reads the row directly.
+        """
+        if self.slug:
+            return self.slug
+
+        base = slugify(self.display_name)[:60] or "shop"
+        candidate = base
+        suffix = 2
+
+        while ProviderProfile.objects.filter(slug=candidate).exclude(pk=self.pk).exists():
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+
+        self.slug = candidate
+        return candidate
+
+    def save(self, *args, **kwargs):
+        self.ensure_slug()
+        return super().save(*args, **kwargs)
 
     def headcount(self) -> int:
         """How many people can be in the chairs at once.

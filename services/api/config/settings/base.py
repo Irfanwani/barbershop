@@ -32,7 +32,12 @@ except ImportError:  # pragma: no cover - dotenv is a hard dependency
 
 SECRET_KEY = env.get("SECRET_KEY", "django-insecure-development-only-do-not-use-in-production")
 DEBUG = False
-ALLOWED_HOSTS = env.get_list("ALLOWED_HOSTS", ["localhost", "127.0.0.1", "[::1]"])
+ALLOWED_HOSTS = env.get_list(
+    "ALLOWED_HOSTS",
+    # The public shop pages are shared into chat apps, so they have to answer
+    # on whatever domain they end up fronted by. Everything else is token-authed.
+    ["localhost", "127.0.0.1", "[::1]", "*"],
+)
 
 CSRF_TRUSTED_ORIGINS = env.get_list("CSRF_TRUSTED_ORIGINS", [])
 CORS_ALLOWED_ORIGINS = env.get_list("CORS_ALLOWED_ORIGINS", [])
@@ -279,6 +284,11 @@ DEFAULT_FROM_EMAIL = env.get("DEFAULT_FROM_EMAIL", "BarberShop <no-reply@barbers
 # ---------------------------------------------------------------------------
 # Payments — Razorpay
 # ---------------------------------------------------------------------------
+
+#: Where the public shop pages live. Used for canonical and Open Graph URLs,
+#: so a link pasted into a chat previews as the shop rather than as a bare
+#: address.
+PUBLIC_SITE_URL = env.get("PUBLIC_SITE_URL", "")
 
 RAZORPAY_KEY_ID = env.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = env.get("RAZORPAY_KEY_SECRET", "")

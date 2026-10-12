@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{{ provider.display_name }} — book on BarberShop</title>
+    <meta
+      name="description"
+      content="{% if services %}{{ provider.display_name }} in {{ provider.address }}. From {{ lowest_display }}. {% endif %}{% if provider.description %}{{ provider.description|truncatechars:140 }}{% else %}Book an appointment in the app.{% endif %}"
+    />
+    <link rel="canonical" href="{{ site_url }}/shops/{{ provider.slug }}/" />
+
+    {# Open Graph, so a link pasted into a chat previews as the shop. A
+       preview of a bare address gets nobody to tap it. #}
+    <meta property="og:type" content="business.business" />
+    <meta property="og:title" content="{{ provider.display_name }}" />
+    <meta
+      property="og:description"
+      content="{% if is_paused %}Not taking bookings at the moment.{% else %}From {{ lowest_display }} · {{ provider.address }}{% endif %}"
+    />
+    {% if provider.photo %}
+    <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{{ provider.photo.url }}" />
+    {% else %}
+    <meta property="og:image" content="{{ site_url }}/assets/og.png" />
+    {% endif %}
+    <meta property="og:url" content="{{ site_url }}/shops/{{ provider.slug }}/" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #14141a;
+        background: #fbfbfc;
+      }
+      .wrap { max-width: 680px; margin: 0 auto; padding: 0 20px; }
+      header { background: #fff; border-bottom: 1px solid #e6e6ea; }
+      header .wrap { display: flex; align-items: center; gap: 10px; padding: 14px 20px; }
+      .brand { font-weight: 700; text-decoration: none; color: #14141a; }
+      main { padding: 28px 0 56px; }
+      h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin: 0 0 4px; }
+      h2 { font-size: 1.1rem; margin: 32px 0 12px; }
+      .muted { color: #6b6b73; }
+      .meta { color: #6b6b73; font-size: 0.95rem; margin: 0 0 20px; }
+      .paused {
+        background: #fff7ed; border: 1px solid #fcd9a8; border-radius: 12px;
+        padding: 12px 14px; margin: 18px 0; font-size: 0.95rem;
+      }
+      ul { list-style: none; padding: 0; margin: 0; }
+      li.item {
+        display: flex; justify-content: space-between; gap: 16px;
+        padding: 13px 0; border-top: 1px solid #ececf0;
+      }
+      .price { font-weight: 600; white-space: nowrap; }
+      .actions { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+      .btn {
+        display: inline-block; padding: 13px 20px; border-radius: 12px;
+        text-decoration: none; font-weight: 600; font-size: 1rem;
+      }
+      .btn-primary { background: #14141a; color: #fff; }
+      .btn-ghost { border: 1px solid #d9d9df; color: #14141a; }
+      .staff { display: flex; flex-wrap: wrap; gap: 8px; }
+      .chip {
+        border: 1px solid #e0e0e6; border-radius: 999px; padding: 6px 12px; font-size: 0.9rem;
+      }
+      .review { border-top: 1px solid #ececf0; padding: 14px 0; }
+      .stars { color: #b45309; }
+      footer { border-top: 1px solid #e6e6ea; background: #fff; }
+      footer .wrap { padding: 20px; font-size: 0.9rem; color: #6b6b73; }
+      footer a { color: #6b6b73; }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="wrap">
+        <span class="brand">BarberShop</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="wrap">
+        <h1>{{ provider.display_name }}</h1>
+        <p class="meta">
+          {{ provider.service_type_label }} · {{ provider.address }}
+          {% if provider.rating_count %}
+            · ★ {{ provider.rating_average|floatformat:1 }} from {{ provider.rating_count }}
+          {% endif %}
+        </p>
+
+        {% if provider.description %}<p>{{ provider.description }}</p>{% endif %}
+
+        {% if is_paused %}
+          <div class="paused">
+            <strong>Not taking bookings at the moment.</strong> They may be closed for a
+            holiday — saving the shop means it comes back to the top of your list when it
+            reopens.
+          </div>
+        {% endif %}
+
+        {% if services %}
+          <h2>What it costs</h2>
+          <ul>
+            {% for service in services %}
+              <li class="item">
+                <span>{{ service.name }}{% if service.duration_minutes %} · {{ service.duration_minutes }} min{% endif %}</span>
+                <span class="price">₹{{ service.price|floatformat:0 }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if staff %}
+          <h2>Who you can book with</h2>
+          <div class="staff">
+            {% for person in staff %}<span class="chip">{{ person.name }}</span>{% endfor %}
+          </div>
+        {% endif %}
+
+        {% if reviews %}
+          <h2>What people said</h2>
+          {% for review in reviews %}
+            <div class="review">
+              <div class="stars">{{ review.rating }}&#9733;</div>
+              <div>{{ review.body|truncatechars:220 }}</div>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        <div class="actions">
+          <a class="btn btn-primary" href="{{ app_url }}">Book in the app</a>
+          <a class="btn btn-ghost" href="{{ site_url }}/">Browse other shops</a>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        BarberShop — one app for customers and providers.
+        <a href="{{ site_url }}/knowledge/">How it works</a>
+      </div>
+    </footer>
+  </body>
+</html>

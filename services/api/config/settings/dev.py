@@ -7,7 +7,12 @@ DEBUG = True
 
 SECRET_KEY = env.get("SECRET_KEY", "django-insecure-local-development-key-not-for-production")
 
-ALLOWED_HOSTS = env.get_list("ALLOWED_HOSTS", ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"])
+ALLOWED_HOSTS = env.get_list(
+    "ALLOWED_HOSTS",
+    # The public shop pages get pasted into chat apps and shared on whatever
+    # domain they are reached through, so the host has to be permissive here.
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "*"],
+)
 
 # Android emulators reach the host machine at 10.0.2.2.
 if env.get_bool("ANDROID_EMULATOR", default=True):

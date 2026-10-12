@@ -10,6 +10,8 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
+from providers.public import shop_page
+
 
 def healthcheck(_request):
     """Cheap liveness probe. Deliberately does not touch the database."""
@@ -20,6 +22,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include(("config.api", "v1"), namespace="v1")),
     path("healthz", healthcheck, name="healthcheck"),
+    # The public shop page. At the root, not under /api/, because the whole
+    # point is that it is a link a customer can paste anywhere.
+    path("shops/<slug:slug>/", shop_page, name="shop-page"),
 ]
 
 if settings.DEBUG:

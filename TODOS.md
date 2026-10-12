@@ -483,7 +483,7 @@ the moment somebody wants it. Prices shown are the shop's current ones.
 
 ## P2.5 Public booking link per shop
 
-**Status:** todo
+**Status:** done
 
 Every single competitor has this and it is how independents actually get
 customers — SchedulingKit: "Add your NoSho link to your bio, stories,
@@ -496,7 +496,29 @@ main acquisition channel this category has.
 - The slug is the shop's own, and can be changed
 
 **Acceptance:** a shop page renders with its services and prices; it links
-into the app or a web checkout; changing the slug breaks the old URL cleanly.
+into the app; changing the slug breaks the old URL cleanly — all tested.
+
+**Server-rendered, at the root, with no JavaScript.** A link somebody is
+excited about should not depend on a bundle arriving first. It is also what
+makes the link preview work: Open Graph tags are read by the chat app before
+anything runs.
+
+**The slug is the shop's own and can be changed.** The link gets printed on
+leaflets, so it has to be memorable enough to type.
+
+**Changing it breaks the old URL, deliberately.** A redirect would keep every
+printed leaflet working — and would also mean the shop can never start again
+on a name it has outgrown, because the old one would shadow it for good.
+
+**A three-step migration.** A unique index cannot be built while every row
+still holds the same empty slug, which is exactly the state a plain `AddField`
+leaves the table in. Add the column bare, fill it, then index it.
+
+**A fourth trap in the same migration**: `SlugField` indexes itself by
+default, so adding it bare and then adding the unique index creates the same
+index twice. The first step is explicitly `db_index=False`.
+
+14 new tests, 793 total.
 
 ---
 
