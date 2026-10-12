@@ -76,7 +76,7 @@ against a reverted fix: five of them fail without it.
 
 ## P0.2 The marketing site advertises a feature that does not exist
 
-**Status:** backend done; app screens outstanding
+**Status:** done
 
 `apps/web` said the app has "saved shops". It did not. It is being built as
 [P2.4](#p24-saved-shops) rather than deleted from the copy, because saved
