@@ -187,6 +187,9 @@ class PriceBreakdown:
     fee_base: int
     platform_fee: int
     total: int
+    #: What loyalty points took off, reported separately from a promo code
+    #: because they are different promises with different expiry.
+    points_discount: int = 0
 
     @property
     def full_fee(self) -> int:
@@ -203,6 +206,8 @@ class PriceBreakdown:
             "subtotal_display": format_minor(self.subtotal),
             "discount": self.discount,
             "discount_display": format_minor(self.discount),
+            "points_discount": self.points_discount,
+            "points_discount_display": format_minor(self.points_discount),
             "platform_fee": self.platform_fee,
             "platform_fee_display": format_minor(self.platform_fee),
             # The fee the discount reduced, stated rather than implied.
@@ -238,20 +243,33 @@ def discount_for(code: PromoCode, subtotal: int) -> int:
     )
 
 
-def price(subtotal: int, *, code: PromoCode | None = None) -> PriceBreakdown:
-    """Work out the whole thing from the subtotal and an optional code.
+def price(
+    subtotal: int,
+    *,
+    code: PromoCode | None = None,
+    points_off: int = 0,
+) -> PriceBreakdown:
+    """Work out the whole thing from the subtotal, a code and any points.
 
-    The fee is taken on the **discounted** amount. The promotion is ours to
-    fund, and a total the customer cannot reconcile from the screen is a
-    worse outcome than a slightly cheaper fee.
+    Order matters and is fixed: **the code comes off first, then points.**
+    Otherwise the points cap is measured against a number the customer has
+    already been shown discounted, and the same basket prices differently
+    depending on which order the server happened to apply them in.
+
+    The fee is taken on what is left. The promotion is ours to fund, and a
+    total the customer cannot reconcile from the screen is a worse outcome
+    than a slightly cheaper fee.
     """
-    discount = discount_for(code, subtotal) if code else 0
-    fee_base = max(subtotal - discount, 0)
+    code_discount = discount_for(code, subtotal) if code else 0
+    remaining = max(subtotal - code_discount, 0)
+    points = max(min(points_off, remaining), 0)
+    fee_base = max(remaining - points, 0)
     platform_fee = compute_platform_fee(fee_base, settings.PLATFORM_FEE_PERCENT)
 
     return PriceBreakdown(
         subtotal=subtotal,
-        discount=discount,
+        discount=code_discount,
+        points_discount=points,
         fee_base=fee_base,
         platform_fee=platform_fee,
         total=fee_base + platform_fee,

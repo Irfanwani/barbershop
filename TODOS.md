@@ -570,6 +570,21 @@ stops it being reintroduced.
 **A balance survives the shop leaving the marketplace.** The points were
 earned by the customer, not by the platform.
 
+**Spendable at quote and at checkout**, on the same `redeem_points` field.
+A quote records nothing — it happens on every tap of a slot and none of them
+should move a balance — and the spend happens inside the booking's own
+transaction, so points cannot be spent against an appointment that then fails
+to save.
+
+**A code comes off before points.** Otherwise the points cap is measured
+against a number the customer has already been shown discounted, and the same
+basket prices differently depending on which order the server happened to apply
+them in.
+
+**The cap is measured against the subtotal everywhere.** It was briefly
+measured against items-plus-fee at redemption and items-alone at quote, which
+meant the cap shown and the cap applied were different numbers.
+
 **Still to do:** no app screen for spending them at checkout.
 
 ## P3.2 Rebooking nudges for lapsed customers

@@ -27,6 +27,7 @@ from bookings.models import (
 )
 from core.exceptions import BusinessRuleViolation
 from core.money import CURRENCY, compute_deposit, format_minor
+from promotions import loyalty
 from promotions.models import PromoCode, PromoError, PromoRedemption, price, resolve
 from providers.models import ProviderProfile, Service, Staff
 from providers.serializers import ProviderSummarySerializer
@@ -178,6 +179,9 @@ class QuoteRequestSerializer(serializers.Serializer):
     starts_at = serializers.DateTimeField()
     #: Optional. Priced server-side; the client never sends an amount.
     promo_code = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    #: Optional. How many points to spend. The server decides what that is
+    #: worth and caps it.
+    redeem_points = serializers.IntegerField(required=False, min_value=0, default=0)
 
     def validate_services(self, value: list[int]) -> list[int]:
         if len(value) != len(set(value)):
@@ -224,6 +228,10 @@ class BookingCreateSerializer(serializers.Serializer):
     starts_at = serializers.DateTimeField()
     notes = serializers.CharField(required=False, allow_blank=True, max_length=500, default="")
     promo_code = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    #: Optional. How many points to spend. The server decides what that is
+    #: worth and caps it, so a client cannot ask for a discount by sending a
+    #: larger number here.
+    redeem_points = serializers.IntegerField(required=False, min_value=0, default=0)
 
     MAX_SERVICES = 10
 
@@ -328,11 +336,19 @@ class BookingCreateSerializer(serializers.Serializer):
         except PromoError as exc:
             raise BusinessRuleViolation(str(exc)) from exc
 
-        breakdown = price(subtotal, code=promo)
+        points_off = loyalty.preview(
+            self.context["request"].user,
+            provider,
+            subtotal,
+            self.validated_data.get("redeem_points", 0),
+        )
+        breakdown = price(subtotal, code=promo, points_off=points_off)
         platform_fee = breakdown.platform_fee
         total = breakdown.total
         self.discount = breakdown.discount
         self.promo = promo
+        self.points_to_spend = breakdown.points_discount
+        self.points_to_redeem = self.validated_data.get("redeem_points", 0)
 
         # The strictest requirement across the basket. A customer booking a
         # colour service and a trim has agreed to the colour service's deposit;
@@ -388,6 +404,20 @@ class BookingCreateSerializer(serializers.Serializer):
             # Inside the booking's transaction: if the redemption cannot be
             # written, the booking rolls back rather than existing as a
             # discount nobody can reconcile.
+            # Inside the booking's transaction: a redemption that cannot be
+            # written must roll the booking back, not leave points spent
+            # against an appointment that does not exist.
+            points_to_spend = getattr(self, "points_to_spend", 0)
+            if points_to_spend:
+                from promotions import loyalty as points_ledger
+
+                points_ledger.spend(
+                    customer=booking.customer,
+                    provider=booking.provider,
+                    booking=booking,
+                    points=points_to_spend,
+                )
+
             promo = getattr(self, "promo", None)
             if promo is not None:
                 PromoRedemption.objects.create(

@@ -129,9 +129,46 @@ def points_spendable(customer, booking) -> int:
     if policy is None:
         return 0
 
-    cap_minor = booking.total * policy.max_redemption_percent // 100
+    # The cap is measured against the **subtotal**, not the total. The quote
+    # path has no total yet, and measuring one against items-plus-fee and the
+    # other against items alone means the cap shown and the cap applied are
+    # different numbers.
+    cap_minor = booking.subtotal * policy.max_redemption_percent // 100
     cap_points = cap_minor // POINTS_PER_MINOR
     return max(min(balance(customer).available, cap_points), 0)
+
+
+def preview(customer, provider, total: int, points: int) -> int:
+    """What spending ``points`` would take off a booking worth ``total``.
+
+    The quote path. Records nothing, because a quote happens on every tap of a
+    slot and none of them should move the balance.
+    """
+    policy = policy_for(provider)
+    if policy is None or points <= 0 or total <= 0:
+        return 0
+
+    cap_minor = total * policy.max_redemption_percent // 100
+    usable = min(balance(customer).available, cap_minor // POINTS_PER_MINOR, points)
+    return max(min(usable * POINTS_PER_MINOR, total), 0)
+
+
+def spend(*, customer, provider, booking, points: int) -> None:
+    """Record the points a booking consumed.
+
+    Separate from working out what they are worth: the quote path computes an
+    amount repeatedly and records nothing, and the two confusingly sharing a
+    name is how a preview ends up moving a balance.
+    """
+    if points <= 0:
+        return
+    LoyaltyLedgerEntry.objects.create(
+        customer=customer,
+        provider=provider,
+        booking=booking,
+        points=-abs(points),
+        reason="spent",
+    )
 
 
 def redeem(customer, booking, points: int) -> int:

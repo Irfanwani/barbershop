@@ -8625,6 +8625,10 @@ components:
         promo_code:
           type: string
           maxLength: 32
+        redeem_points:
+          type: integer
+          minimum: 0
+          default: 0
       required:
       - provider
       - services
@@ -9995,6 +9999,10 @@ components:
         promo_code:
           type: string
           maxLength: 32
+        redeem_points:
+          type: integer
+          minimum: 0
+          default: 0
       required:
       - provider
       - services

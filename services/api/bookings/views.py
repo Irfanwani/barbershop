@@ -51,6 +51,7 @@ from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
 from payments.due import amount_due, default_kind
 from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
+from promotions import loyalty
 from promotions.models import PromoError, price, resolve
 from providers.models import ProviderProfile, Service
 
@@ -492,13 +493,13 @@ class QuoteView(APIView):
 
     @extend_schema(operation_id="bookings_quote_get")
     def get(self, request):
-        return self._quote(request.query_params)
+        return self._quote(request.query_params, request.user)
 
     @extend_schema(operation_id="bookings_quote_post")
     def post(self, request):
-        return self._quote(request.data)
+        return self._quote(request.data, request.user)
 
-    def _quote(self, data):
+    def _quote(self, data, user=None):
         serializer = QuoteRequestSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
@@ -530,7 +531,13 @@ class QuoteView(APIView):
         except PromoError as exc:
             raise BusinessRuleViolation(str(exc)) from exc
 
-        breakdown = price(subtotal, code=promo)
+        points_off = loyalty.preview(
+            user,
+            provider,
+            subtotal,
+            int(payload.get("redeem_points") or 0),
+        )
+        breakdown = price(subtotal, code=promo, points_off=points_off)
         total = breakdown.total
 
         deposit_percent = max((service.deposit_percent for service in services), default=0)
@@ -544,6 +551,8 @@ class QuoteView(APIView):
                 # is otherwise a puzzle on the screen.
                 "promo_code": promo.code if promo else None,
                 "promo_description": promo.description if promo else "",
+                "points_spent": payload.get("redeem_points") or 0,
+                "points_worth_minor": points_off,
                 # Shown before checkout, never applied after. A deposit the
                 # customer discovers at the payment screen is a complaint.
                 "deposit_percent": deposit_percent,
