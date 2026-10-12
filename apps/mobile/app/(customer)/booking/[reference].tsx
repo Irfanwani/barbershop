@@ -11,6 +11,7 @@ import { useBooking, useCancelBooking, useCreateOrder, useCreateReview } from '@
 import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/components/ui';
 import { Field, FormError } from '@/components/field';
 import { formatRelative, formatWhen } from '@/components/booking-row';
+import { RescheduleSheet } from '@/components/reschedule-sheet';
 
 export default function BookingDetailScreen() {
   const colors = useColors();
@@ -20,6 +21,7 @@ export default function BookingDetailScreen() {
 
   const booking = useBooking(reference ?? null);
   const cancel = useCancelBooking();
+  const [moving, setMoving] = useState(false);
   const order = useCreateOrder();
 
   const [paying, setPaying] = useState(false);
@@ -202,14 +204,31 @@ export default function BookingDetailScreen() {
         ) : null}
 
         {record.can_be_cancelled ? (
-          <Button
-            variant="ghost"
-            onPress={() => cancel.mutate({ reference: record.reference })}
-            loading={cancel.isPending}
-            testID="booking-cancel">
-            Cancel booking
-          </Button>
+          <View className="flex-row gap-2">
+            <Button
+              className="flex-1"
+              variant="ghost"
+              onPress={() => setMoving(true)}
+              testID="booking-reschedule">
+              Change the time
+            </Button>
+            <Button
+              className="flex-1"
+              variant="ghost"
+              onPress={() => cancel.mutate({ reference: record.reference })}
+              loading={cancel.isPending}
+              testID="booking-cancel">
+              Cancel booking
+            </Button>
+          </View>
         ) : null}
+
+        <RescheduleSheet
+          reference={record.reference}
+          providerId={record.provider.id}
+          visible={moving}
+          onClose={() => setMoving(false)}
+        />
 
         {record.status === 'completed' ? (
           <Button

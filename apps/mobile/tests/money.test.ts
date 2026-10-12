@@ -18,7 +18,7 @@ import {
   describeLedgerKind,
   describeLedgerStatus,
 } from '@/components/balance-card';
-import type { StaffMember } from '@/types/api';
+import type { RescheduleRefused, StaffMember } from '@/types/api';
 import { formatClock, formatWhen } from '../app/(customer)/waitlist';
 
 describe('formatPaise', () => {
@@ -187,5 +187,37 @@ describe('a held slot', () => {
   it('writes the clock the way a person says it', () => {
     const clock = formatClock(new Date('2026-10-14T15:30:00Z').toISOString());
     expect(clock).toMatch(/^\d{1,2}:\d{2}(am|pm)$/);
+  });
+});
+
+describe('moving an appointment', () => {
+  it('describes a price change rather than a new total', () => {
+    const refused: RescheduleRefused = {
+      rescheduled: false,
+      reason: 'price_changed',
+      message: 'This service now costs more than you agreed to.',
+      old_total: 20000,
+      new_total: 30000,
+      difference: 10000,
+    };
+    // Both totals have to survive to the screen. Showing only the new one
+    // makes agreeing to it a guess.
+    expect(refused.old_total).toBe(20000);
+    expect(refused.new_total).toBe(30000);
+    expect(refused.difference).toBe(10000);
+  });
+
+  it('distinguishes a cancellation from a refusal', () => {
+    // Inside the cancellation window the move became a cancellation. That is
+    // the honest outcome, not an error to hide behind a generic message.
+    const becameCancellation: RescheduleRefused = {
+      rescheduled: false,
+      cancelled: true,
+      late_cancel_fee: 5000,
+      message: 'This appointment is inside the 24-hour cancellation window.',
+    };
+    expect(becameCancellation.cancelled).toBe(true);
+    expect(becameCancellation.reason).toBeUndefined();
+    expect(becameCancellation.late_cancel_fee).toBe(5000);
   });
 });

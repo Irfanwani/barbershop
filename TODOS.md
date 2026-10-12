@@ -379,7 +379,7 @@ Writing the tests found three bugs:
 
 ## P2.3 Rescheduling
 
-**Status:** done (backend); app screen outstanding
+**Status:** done
 
 Changing a booking today means cancelling and rebooking, which loses the
 reference, the reminders and the review link, and can double-charge.
@@ -417,7 +417,12 @@ so. A reschedule button that silently dodges the late-cancel fee is a way to
 never pay one. The provider moving their own appointment late is still free —
 the fee only ever punishes the customer.
 
-**Still to do:** no app screen.
+**In the app.** "Change the time" sits next to "Cancel booking" on the
+booking screen, because they are the two answers to the same question and
+finding one without the other is the problem. All three outcomes are shown:
+it moved; the price changed, with both totals and agreeing as a separate
+tap; or it fell inside the window and became a cancellation, with the fee
+that was charged named.
 
 ## P2.4 Saved shops
 

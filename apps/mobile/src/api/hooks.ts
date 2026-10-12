@@ -634,3 +634,19 @@ export function useRespondToOffer() {
     },
   });
 }
+
+export function useRescheduleBooking() {
+  const invalidate = useInvalidateBookings();
+  return useMutation({
+    mutationFn: ({
+      reference,
+      starts_at,
+      acceptPriceChange = false,
+    }: {
+      reference: string;
+      starts_at: string;
+      acceptPriceChange?: boolean;
+    }) => bookingsApi.reschedule(reference, starts_at, acceptPriceChange),
+    onSuccess: () => void invalidate(),
+  });
+}

@@ -35,11 +35,18 @@ import type {
   ServiceTypeOption,
   User,
   WorkingHours,
+  RescheduleRefused,
   StaffMember,
   WaitlistEntry,
   WaitlistOffer,
 } from '@/types/api';
 
+/**
+ * A reschedule that did not happen, and why.
+ *
+ * `cancelled` means it fell inside the cancellation window and became a
+ * cancellation instead — the honest outcome, not an error to hide.
+ */
 export interface StaffHoursInput {
   weekday: number;
   is_closed: boolean;
@@ -324,6 +331,19 @@ export const bookingsApi = {
 
   cancel: (reference: string, reason = '') =>
     api.post<Booking>(`/bookings/${reference}/cancel/`, { reason }),
+
+  /**
+   * Move an appointment to a different time.
+   *
+   * Can come back as a price change rather than a move: the service may have
+   * changed price since the customer agreed. Both totals come back so the app
+   * can show the difference instead of making them remember.
+   */
+  reschedule: (reference: string, starts_at: string, acceptPriceChange = false) =>
+    api.post<Booking | RescheduleRefused>(
+      `/bookings/${reference}/reschedule/`,
+      { starts_at, accept_price_change: acceptPriceChange },
+    ),
 
   transition: (reference: string, action: 'accept' | 'decline' | 'complete' | 'no-show') =>
     api.post<Booking>(`/bookings/${reference}/${action}/`),

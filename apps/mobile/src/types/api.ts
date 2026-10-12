@@ -477,6 +477,18 @@ export interface ReviewSummary {
   total: number;
 }
 
+export interface RescheduleRefused {
+  rescheduled: false;
+  reason?: 'price_changed';
+  message: string;
+  old_total?: number;
+  new_total?: number;
+  difference?: number;
+  cancelled?: boolean;
+  late_cancel_fee?: number;
+  booking?: Booking;
+}
+
 export interface AvailabilitySlot {
   starts_at: string;
   ends_at: string;
