@@ -5,10 +5,15 @@ The public site and the product knowledge base. Vite + React + TypeScript.
 ```bash
 npm ci
 npm run dev        # http://localhost:5173
+npm run typecheck  # tsc --noEmit
+npm run lint       # eslint
 npm test
 npm run build      # typechecks, then builds to dist/
 npm run preview    # serves dist/ on :4173
 ```
+
+`npm run build` already runs `tsc --noEmit` first, so a type error fails the
+build rather than shipping.
 
 The dev server proxies nothing. In development the site talks to
 `http://localhost:8000/api/v1` and to `/api/v1` everywhere else; see
@@ -44,7 +49,7 @@ catches it.
 
 ## Testing
 
-45 tests over Vitest and Testing Library. They check the things that actually
+47 tests over Vitest and Testing Library. They check the things that actually
 break a site: that the page renders when the API is down, that a missing price
 renders `—` and not `₹0.00`, that a thin price sample is not labelled
 "typical", and that the knowledge base has no duplicate anchors.
@@ -61,3 +66,8 @@ says what happens rather than what the feature is called. `keywords` exist so
 searching "money back" finds "How do refunds work?".
 
 Coverage thresholds are set in `vitest.config.ts`.
+
+CI additionally serves the built output and fetches it over HTTP — `/`,
+`/knowledge`, both logo assets and an unknown route must answer 200. That
+last one is the SPA fallback, and it is the only thing in the pipeline that
+would notice a deployment losing it.

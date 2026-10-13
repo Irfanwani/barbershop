@@ -45,6 +45,13 @@ role at sign-up and the navigation, dashboard and data all reshape around it.
 | `services/api`     | REST API, business logic, geospatial barber search, payments  | Django 5.2 · DRF · PostGIS · PostgreSQL  |
 | `docs`             | Architecture decisions, API usage, development and migration   | Markdown                                 |
 
+Each has its own README with the setup steps and the conventions that are easy to
+get wrong: [`services/api`](services/api/README.md) ·
+[`apps/mobile`](apps/mobile/README.md) · [`apps/web`](apps/web/README.md).
+
+Start with `services/api/README.md` if you have never run this before — the
+PostGIS prerequisite fails in a way that does not mention PostGIS.
+
 ## Getting started
 
 Everything is driven by a small set of `make` targets. Run `make help` to see them all.
