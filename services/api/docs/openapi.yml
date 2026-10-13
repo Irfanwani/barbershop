@@ -6771,6 +6771,49 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/promotions/referrals/me/:
+    get:
+      operationId: promotions_my_referrals
+      description: A code to share. Both sides are credited in points when the person
+        you referred completes their first booking - not when they book it, because
+        the appointment can still be cancelled.
+      summary: Your referral code
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/promotions/referrals/provider/:
+    get:
+      operationId: promotions_provider_referrals
+      description: |-
+        What referrals are worth this shop.
+
+        Attributed to the shop that actually did the work, not the shop that issued
+        the code - somebody can hand out their code and send a friend somewhere
+        else entirely, and crediting the issuer would be a lie told in the ledger.
+      summary: Referrals you have won
+      tags:
+      - promotions
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list
@@ -9019,6 +9062,9 @@ components:
           type: integer
           minimum: 0
           default: 0
+        referral_code:
+          type: string
+          maxLength: 16
         answers:
           type: array
           items:

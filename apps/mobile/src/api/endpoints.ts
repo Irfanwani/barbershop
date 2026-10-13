@@ -28,6 +28,7 @@ import type {
   ConsultationForm,
   ConsultationFormPrompt,
   ConsultationQuestion,
+  MyReferrals,
   PointsBalance,
   PointsEntry,
   ProviderAnalytics,
@@ -100,6 +101,10 @@ export const consultationsApi = {
   ) => api.patch<ConsultationForm>(`/providers/me/consultation-forms/${id}/`, body),
 
   deleteForm: (id: number) => api.delete(`/providers/me/consultation-forms/${id}/`),
+};
+
+export const referralsApi = {
+  mine: () => api.get<MyReferrals>('/promotions/referrals/me/'),
 };
 
 export const seriesApi = {
@@ -454,6 +459,11 @@ export const bookingsApi = {
        * questions are unanswered - so a request that skips them cannot book.
        */
       answers?: { question: number; value: string }[];
+      /**
+       * A code somebody gave this customer. Recorded on the booking and paid
+       * out on completion - never at booking.
+       */
+      referral_code?: string;
     },
     /** Stable across retries, so a retry is a replay and not a second booking. */
     idempotencyKey?: string,

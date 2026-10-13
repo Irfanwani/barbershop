@@ -688,7 +688,7 @@ time a phone disagreed about the length of a month.
 
 ## P3.4 Referral programme
 
-**Status:** todo
+**Status:** done
 
 Give a credit, get a credit. Standard in the category, absent here.
 
@@ -699,7 +699,44 @@ Give a credit, get a credit. Standard in the category, absent here.
 - Referrals are attributed to the shop, so a provider can see what worked
 
 **Acceptance:** a self-referral credits nobody; a referral credits once, on
-completion, not on booking.
+completion, not on booking — tested, 27 API tests and 8 app tests.
+
+**A referral programme is a way to mint points**, so nearly every rule here is
+about closing a hole rather than about generosity:
+
+- **Self-referral is refused by the database**, not by a view. A check
+  constraint, so no endpoint written in a hurry can forget it.
+- **A customer has one referrer for life.** `referred` is unique. The second
+  code they try is ignored - the booking still goes ahead, because somebody
+  mistyping a code at checkout must not lose their slot.
+- **The code waits for a completed booking.** Not the booking it was entered
+  at: that can be cancelled, rescheduled into next month, or turn into a
+  no-show, and a reward for an appointment that never happened is a purchase of
+  points.
+- **A cancellation lapses the referral rather than deleting it.** Deleting it
+  would quietly hand the customer a second referrer after they lost nothing.
+
+**The referral is linked to its booking the moment the code is used**, which is
+what lets a cancellation find it and lapse it. The first version only set the
+link when paying out, so a cancelled referral survived the appointment it was
+attached to falling over - caught by a test, not by reading the code.
+
+**Attribution goes to the shop that did the work**, not the shop that issued
+the code. Somebody can hand out their code and send their friend somewhere else
+entirely, and crediting the issuer would be a lie told in the ledger.
+
+**Referral points are ordinary points**, written into the same append-only
+ledger with an expiry. A credit written anywhere else would be points nobody
+can explain, and one with no expiry is a liability the platform cannot plan
+for.
+
+**The code is made on first use, not at signup.** A code for somebody who never
+refers anybody is a row nobody will ever read, and writing to a table on every
+registration is a cost paid by everybody for the benefit of nobody.
+
+**It has no confusable characters** - no zero/O, no one/I. Somebody is going to
+read this out over the phone, and a code that does not survive being read aloud
+is not a referral code.
 
 ## P3.5 Push preferences synced to the server
 

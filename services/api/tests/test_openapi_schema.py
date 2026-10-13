@@ -124,6 +124,9 @@ EXPECTED_ENDPOINTS = {
     # recurring bookings
     "/api/v1/bookings/series/",
     "/api/v1/bookings/series/{id}/stop/",
+    # referrals
+    "/api/v1/promotions/referrals/me/",
+    "/api/v1/promotions/referrals/provider/",
 }
 
 

@@ -7,6 +7,7 @@ ids and computes the price; it never accepts a total. See
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from django.db import transaction
@@ -37,6 +38,8 @@ from promotions import loyalty
 from promotions.models import PromoCode, PromoError, PromoRedemption, resolve
 from providers.models import ProviderProfile, Service, Staff
 from providers.serializers import ProviderSummarySerializer
+
+logger = logging.getLogger(__name__)
 
 
 class BookingItemSerializer(serializers.ModelSerializer):
@@ -277,6 +280,14 @@ class BookingCreateSerializer(serializers.Serializer):
     #: worth and caps it, so a client cannot ask for a discount by sending a
     #: larger number here.
     redeem_points = serializers.IntegerField(required=False, min_value=0, default=0)
+    #: A code somebody gave this customer.
+    #:
+    #: Recorded on the booking and paid out on completion - never at booking,
+    #: because the appointment can still be cancelled or turn into a no-show,
+    #: and a reward for one that never happened is a purchase of points. A
+    #: quote carries no code, because a quote happens on every tap of a slot
+    #: and none of them should be recording a referral.
+    referral_code = serializers.CharField(required=False, allow_blank=True, max_length=16)
     #: Answers to whatever consultation forms the selected services carry. Each
     #: entry is ``{"question": <id>, "value": "..."}``. Validated against the
     #: forms themselves, so a client cannot ask the shop arbitrary questions.
@@ -465,6 +476,24 @@ class BookingCreateSerializer(serializers.Serializer):
                     discount=getattr(self, "discount", 0),
                 )
                 PromoCode.objects.filter(pk=promo.pk).update(times_used=promo.times_used + 1)
+
+            # Inside the same transaction: a booking that exists with nobody
+            # recorded as having referred it would pay the code's owner nothing,
+            # and there would be no record of why.
+            #
+            # Records the link only. The credit comes on completion.
+            referral_code = self.validated_data.get("referral_code") or ""
+            if referral_code.strip():
+                from promotions import referrals
+
+                try:
+                    referrals.attach(booking, referral_code)
+                except referrals.ReferralRejected as rejected:
+                    # Refusing the *booking* for a referral problem would be
+                    # wrong: somebody mistyping a code at checkout should not
+                    # lose their slot. The referral is dropped and the booking
+                    # goes ahead.
+                    logger.info("Referral code rejected at booking: %s", rejected)
 
         return booking
 

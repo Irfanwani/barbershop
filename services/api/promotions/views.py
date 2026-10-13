@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
@@ -10,8 +11,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bookings.models import Booking
+from core.permissions import IsProvider
 from promotions import loyalty
-from promotions.models import LoyaltyLedgerEntry, LoyaltyPolicy
+from promotions.models import LoyaltyLedgerEntry, LoyaltyPolicy, Referral, ReferralStatus
+from promotions.referrals import summary_for
+from providers.models import ProviderProfile
 
 
 class RedemptionSerializer(serializers.Serializer):
@@ -168,5 +172,75 @@ class BookingPointsView(APIView):
                 "usable_on_this_booking": usable,
                 "worth_minor": usable * loyalty.POINTS_PER_MINOR,
                 "total_minor": booking.total,
+            }
+        )
+
+
+class MyReferralsView(APIView):
+    """Your referral code, and what it has brought in.
+
+    The code is created on first call rather than at signup: a code for
+    somebody who never refers anybody is a row nobody will ever read, and
+    writing to a table on every registration is a cost paid by everybody for
+    the benefit of nobody.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="promotions_my_referrals",
+        summary="Your referral code",
+        description=(
+            "A code to share. Both sides are credited in points when the "
+            "person you referred completes their first booking - not when they "
+            "book it, because the appointment can still be cancelled."
+        ),
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        return Response(summary_for(request.user))
+
+
+class ProviderReferralStatsView(APIView):
+    """What referrals are worth this shop.
+
+    Attributed to the shop that actually did the work, not the shop that issued
+    the code - somebody can hand out their code and send a friend somewhere
+    else entirely, and crediting the issuer would be a lie told in the ledger.
+    """
+
+    permission_classes = [IsAuthenticated, IsProvider]
+
+    @extend_schema(
+        operation_id="promotions_provider_referrals",
+        summary="Referrals you have won",
+        responses={200: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        profile = get_object_or_404(ProviderProfile, user=request.user)
+        won = Referral.objects.filter(provider=profile).select_related(
+            "referrer", "referred", "booking"
+        )
+        rewarded = [referral for referral in won if referral.status == ReferralStatus.REWARDED]
+
+        return Response(
+            {
+                "count": won.count(),
+                "rewarded_count": len(rewarded),
+                "points_earned_by_customers": sum(
+                    referral.referrer_points + referral.referred_points for referral in rewarded
+                ),
+                "referrals": [
+                    {
+                        "id": referral.pk,
+                        "status": referral.status,
+                        "referred_display_name": referral.referred.display_name,
+                        "rewarded_at": referral.rewarded_at,
+                        "booking_reference": (
+                            referral.booking.reference if referral.booking else None
+                        ),
+                    }
+                    for referral in won[:50]
+                ],
             }
         )

@@ -339,6 +339,9 @@ class LoyaltyLedgerEntry(models.Model):
             ("spent", "Spent"),
             ("expired", "Expired"),
             ("adjusted", "Adjusted"),
+            # A referral reward is a credit like any other, but a different
+            # one: it was earned by somebody else turning up.
+            ("referral", "Referral"),
         ],
     )
     expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
@@ -399,3 +402,109 @@ class LoyaltyPolicy(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.provider} · {self.points_per_booking} pts"
+
+
+class ReferralCode(models.Model):
+    """One customer's referral code.
+
+    Separate from the customer row so a code can be rotated without touching
+    the account, and so the history of who used which code is readable later.
+    """
+
+    customer = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="referral_code"
+    )
+    code = models.CharField(max_length=16, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "promotions_referralcode"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.customer})"
+
+
+class ReferralStatus(models.TextChoices):
+    #: Booked, not yet completed. No credit has been given.
+    PENDING = "pending", "Pending"
+    REWARDED = "rewarded", "Rewarded"
+    #: The appointment it was attached to was cancelled or never happened.
+    LAPSED = "lapsed", "Lapsed"
+
+
+class Referral(models.Model):
+    """One customer brought in by another.
+
+    The interesting fields are the ones that stop it being a way to mint
+    points:
+
+    - ``referred`` is unique, so a customer can only ever be referred once. The
+      database enforces it; a check in a view is a check somebody forgets.
+    - ``rewarded_at`` is set exactly once, on the completion of the referred
+      customer's **first** completed booking. Not on booking, because a booking
+      can be cancelled or turn into a no-show, and a referral reward for an
+      appointment that never happened is a purchase of points.
+    """
+
+    referrer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="referrals_given"
+    )
+    referred = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="referral_used"
+    )
+    code = models.ForeignKey(
+        ReferralCode, on_delete=models.SET_NULL, null=True, blank=True, related_name="referrals"
+    )
+
+    #: Which shop the referral actually landed in. Null until the first
+    #: booking completes, because the person may well book somewhere else
+    #: entirely and crediting the shop that issued the code would be a lie.
+    provider = models.ForeignKey(
+        "providers.ProviderProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referrals",
+    )
+
+    #: The booking the reward was given for. Unique, so one appointment cannot
+    #: pay out twice even if something calls the reward path again.
+    booking = models.OneToOneField(
+        "bookings.Booking",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="referral",
+    )
+
+    status = models.CharField(
+        max_length=16, choices=ReferralStatus.choices, default=ReferralStatus.PENDING
+    )
+    #: What each side was given, in points. Recorded rather than assumed, so a
+    #: later change to the reward cannot rewrite what was actually paid out.
+    referrer_points = models.PositiveIntegerField(default=0)
+    referred_points = models.PositiveIntegerField(default=0)
+    rewarded_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "promotions_referral"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["referrer", "status"]),
+            models.Index(fields=["provider", "status"]),
+        ]
+        constraints = [
+            # A referral programme that pays for a customer referring themselves
+            # is not a referral programme. The database refuses it, so no
+            # endpoint can be written that forgets to.
+            models.CheckConstraint(
+                condition=~models.Q(referrer=models.F("referred")),
+                name="promotions_referral_not_self",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.referrer} → {self.referred} ({self.status})"

@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, RefreshControl, Share, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
-import { useBookings, useCancelBooking, useMySeries, useStopSeries } from '@/api/hooks';
-import { Button, Card, EmptyState, useColors } from '@/components/ui';
+import {
+  useBookings,
+  useCancelBooking,
+  useMyReferrals,
+  useMySeries,
+  useStopSeries,
+} from '@/api/hooks';
+import { Button, Card, Divider, EmptyState, useColors } from '@/components/ui';
 import { BookingRow, formatWhen } from '@/components/booking-row';
 
 type Tab = 'upcoming' | 'past';
@@ -26,6 +32,15 @@ export default function CustomerBookings() {
   const stopSeries = useStopSeries();
 
   const running = (seriesList.data ?? []).filter((item) => item.status === 'active');
+  const referrals = useMyReferrals();
+
+  async function shareCode() {
+    const code = referrals.data?.code;
+    if (!code) return;
+    await Share.share({
+      message: `Book on BarberShop with my code ${code}. You and I both get a credit when your first appointment is done.`,
+    });
+  }
 
   const rows = bookings.data?.results ?? [];
 
@@ -72,6 +87,45 @@ export default function CustomerBookings() {
             {/* Only on the upcoming tab: a run whose next visit has been and
                 gone is history, and listing it there would read as an
                 appointment that is still coming. */}
+            {referrals.data?.code ? (
+              <View className="px-4">
+                <Card className="gap-2">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-[15px] font-medium" style={{ color: colors.text }}>
+                      Give a friend a credit
+                    </Text>
+                    <Ionicons name="gift-outline" size={18} color={colors.accent} />
+                  </View>
+                  <Text className="text-xs" style={{ color: colors.textMuted }}>
+                    They book with this code, and you both get points once their first
+                    appointment is done - not when they book it, in case they do not.
+                  </Text>
+                  <Text
+                    className="text-2xl font-bold tracking-widest"
+                    style={{ color: colors.accent }}
+                    testID="my-referral-code">
+                    {referrals.data.code}
+                  </Text>
+                  {referrals.data.given_count > 0 ? (
+                    <>
+                      <Divider className="my-1" />
+                      <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                        {referrals.data.given_count}{' '}
+                        {referrals.data.given_count === 1 ? 'person has' : 'people have'}{' '}
+                        used it · {referrals.data.rewarded_count} completed
+                      </Text>
+                    </>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    onPress={() => void shareCode()}
+                    testID="share-referral-code">
+                    Share my code
+                  </Button>
+                </Card>
+              </View>
+            ) : null}
+
             {tab === 'upcoming' && running.length > 0 ? (
               <View className="px-4">
                 <Text className="pb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>

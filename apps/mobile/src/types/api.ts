@@ -654,6 +654,25 @@ export interface BookingSeries {
   service_names: string[];
 }
 
+/**
+ * Your referral code and what it has brought in.
+ *
+ * The code exists from the first call rather than being made at signup: a code
+ * for somebody who never refers anybody is a row nobody will read.
+ */
+export interface MyReferrals {
+  code: string;
+  given: {
+    referred_display_name: string;
+    status: 'pending' | 'rewarded' | 'lapsed';
+    provider: string | null;
+    rewarded_at: string | null;
+  }[];
+  given_count: number;
+  rewarded_count: number;
+  referred_by: string | null;
+}
+
 /** One movement in the points history. */
 export interface PointsEntry {
   id: number;

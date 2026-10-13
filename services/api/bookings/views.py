@@ -297,6 +297,13 @@ class BookingCancelView(APIView):
             logger.warning("Could not settle the refund for %s: %s", booking.reference, exc)
             outcome.message += " We could not start the refund automatically."
 
+        # A referral whose appointment fell over is not owed anything. Marked
+        # lapsed rather than deleted, so the customer who was referred cannot
+        # quietly be referred by somebody else after a cancellation.
+        from promotions import referrals
+
+        referrals.lapse_for_cancelled(booking)
+
         booking.refresh_from_db()
         notify_other_party(booking, cancelled_by=request.user)
 
@@ -457,6 +464,12 @@ class BookingStatusView(APIView):
             from promotions import loyalty
 
             loyalty.credit(booking)
+
+            # A referral reward too, for the same reason. Paid out only here, so
+            # it can only ever be triggered by an appointment that happened.
+            from promotions import referrals
+
+            referrals.reward(booking)
 
         return Response(BookingSerializer(booking, context={"request": request}).data)
 

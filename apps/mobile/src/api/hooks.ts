@@ -25,6 +25,7 @@ import {
   providersApi,
   consultationsApi,
   loyaltyApi,
+  referralsApi,
   savedShopsApi,
   seriesApi,
   reviewsApi,
@@ -383,6 +384,11 @@ export function useUpdateConsultationForm() {
       consultationsApi.updateForm(id, body),
     onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
   });
+}
+
+/** Your referral code and what it has brought in. */
+export function useMyReferrals() {
+  return useQuery({ queryKey: keys.myReferrals, queryFn: referralsApi.mine, retry: false });
 }
 
 /** The runs of appointments this customer has going. */

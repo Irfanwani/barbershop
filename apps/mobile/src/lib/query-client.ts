@@ -56,6 +56,7 @@ export const keys = {
   savedShops: ['me', 'saved-shops'] as const,
   pointsBalance: ['promotions', 'points'] as const,
   mySeries: ['bookings', 'series'] as const,
+  myReferrals: ['promotions', 'referrals', 'me'] as const,
   myConsultationForms: ['providers', 'me', 'consultation-forms'] as const,
   consultationPrompt: (providerId: number | null, serviceIds: number[]) =>
     ['bookings', 'consultation-forms', providerId, [...serviceIds].sort()] as const,

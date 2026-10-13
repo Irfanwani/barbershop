@@ -75,6 +75,9 @@ export function BookingSheet({
   const [answers, setAnswers] = useState<Record<number, string>>({});
   // Off by default. Most bookings are one appointment, and a sheet that opens
   // offering six is a sheet that has to be read before it can be used.
+  // Optional and last in the sheet: most bookings are not referred, and a
+  // required-looking box for a promotion is a box people fill in with anything.
+  const [referralCode, setReferralCode] = useState('');
   const [repeat, setRepeat] = useState(false);
   const [intervalDays, setIntervalDays] = useState(28);
   const [visitCount, setVisitCount] = useState(6);
@@ -221,6 +224,7 @@ export function BookingSheet({
         provider: provider.id,
         services: selected.map((service) => service.id),
         starts_at: slot,
+        ...(referralCode.trim() ? { referral_code: referralCode.trim().toUpperCase() } : {}),
         ...(staffId ? { staff: staffId } : {}),
         ...(promoCode.trim() ? { promo_code: promoCode.trim() } : {}),
         ...(redeemPoints && points.data ? { redeem_points: points.data.available } : {}),
@@ -555,6 +559,19 @@ export function BookingSheet({
                       color={repeat ? colors.accent : colors.textSubtle}
                     />
                   </Pressable>
+
+                  {!repeat ? (
+                    <Field
+                      label="Got a referral code?"
+                      placeholder="Optional"
+                      value={referralCode}
+                      onChangeText={setReferralCode}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      hint="If somebody sent you one, adding it here credits them when your appointment is done."
+                      testID="referral-code"
+                    />
+                  ) : null}
 
                   {repeat ? (
                     <>

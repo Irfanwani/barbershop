@@ -216,3 +216,37 @@ def expiring_within(days: int = 30) -> dict[int, int]:
         .annotate(total=Sum("points"))
     )
     return {row["customer_id"]: row["total"] for row in rows}
+
+
+#: How long a directly-awarded credit lasts when the shop has no policy saying
+#: otherwise. Points are a liability from the moment they are awarded, so a
+#: credit with no expiry is a number the platform cannot plan for.
+DEFAULT_AWARD_VALIDITY_DAYS = 365
+
+
+def award(
+    customer,
+    *,
+    points: int,
+    reason: str,
+    booking=None,
+    provider=None,
+    validity_days: int = DEFAULT_AWARD_VALIDITY_DAYS,
+) -> LoyaltyLedgerEntry:
+    """Credit points directly, outside a shop's earn-per-booking policy.
+
+    Used by the referral programme, which pays on an event of its own rather
+    than on a booking the shop chose to reward. Kept here rather than in
+    ``referrals.py`` so that every credit still lands in the same append-only
+    ledger with the same expiry handling - a balance is the sum over this
+    table, and anything written elsewhere would be points nobody can explain.
+    """
+    expires_at = timezone.now() + timedelta(days=validity_days) if validity_days > 0 else None
+    return LoyaltyLedgerEntry.objects.create(
+        customer=customer,
+        provider=provider,
+        booking=booking,
+        points=points,
+        reason=reason,
+        expires_at=expires_at,
+    )
