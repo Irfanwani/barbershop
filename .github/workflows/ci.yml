@@ -13,10 +13,18 @@ concurrency:
 permissions:
   contents: read
 
+# Runner image is pinned rather than `ubuntu-latest`.
+#
+# `ubuntu-latest` migrates to Ubuntu 26 on 2026-10-19. The API job installs
+# libgdal-dev/libgeos-dev from apt — Django's PostGIS backend cannot load
+# without them — so an unattended OS change under the pipeline is not a risk
+# worth taking on the same week the pipeline started passing. Unpin once a
+# green run has landed on Ubuntu 26; the pin is a delay, not a policy.
+
 jobs:
   api:
     name: API
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     services:
       postgis:
@@ -50,10 +58,10 @@ jobs:
         working-directory: services/api
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
           cache-dependency-glob: services/api/uv.lock
@@ -127,7 +135,7 @@ jobs:
 
       - name: Coverage is uploaded
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-coverage
           path: services/api/htmlcov
@@ -135,16 +143,16 @@ jobs:
 
   app:
     name: Mobile app
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     defaults:
       run:
         working-directory: apps/mobile
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -169,16 +177,16 @@ jobs:
 
   web:
     name: Marketing site
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     defaults:
       run:
         working-directory: apps/web
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
