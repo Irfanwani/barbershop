@@ -39,6 +39,21 @@ uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py check --deploy
 ```
 
+The app and web jobs both run the same five steps:
+
+```bash
+# App
+cd apps/mobile
+npm run typecheck && npm run lint && npm test
+npx expo export --platform all --output-dir dist
+
+# Web
+cd apps/web
+npm run typecheck && npm run lint && npm run test:coverage && npm run build
+# then the built site must actually serve: /, /knowledge, both logo assets and
+# an unknown route all answer 200, and the unknown route falls back to index.html
+```
+
 ---
 
 ## Coverage by section
@@ -778,5 +793,3 @@ Stated plainly rather than left to be discovered:
   deliverability and spam-folder behaviour are not.
 - **No load or concurrency testing.** `test_performance.py` asserts query counts
   stay bounded, which is not the same as the site holding up under load.
-- **`apps/web` has no linter.** The marketing site is unlinted while the mobile
-  app is. Typecheck and tests still run.
