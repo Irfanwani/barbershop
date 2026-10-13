@@ -673,6 +673,37 @@ export interface MyReferrals {
   referred_by: string | null;
 }
 
+/**
+ * An API key, without the secret.
+ *
+ * There is no field for the secret because there is nothing stored to return:
+ * it is shown once, at creation.
+ */
+export interface ApiKeySummary {
+  id: number;
+  name: string;
+  /** The public half, so a person can tell two keys apart. */
+  prefix: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  is_expired: boolean;
+  created_at: string;
+}
+
+/** The one and only time the full key is returned. */
+export interface CreatedApiKey extends ApiKeySummary {
+  key: string;
+}
+
+export interface ApiKeyUsage {
+  keys: ApiKeySummary[];
+  active_count: number;
+  unused_count: number;
+  idle_count: number;
+}
+
 /** One movement in the points history. */
 export interface PointsEntry {
   id: number;

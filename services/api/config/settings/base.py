@@ -73,6 +73,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "core",
+    "api_keys",
     "messaging",
     "accounts",
     "providers",
@@ -194,6 +195,9 @@ DATABASES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        # Key first, so an integrator sending only a key is not first refused by
+        # the token authenticator with a message about tokens.
+        "api_keys.authentication.ApiKeyAuthentication",
         "knox.auth.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
@@ -209,6 +213,10 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.ScopedRateThrottle",
+        # Per key rather than per IP or per user: the limit belongs to the
+        # credential, so one integrator saturating its own budget cannot lock
+        # out every other caller behind the same office NAT.
+        "api_keys.throttling.ApiKeyRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "auth": env.get("THROTTLE_RATE_AUTH", "20/min"),
@@ -327,6 +335,20 @@ WHATSAPP_FROM = env.get("WHATSAPP_FROM", "")
 WHATSAPP_TEMPLATE_ID = env.get("WHATSAPP_TEMPLATE_ID", "")
 #: Shared secret the provider signs webhook bodies with.
 WHATSAPP_WEBHOOK_SECRET = env.get("WHATSAPP_WEBHOOK_SECRET", "")
+
+# ---------------------------------------------------------------------------
+# API keys
+#
+# Keys are stored hashed with this salt in front of them. A stolen database
+# cannot be attacked with a precomputed table of hashes. It is generated once
+# per deployment and must not change: changing it invalidates every key.
+# ---------------------------------------------------------------------------
+
+API_KEY_SALT = env.get("API_KEY_SALT", "barbershop-dev-salt")
+
+#: Requests per minute for one key. Deliberately generous for a POS
+#: integration, which is making a handful of calls per sale.
+API_KEY_RATE_PER_MINUTE = env.get_int("API_KEY_RATE_PER_MINUTE", 600)
 
 # ---------------------------------------------------------------------------
 # Celery — scheduled work

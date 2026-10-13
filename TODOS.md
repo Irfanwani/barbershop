@@ -1195,7 +1195,42 @@ embedded anywhere.
 - Rate limits per key, and usage visible to the key's owner
 
 **Acceptance:** a key with read scope cannot write; a revoked key stops
-working immediately.
+working immediately — tested, 24 API tests and 12 app tests.
+
+**The key is hashed at rest, and salted.** A database dump must not hand
+anybody the ability to act as a customer. Plaintext keys in a table are a
+breach that survives the breach.
+
+**A key acts as its owner, never as itself.** There is no "the API" identity
+that can read everybody. A leaked key reads one customer's bookings, which is a
+bad day rather than a catastrophe.
+
+**The secret is shown once and cannot be recovered.** A system that can show
+you an existing key is a system whose database is one dump away from being a
+credential store. The app says so at the moment it is shown, because a user
+who does not know the secret is gone for good will not copy it, and the
+integration silently fails later.
+
+**An endpoint nobody marked as key-reachable is not reachable with a key** —
+refused at the authenticator rather than by a permission class, so it is closed
+by default. Anything else is one forgotten decorator away from a hole somebody
+finds by reading the URL list.
+
+**Revocation is a flag, not a delete, and it is immediate.** The lookup happens
+per request against live rows, so a revoked key is refused on its very next
+call. The row survives, because somebody deciding to stop trusting an
+integration should not also delete the record of what it once did.
+
+**An unknown prefix and a wrong secret give the same error**, or the endpoint
+is a way to discover which keys exist.
+
+**Rate limits belong to the credential, not the address.** A POS integration
+sits behind a shop's office NAT and every other caller in that building shares
+its IP; limiting by IP means one integrator saturating its own budget locks out
+everybody behind the same router.
+
+**Scopes are deliberately coarse.** Anything finer than read/write invites
+"which is this endpoint again?", and a key that can only read is the default.
 
 ## P5.3 Abuse and no-show scoring
 

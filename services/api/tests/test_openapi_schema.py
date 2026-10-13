@@ -129,6 +129,10 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/promotions/referrals/provider/",
     # messaging
     "/api/v1/messaging/webhook/",
+    # api keys
+    "/api/v1/api-keys/",
+    "/api/v1/api-keys/usage/",
+    "/api/v1/api-keys/{id}/",
 }
 
 

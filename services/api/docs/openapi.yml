@@ -28,6 +28,7 @@ paths:
               $ref: '#/components/schemas/RegisterRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -127,6 +128,7 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -290,6 +292,7 @@ paths:
       tags:
       - auth
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -395,6 +398,7 @@ paths:
               $ref: '#/components/schemas/VerifyEmailRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -488,6 +492,7 @@ paths:
       tags:
       - auth
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -557,6 +562,7 @@ paths:
               $ref: '#/components/schemas/PasswordResetRequestRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -645,6 +651,7 @@ paths:
               $ref: '#/components/schemas/PasswordResetConfirmRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -720,6 +727,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -825,6 +833,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedUpdateProfileRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -919,6 +928,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1013,6 +1023,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1042,6 +1053,7 @@ paths:
             schema:
               $ref: '#/components/schemas/NotificationPreferencesRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1061,6 +1073,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1097,6 +1110,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SaveShopRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1119,6 +1133,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1144,6 +1159,7 @@ paths:
               $ref: '#/components/schemas/ChangePasswordRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1238,6 +1254,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1342,6 +1359,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CustomerProfileRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1436,6 +1454,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1601,6 +1620,7 @@ paths:
               $ref: '#/components/schemas/ProviderWriteRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1767,6 +1787,7 @@ paths:
               $ref: '#/components/schemas/ProviderWriteRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1865,6 +1886,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -1980,6 +2002,7 @@ paths:
               $ref: '#/components/schemas/PushTokenRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2081,6 +2104,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2130,6 +2154,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2203,6 +2228,7 @@ paths:
       tags:
       - me
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2304,6 +2330,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -2387,6 +2414,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -2422,6 +2450,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2441,6 +2470,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2454,6 +2484,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2619,6 +2650,7 @@ paths:
               $ref: '#/components/schemas/ProviderWriteRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2783,6 +2815,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedProviderWriteRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -2937,6 +2970,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3080,6 +3114,7 @@ paths:
               $ref: '#/components/schemas/ServiceRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3219,6 +3254,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3392,6 +3428,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedServiceRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3554,6 +3591,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3712,6 +3750,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -3889,6 +3928,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PayoutRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4055,6 +4095,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4146,6 +4187,7 @@ paths:
               $ref: '#/components/schemas/WorkingHoursWriteRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4221,6 +4263,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4247,6 +4290,7 @@ paths:
               $ref: '#/components/schemas/AvailabilityToggleRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4342,6 +4386,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4422,6 +4467,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4440,6 +4486,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4526,6 +4573,7 @@ paths:
             schema:
               $ref: '#/components/schemas/WithdrawalRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4672,6 +4720,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4701,6 +4750,7 @@ paths:
               $ref: '#/components/schemas/ConsultationFormRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4730,6 +4780,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4764,6 +4815,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedConsultationFormRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4787,6 +4839,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4815,6 +4868,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -4847,6 +4901,7 @@ paths:
               $ref: '#/components/schemas/StaffWriteRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4875,6 +4930,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -4940,6 +4996,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedStaffWriteRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4964,6 +5021,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -4995,6 +5053,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5131,6 +5190,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5326,6 +5386,7 @@ paths:
       tags:
       - providers
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       - {}
@@ -5369,6 +5430,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5436,6 +5498,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5606,6 +5669,7 @@ paths:
               $ref: '#/components/schemas/QuoteRequestRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5775,6 +5839,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5793,6 +5858,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5819,6 +5885,7 @@ paths:
               $ref: '#/components/schemas/BookingSeriesCreateRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5847,6 +5914,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5869,6 +5937,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5900,6 +5969,7 @@ paths:
               $ref: '#/components/schemas/WaitlistJoinRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5918,6 +5988,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5945,6 +6016,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5968,6 +6040,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -5991,6 +6064,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6019,6 +6093,7 @@ paths:
               $ref: '#/components/schemas/BookingCreateRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6128,6 +6203,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6225,6 +6301,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CancelBookingRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6369,6 +6446,7 @@ paths:
               $ref: '#/components/schemas/RescheduleRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6408,6 +6486,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CollectBalanceRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6544,6 +6623,7 @@ paths:
       tags:
       - bookings
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6669,6 +6749,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6687,6 +6768,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6705,6 +6787,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6736,6 +6819,7 @@ paths:
               type: object
               additionalProperties: {}
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6761,6 +6845,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6781,6 +6866,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6804,6 +6890,7 @@ paths:
       tags:
       - promotions
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6838,6 +6925,139 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/api-keys/:
+    get:
+      operationId: api_keys_list
+      description: Secrets are not returned here. They are shown once, at creation.
+      summary: Your API keys
+      tags:
+      - api-keys
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+          description: ''
+    post:
+      operationId: api_keys_create
+      description: Returns the full key once. It cannot be retrieved afterwards -
+        only a salted hash is stored - so copy it now or mint a new one.
+      summary: Create an API key
+      tags:
+      - api-keys
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateRequest'
+        required: true
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/api-keys/usage/:
+    get:
+      operationId: api_keys_usage
+      description: |-
+        Which of your keys are earning their keep.
+
+        A key nobody has used in months is a key somebody should revoke, and this
+        is the only way anybody can find that out.
+      summary: Key usage
+      tags:
+      - api-keys
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/api-keys/{id}/:
+    patch:
+      operationId: api_keys_update
+      description: Narrowing scopes takes effect on the very next request.
+      summary: Change a key
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api-keys
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedApiKeyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedApiKeyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedApiKeyRequest'
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+          description: ''
+    delete:
+      operationId: api_keys_revoke
+      description: Effective immediately - not at the end of a session or when a cache
+        expires. The row is kept so the usage history survives.
+      summary: Revoke a key
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api-keys
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list
@@ -6867,6 +7087,7 @@ paths:
       tags:
       - reviews
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -6943,6 +7164,7 @@ paths:
               $ref: '#/components/schemas/ReviewCreateRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7045,6 +7267,7 @@ paths:
       tags:
       - reviews
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7095,6 +7318,7 @@ paths:
       tags:
       - reviews
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7210,6 +7434,7 @@ paths:
       tags:
       - reviews
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7337,6 +7562,7 @@ paths:
               $ref: '#/components/schemas/ReviewReplyRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7510,6 +7736,7 @@ paths:
               $ref: '#/components/schemas/ReviewRemovalRequestRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7541,6 +7768,7 @@ paths:
               $ref: '#/components/schemas/CreateOrderRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7665,6 +7893,7 @@ paths:
               $ref: '#/components/schemas/VerifyPaymentRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7824,6 +8053,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RefundBookingRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7966,6 +8196,7 @@ paths:
               $ref: '#/components/schemas/TipOrderRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -7984,6 +8215,7 @@ paths:
       tags:
       - payments
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8008,6 +8240,7 @@ paths:
       tags:
       - payments
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8109,6 +8342,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8127,6 +8361,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8140,6 +8375,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8164,6 +8400,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8228,6 +8465,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8247,6 +8485,7 @@ paths:
       tags:
       - products
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8276,6 +8515,7 @@ paths:
             schema:
               $ref: '#/components/schemas/InventoryRequest'
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8348,6 +8588,7 @@ paths:
       tags:
       - orders
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8379,6 +8620,7 @@ paths:
       tags:
       - orders
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8410,6 +8652,7 @@ paths:
               $ref: '#/components/schemas/OrderCreateRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8483,6 +8726,7 @@ paths:
               $ref: '#/components/schemas/OrderCreateRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8582,6 +8826,7 @@ paths:
       tags:
       - orders
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8647,6 +8892,7 @@ paths:
               $ref: '#/components/schemas/OrderStatusActionRequest'
         required: true
       security:
+      - ApiKey: []
       - knoxApiToken: []
       - cookieAuth: []
       responses:
@@ -8855,6 +9101,68 @@ components:
         * `cancel` - cancel
         * `ready` - ready
         * `collect` - collect
+    ApiKey:
+      type: object
+      description: |-
+        A key, without the parts that are not yours to see again.
+
+        The secret is never on this serializer at all - not read-only, not ever.
+        It appears once, in the create response, and that is the only place.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 80
+        prefix:
+          type: string
+          readOnly: true
+        scopes:
+          description: What this key may do. An empty list means nothing.
+        is_active:
+          type: boolean
+        last_used_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_expired:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - is_expired
+      - last_used_at
+      - name
+      - prefix
+    ApiKeyCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        scopes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScopesEnum'
+        expires_in_days:
+          type: integer
+          maximum: 730
+          minimum: 1
+          description: Left out, the key does not expire. Revoking works either way.
+      required:
+      - name
+      - scopes
     AvailabilityToggleRequest:
       type: object
       description: |-
@@ -9822,6 +10130,26 @@ components:
           minLength: 1
       required:
       - email
+    PatchedApiKeyRequest:
+      type: object
+      description: |-
+        A key, without the parts that are not yours to see again.
+
+        The secret is never on this serializer at all - not read-only, not ever.
+        It appears once, in the create response, and that is the only place.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        scopes:
+          description: What this key may do. An empty list means nothing.
+        is_active:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
     PatchedConsultationFormRequest:
       type: object
       description: A form and its questions, in the order they should be asked.
@@ -10991,6 +11319,14 @@ components:
       - created_at
       - id
       - provider
+    ScopesEnum:
+      enum:
+      - read
+      - write
+      type: string
+      description: |-
+        * `read` - read
+        * `write` - write
     Service:
       type: object
       properties:
@@ -11530,6 +11866,12 @@ components:
       required:
       - days
   securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'An API key, as `Authorization: ApiKey <prefix>.<secret>`. Keys
+        act as the account that owns them, never as an identity of their own.'
     cookieAuth:
       type: apiKey
       in: cookie

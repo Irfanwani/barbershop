@@ -57,6 +57,8 @@ export const keys = {
   pointsBalance: ['promotions', 'points'] as const,
   mySeries: ['bookings', 'series'] as const,
   myReferrals: ['promotions', 'referrals', 'me'] as const,
+  apiKeys: ['api-keys'] as const,
+  apiKeyUsage: ['api-keys', 'usage'] as const,
   myConsultationForms: ['providers', 'me', 'consultation-forms'] as const,
   consultationPrompt: (providerId: number | null, serviceIds: number[]) =>
     ['bookings', 'consultation-forms', providerId, [...serviceIds].sort()] as const,

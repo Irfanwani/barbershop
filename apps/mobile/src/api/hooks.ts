@@ -23,6 +23,7 @@ import {
   productsApi,
   notificationPreferencesApi,
   providersApi,
+  apiKeysApi,
   consultationsApi,
   loyaltyApi,
   referralsApi,
@@ -383,6 +384,34 @@ export function useUpdateConsultationForm() {
     mutationFn: ({ id, body }: { id: number; body: Parameters<typeof consultationsApi.updateForm>[1] }) =>
       consultationsApi.updateForm(id, body),
     onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
+  });
+}
+
+/** Your API keys. */
+export function useApiKeys() {
+  return useQuery({ queryKey: keys.apiKeys, queryFn: apiKeysApi.list, retry: false });
+}
+
+export function useApiKeyUsage() {
+  return useQuery({ queryKey: keys.apiKeyUsage, queryFn: apiKeysApi.usage, retry: false });
+}
+
+export function useCreateApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: apiKeysApi.create,
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.apiKeys }),
+  });
+}
+
+export function useRevokeApiKey() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: apiKeysApi.revoke,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.apiKeys });
+      void client.invalidateQueries({ queryKey: keys.apiKeyUsage });
+    },
   });
 }
 

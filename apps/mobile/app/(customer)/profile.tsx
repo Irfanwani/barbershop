@@ -46,6 +46,12 @@ export default function ProfileScreen() {
       onPress: () => router.push('/(onboarding)/customer-location'),
     },
     {
+      icon: 'key-outline',
+      title: 'API keys',
+      subtitle: 'For a till, a dashboard, or anything else that talks to the API',
+      onPress: () => router.push('/(customer)/api-keys'),
+    },
+    {
       icon: 'shield-checkmark-outline',
       title: 'Security',
       subtitle: 'Change your password, see recent sign-ins',

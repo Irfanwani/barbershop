@@ -29,6 +29,9 @@ import type {
   ConsultationFormPrompt,
   ConsultationQuestion,
   MyReferrals,
+  ApiKeySummary,
+  ApiKeyUsage,
+  CreatedApiKey,
   PointsBalance,
   PointsEntry,
   ProviderAnalytics,
@@ -105,6 +108,21 @@ export const consultationsApi = {
 
 export const referralsApi = {
   mine: () => api.get<MyReferrals>('/promotions/referrals/me/'),
+};
+
+export const apiKeysApi = {
+  list: () => api.get<ApiKeySummary[]>('/api-keys/'),
+
+  /** The response is the only place the full key ever appears. */
+  create: (body: { name: string; scopes: string[]; expires_in_days?: number }) =>
+    api.post<CreatedApiKey>('/api-keys/', body),
+
+  update: (id: number, body: Partial<Pick<ApiKeySummary, 'name' | 'scopes' | 'is_active'>>) =>
+    api.patch<ApiKeySummary>(`/api-keys/${id}/`, body),
+
+  revoke: (id: number) => api.delete<ApiKeySummary>(`/api-keys/${id}/`),
+
+  usage: () => api.get<ApiKeyUsage>('/api-keys/usage/'),
 };
 
 export const seriesApi = {

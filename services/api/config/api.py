@@ -23,6 +23,8 @@ urlpatterns = [
     path("promotions/", include("promotions.urls")),
     # --- messaging (WhatsApp) -----------------------------------------------
     path("messaging/", include("messaging.urls")),
+    # --- api keys ----------------------------------------------------------
+    path("api-keys/", include("api_keys.urls")),
     # --- reviews -----------------------------------------------------------
     path("reviews/", include("reviews.urls")),
     # --- payments ----------------------------------------------------------

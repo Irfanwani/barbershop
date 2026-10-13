@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.email import send_booking_confirmation
+from api_keys.scopes import READ, WRITE, HasKeyScope, key_scoped
 from bookings.consultation import questions_for as consultation_questions_for
 from bookings.models import (
     Booking,
@@ -120,14 +121,18 @@ def visible_bookings(user) -> Q:
         401: UNAUTHORIZED,
     },
 )
+@key_scoped(READ)
 class BookingListView(APIView):
     """List bookings.
 
     ``?status=``, ``?upcoming=true`` and ``?past=true`` all work the same way for
     both roles.
+
+    Reachable with an API key holding ``read``: a shop's till needs to see the
+    day's appointments without anybody logging in as the owner.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasKeyScope]
     pagination_class = CompactPagination
 
     def get_queryset(self) -> list[Booking]:
@@ -198,6 +203,7 @@ class BookingDetailView(APIView):
     request=BookingCreateSerializer,
     responses={201: BookingSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED, 429: THROTTLED},
 )
+@key_scoped(WRITE)
 class BookingCreateView(APIView):
     """Book an appointment.
 
@@ -205,7 +211,7 @@ class BookingCreateView(APIView):
     name a price — the server looks the services up and decides.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasKeyScope]
     throttle_scope = "booking"
 
     @extend_schema(operation_id="bookings_create")
@@ -243,6 +249,7 @@ class BookingCreateView(APIView):
     request=CancelBookingSerializer,
     responses={200: BookingSerializer, 400: BAD_REQUEST, 401: UNAUTHORIZED, 404: NOT_FOUND},
 )
+@key_scoped(WRITE)
 class BookingCancelView(APIView):
     """Cancel a booking.
 
@@ -251,7 +258,7 @@ class BookingCancelView(APIView):
     cancel a provider's side of it at all.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasKeyScope]
 
     @extend_schema(
         operation_id="bookings_cancel",
