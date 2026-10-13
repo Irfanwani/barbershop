@@ -6814,6 +6814,30 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/messaging/webhook/:
+    post:
+      operationId: messaging_whatsapp_webhook
+      description: Delivery statuses and customer replies. Signed rather than authenticated;
+        events are idempotent by the provider's own message id.
+      summary: WhatsApp callbacks
+      tags:
+      - messaging
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list

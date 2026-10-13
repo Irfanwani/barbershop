@@ -73,6 +73,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "core",
+    "messaging",
     "accounts",
     "providers",
     "promotions",
@@ -306,6 +307,26 @@ PLATFORM_FEE_PERCENT = env.get_int("PLATFORM_FEE_PERCENT", 1)
 # ---------------------------------------------------------------------------
 
 PUSH_NOTIFICATION_URL = env.get("PUSH_NOTIFICATION_URL", "")
+
+# ---------------------------------------------------------------------------
+# WhatsApp
+#
+# India runs on WhatsApp, so "email and WhatsApp reminders before every
+# booking" is a headline feature rather than a nice-to-have. Every one of these
+# is optional: a deployment with none of them set loses confirmations, not
+# bookings. `WHATSAPP_PROVIDER` picks the shape - twilio, msg91 or gxt - and
+# the rest are read by the matching handler.
+# ---------------------------------------------------------------------------
+
+WHATSAPP_PROVIDER = env.get("WHATSAPP_PROVIDER", "")
+WHATSAPP_ACCOUNT_SID = env.get("WHATSAPP_ACCOUNT_SID", "")
+WHATSAPP_AUTH_TOKEN = env.get("WHATSAPP_AUTH_TOKEN", "")
+#: The sending number or id, in whatever form the provider wants.
+WHATSAPP_FROM = env.get("WHATSAPP_FROM", "")
+#: MSG91 only, and only for template sends.
+WHATSAPP_TEMPLATE_ID = env.get("WHATSAPP_TEMPLATE_ID", "")
+#: Shared secret the provider signs webhook bodies with.
+WHATSAPP_WEBHOOK_SECRET = env.get("WHATSAPP_WEBHOOK_SECRET", "")
 
 # ---------------------------------------------------------------------------
 # Celery — scheduled work

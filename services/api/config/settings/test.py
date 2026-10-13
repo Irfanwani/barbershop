@@ -61,3 +61,12 @@ LOGGING = {
 
 DEBUG_PROPAGATE_EXCEPTIONS = True
 MESSAGE_STORAGE = "django.contrib.messages.storage.fallback.FallbackStorage"
+
+# No WhatsApp provider in tests; the gateway is stubbed where a send is
+# actually being exercised.
+WHATSAPP_PROVIDER = ""
+WHATSAPP_ACCOUNT_SID = ""
+WHATSAPP_AUTH_TOKEN = ""
+WHATSAPP_FROM = ""
+WHATSAPP_TEMPLATE_ID = ""
+WHATSAPP_WEBHOOK_SECRET = "test-whatsapp-secret"

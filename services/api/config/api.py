@@ -21,6 +21,8 @@ urlpatterns = [
     # --- bookings -----------------------------------------------------------
     path("bookings/", include("bookings.urls")),
     path("promotions/", include("promotions.urls")),
+    # --- messaging (WhatsApp) -----------------------------------------------
+    path("messaging/", include("messaging.urls")),
     # --- reviews -----------------------------------------------------------
     path("reviews/", include("reviews.urls")),
     # --- payments ----------------------------------------------------------

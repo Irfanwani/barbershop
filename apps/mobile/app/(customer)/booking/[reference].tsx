@@ -18,11 +18,16 @@ import { Button, Card, Divider, EmptyState, IconButton, useColors } from '@/comp
 import { Field, FormError } from '@/components/field';
 import { formatRelative, formatWhen } from '@/components/booking-row';
 import { RescheduleSheet } from '@/components/reschedule-sheet';
+import { useAuthStore } from '@/store/auth';
 
 export default function BookingDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // Our own number, from our own account - not off the booking. A booking
+  // carries the customer's phone for whoever can see the booking, and that is
+  // not something to widen because this one screen wants it.
+  const me = useAuthStore((state) => state.user);
   const { reference } = useLocalSearchParams<{ reference: string }>();
 
   const booking = useBooking(reference ?? null);
@@ -186,6 +191,16 @@ export default function BookingDetailScreen() {
             </Text>
           ) : null}
         </Card>
+
+        {/* Only while there is something to cancel. Telling somebody they can
+            reply to a text to cancel an appointment they have already cancelled
+            is noise. */}
+        {record.can_be_cancelled && Boolean(me?.phone) ? (
+          <Text className="text-xs" style={{ color: colors.textSubtle }} testID="whatsapp-hint">
+            We sent you this on WhatsApp. Reply CANCEL to that message and we will
+            cancel it for you.
+          </Text>
+        ) : null}
 
         {payError ? <FormError message={payError} /> : null}
 

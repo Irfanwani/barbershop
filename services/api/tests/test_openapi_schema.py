@@ -127,6 +127,8 @@ EXPECTED_ENDPOINTS = {
     # referrals
     "/api/v1/promotions/referrals/me/",
     "/api/v1/promotions/referrals/provider/",
+    # messaging
+    "/api/v1/messaging/webhook/",
 }
 
 

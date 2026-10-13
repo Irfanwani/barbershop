@@ -217,3 +217,16 @@ def materialise_recurring_series() -> None:
     from bookings.series import materialise_due
 
     materialise_due()
+
+
+@shared_task(ignore_result=True)
+def retry_stuck_whatsapp_messages() -> None:
+    """Re-send confirmations a provider never acknowledged.
+
+    A gateway that times out leaves the row at ``queued``. Without this the
+    confirmation is simply lost and the customer finds out at the shop - which
+    is the exact no-show WhatsApp confirmations exist to prevent.
+    """
+    from messaging.outbound import retry_queued
+
+    retry_queued()

@@ -295,6 +295,22 @@ class Booking(TimeStampedModel):
         """The last moment a customer can cancel without a fee."""
         return self.starts_at - timedelta(hours=self.cancellation_window_hours)
 
+    def manage_url(self) -> str:
+        """Where a customer manages this booking.
+
+        On the booking model rather than in a message formatter, because
+        anything that points somebody at a booking - a text, an email, a push -
+        wants the same link, and they drift if each builds its own.
+        """
+        from django.conf import settings
+
+        base = str(getattr(settings, "PUBLIC_SITE_URL", "") or "").rstrip("/")
+        if not base:
+            # No site configured (a deployment serving only the API). The deep
+            # link into the app still works for somebody who has it.
+            return f"barbershop://booking/{self.reference}"
+        return f"{base}/booking/{self.reference}"
+
     def is_late_cancellation(self, *, at: datetime | None = None) -> bool:
         """Whether cancelling now would incur a fee.
 

@@ -478,6 +478,21 @@ def capture(payment: Payment, payment_id: str, signature: str) -> Payment:
         _record_tip(payment, booking)
         return payment
 
+    # The booking is now genuinely secured, so this is the first moment it is
+    # true to say "you're booked" - not at creation, where the booking exists
+    # but is unpaid.
+    #
+    # Idempotent on the booking reference, so a webhook redelivery and the retry
+    # task both landing here cannot produce a second message. Deliberately
+    # outside the payment transaction: a WhatsApp provider that is down must not
+    # undo a capture.
+    try:
+        from messaging import outbound
+
+        outbound.send_confirmation(booking)
+    except Exception:
+        logger.warning("Could not send a confirmation for %s", booking.reference, exc_info=True)
+
     if booking.status == BookingStatus.PENDING_PAYMENT:
         booking.status = (
             BookingStatus.AWAITING_CONFIRMATION

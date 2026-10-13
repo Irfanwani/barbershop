@@ -792,7 +792,52 @@ every booking" is NoSho's headline feature.
 - Charged per message, so send-once and idempotent
 
 **Acceptance:** a booking sends one confirmation; a webhook retry does not send
-a second; a reply that says "cancel" cancels the booking.
+a second; a reply that says "cancel" cancels the booking — tested, 36 API tests
+and 3 app tests.
+
+**A message is keyed on what it is about, not when it was sent.**
+`booking-confirm:<reference>`, with a unique index behind it. So "send the
+confirmation" is safe to call from a view, a capture, a webhook redelivery and
+a retry task without anybody having to decide which of them is first. WhatsApp
+is charged per message, and a customer who gets the same text four times is a
+customer who stops reading them.
+
+**Two separate mechanisms, because they fail differently.** The local index
+stops *our* duplicates; the provider's own idempotency token stops the one
+where the request succeeded and the connection dropped before we found out —
+which is exactly the case where we retry.
+
+**Sent when the deposit is captured, not when the booking is created.** A
+booking exists while it is unpaid, and "you're booked" is a thing the customer
+will hold us to. Capture is the first moment it is true.
+
+**Replies are parsed how people actually write.** `cancel`, `CANCEL`, `pls
+cancel my booking`, `I can't make it`, `won't be able to come` all cancel.
+Only one of those is on any list anybody writes. A parser that only knows the
+first is a booking that does not get cancelled.
+
+**"thanks" is not a cancellation.** Somebody acknowledging a message is not
+giving an instruction, and after a cancellation, reading it as one is how a
+booking gets cancelled twice.
+
+**A reply we cannot parse is kept anyway.** It is still a reply from a
+customer; discarding it means the next person to look has no idea anybody
+tried.
+
+**Delivery status is only ever moved forward.** Providers send these out of
+order, so a late "sent" cannot walk a "delivered" back to looking undelivered -
+which is how a dashboard ends up reporting 0% delivery for messages that
+arrived. "Sent" means the gateway accepted it, not that a human saw it, and the
+row says so.
+
+**Every event is acknowledged, even the ones we ignore.** A non-2xx makes the
+provider redeliver forever, including for events we deliberately do nothing
+with. Rescheduling is left to a person: a reschedule needs a new time, and
+nobody who typed the word has said which one.
+
+**Nothing here breaks a booking.** A provider that is down, a timeout, a
+number that will not parse - the appointment still happens. A gateway outage
+must not undo a capture or roll back a slot somebody has already paid for.
 
 ---
 

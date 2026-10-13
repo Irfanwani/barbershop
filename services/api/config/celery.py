@@ -65,6 +65,13 @@ app.conf.beat_schedule = {
         "task": "bookings.tasks.materialise_recurring_series",
         "schedule": crontab(hour=4, minute=15),
     },
+    # A WhatsApp provider that timed out leaves the message unsent and the
+    # customer unconfirmed. Every five minutes, because a missed confirmation
+    # is a missed appointment.
+    "retry-stuck-whatsapp": {
+        "task": "bookings.tasks.retry_stuck_whatsapp_messages",
+        "schedule": crontab(minute="*/5"),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

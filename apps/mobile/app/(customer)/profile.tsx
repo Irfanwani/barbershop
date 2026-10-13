@@ -112,6 +112,8 @@ export default function ProfileScreen() {
             keyboardType="phone-pad"
             value={phone}
             onChangeText={setPhone}
+            hint="We send your booking confirmation here on WhatsApp, and you can cancel by replying to it."
+            testID="profile-phone"
           />
           <View className="flex-row gap-2">
             <Button variant="secondary" onPress={() => setEditing(false)} className="flex-1">
