@@ -73,6 +73,7 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "core",
+    "observability",
     "risk",
     "exports",
     "api_keys",
@@ -97,6 +98,9 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    # After auth, so anything a view logs about "who" is available, and before
+    # anything that can fail - the id has to exist before the first exception.
+    "observability.middleware.RequestIdMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django.middleware.gzip.GZipMiddleware",
 ]
@@ -413,20 +417,36 @@ RAZOR_KEY_SECRET = RAZORPAY_KEY_SECRET
 RAZOR_URL = "https://api.razorpay.com/v1/fund_accounts"
 LOCAL_PASSWORD = env.get("POSTGRES_PASSWORD", "")
 
+# Structured JSON, because "every 500 on /payments/verify in the last hour" has
+# to be a query against a field rather than a regex somebody has to invent
+# during an incident. LOG_FORMAT=plain is for a laptop.
+LOG_FORMAT = env.get("LOG_FORMAT", "json")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {name} {message}",
+        "json": {
+            "()": "observability.logging.JsonFormatter",
+        },
+        "plain": {
+            "format": "{levelname} {asctime} {name} {message} [{request_id}]",
             "style": "{",
         },
     },
     "handlers": {
-        "console": {"class": "logging.StreamHandler", "formatter": "verbose"},
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": LOG_FORMAT,
+        },
     },
     "root": {"handlers": ["console"], "level": LOG_LEVEL},
     "loggers": {
         "django.db.backends": {"level": "INFO", "handlers": ["console"], "propagate": False},
     },
 }
+
+# Error tracking. Optional: with no DSN the request id still lands on a
+# structured log line, so "find this request id" works either way.
+SENTRY_DSN = env.get("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT = env.get("SENTRY_ENVIRONMENT", env.get("DJANGO_ENV", "development"))

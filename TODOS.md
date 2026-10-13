@@ -780,7 +780,8 @@ than one that admits it is guessing.
 
 ## P3.6 Two-way WhatsApp confirmations
 
-**Status:** todo
+**Status:** done (Twilio / MSG91 / GXT behind one gateway, signed idempotent
+webhook, retry reconciliation, and reply-driven cancellation)
 
 Push fails silently — the app is closed, the token is stale, the notification
 is muted. India runs on WhatsApp: "Email and WhatsApp reminders sent before
@@ -1184,7 +1185,9 @@ lost.
 
 ## P5.2 API keys for third parties
 
-**Status:** todo
+**Status:** done (salted hashes at rest, one-time secret display, immediate
+revocation, read/write scopes, and a fail-closed authenticator — an endpoint
+that declares no scope is unreachable with a key)
 
 Only session/token auth exists. A POS integration or an owner's dashboard
 cannot talk to this API without impersonating a user, so the platform cannot be
@@ -1234,7 +1237,8 @@ everybody behind the same router.
 
 ## P5.3 Abuse and no-show scoring
 
-**Status:** todo
+**Status:** done (per-customer/shop assessment, an advisory deposit suggestion
+that never overrides a provider's call, clearable flags, and a nightly sweep)
 
 NoSho sells "no-show intelligence": track repeat offenders, auto-flag risky
 clients, suggest deposits based on history. We have a `no_show` status and
@@ -1284,7 +1288,9 @@ to.
 
 ## P5.4 Provider CSV export
 
-**Status:** todo
+**Status:** done (queued rather than synchronous, emailed when ready, with
+formula-injection and newline handling — a spreadsheet that executes what it
+downloads is a security bug, not a feature)
 
 Every salon runs on a spreadsheet. If their data cannot leave our product
 they will maintain two records, and ours will be the stale one.
@@ -1329,20 +1335,50 @@ checks the row's status before doing anything.
 
 ## P5.5 Observability
 
-**Status:** todo
+**Status:** done
 
 `logger.exception` in six places and no idea whether any of them fire in
 production.
 
-- Structured JSON logs with a request id
-- Error tracking with the request id attached
-- Metrics: request rate, latency percentiles, booking conversion, no-show rate,
-  reminder delivery
-- An alert when reminder delivery starts failing — the silent failure mode of
-  a Celery app
+- Structured JSON logs with a request id — `observability.logging.JsonFormatter`,
+  configured by `LOG_FORMAT` (`json` by default, `plain` for a laptop). The
+  request id lives in a `ContextVar`, not on a `LoggerAdapter`: an adapter only
+  decorates its own logger, so a `logger.exception` three modules away would
+  carry none of it.
+- Request ids — `observability.middleware.RequestIdMiddleware` generates one per
+  request, reuses an inbound `X-Request-ID`/`X-Correlation-ID` (so a retry
+  behind a gateway is searchable as one thing), bounds it, and echoes it as
+  `X-Request-ID`. Errors are timed and recorded as 500s on the way out, so a
+  request that died mid-body-parse is counted rather than vanishing.
+- Error tracking — `observability.errors.report`, called from
+  `core.exceptions.api_exception_handler`, tags Sentry with the request id when
+  `SENTRY_DSN` is set. **The acceptance holds with no tracker configured**: the
+  error is also a structured log line carrying the id. A reporter that raises
+  cannot break the request it is reporting on.
+- Metrics — in-process counters plus bounded latency samples at
+  `GET /api/v1/observability/metrics/`. Request rate by status class, latency
+  percentiles (p50/p90/p99, nearest-rank and therefore a number somebody can go
+  and look at), booking conversion and no-show rate per provider. Paths are
+  normalised so `BK00042` does not become a thousand metric keys. Rates report
+  `None` rather than a ratio of two bookings.
+- Reminder delivery is counted by **outcome** — the bug that made this feature
+  necessary. `_send_reminders` incremented its counter regardless of what
+  `deliver_push` returned, so a reminder failing every night reported success
+  and every dashboard stayed green while nobody was reminded of anything.
+  `sent` / `failed` / `skipped_no_token` are now distinct, and failures are
+  written to `DeliveryFailure` because in-memory counters die with the process
+  and the question gets asked the next morning.
+- The alert — `observability.tasks.check_delivery_health`, on beat every 15
+  minutes, raises one `Alert` when ≥20% of reminders fail over ≥20 attempts.
+  One live alert per kind (a failing thing pages once, not once per run), and
+  it **resolves** when delivery recovers — an alert that never clears is how a
+  dashboard ends up permanently red and permanently ignored. Below the sample
+  threshold the answer is `unknown`, not `100% failing`.
 
 **Acceptance:** a failed request is findable by its request id in the error
-tracker.
+tracker. Covered by `tests/test_observability.py::TestAFailedRequestIsFindable`,
+which asserts both the wiring from the 500 handler and the id on the rendered
+JSON line.
 
 ## P5.6 Timezone correctness
 

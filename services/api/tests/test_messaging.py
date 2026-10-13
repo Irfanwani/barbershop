@@ -314,7 +314,7 @@ class TestDeliveryStatus:
         assert WhatsAppMessage.objects.get(booking=booking).status == MessageStatus.DELIVERED
 
     def test_a_status_for_a_message_we_never_sent_is_ignored(self):
-        client, _token = logged_in(make_user(_next_name("n")))
+        _client, _token = logged_in(make_user(_next_name("n")))
 
         response = post_webhook({"MessageSid": "SM-nope", "MessageStatus": "delivered"})
 
@@ -324,7 +324,7 @@ class TestDeliveryStatus:
 
 class TestRepliesCancelTheBooking:
     def test_cancel_cancels_it(self):
-        booking, customer = a_booking()
+        booking, _customer = a_booking()
         pay(booking)
 
         post_webhook(

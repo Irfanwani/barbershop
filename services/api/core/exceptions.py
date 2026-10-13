@@ -39,6 +39,8 @@ from rest_framework.exceptions import (
 from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
+from observability import errors as observability_errors
+
 logger = logging.getLogger(__name__)
 
 
@@ -158,11 +160,26 @@ def api_exception_handler(exc: Exception, context: dict) -> Response | None:
     response = drf_exception_handler(exc, context)
 
     if response is None:
+        # To the error tracker, tagged with the request id. That tag is the
+        # whole acceptance criterion: given an id from a support conversation,
+        # find the error. Reported *and* logged, because a deployment with no
+        # tracker configured should still produce something readable.
+        request = context.get("request")
+        observability_errors.report(
+            exc,
+            context={
+                "path": getattr(request, "path", "?"),
+                "method": getattr(request, "method", "?"),
+                "view": type(context.get("view")).__name__
+                if context.get("view") is not None
+                else "",
+            },
+        )
         logger.error(
             "Unhandled %s on %s %s\n%s",
             type(exc).__name__,
-            getattr(context.get("request"), "method", "?"),
-            getattr(context.get("request"), "path", "?"),
+            getattr(request, "method", "?"),
+            getattr(request, "path", "?"),
             traceback.format_exc(),
         )
         return Response(

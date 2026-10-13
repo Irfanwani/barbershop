@@ -22,9 +22,11 @@ import re
 from dataclasses import dataclass
 
 from django.db import transaction
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from bookings.models import Booking, BookingStatus
+from observability import metrics
 from risk.models import CustomerRisk, RiskFlag
 
 logger = logging.getLogger(__name__)
@@ -388,6 +390,24 @@ def sweep_for_flags(*, window_days: int = 30, lookback_days: int = 90) -> int:
                 ),
             )
             raised += 1
+
+    # 4. No-show outcomes, counted while the sweep already has them in hand.
+    #
+    # The counter is per provider so a no-show problem confined to one shop is
+    # distinguishable from a platform-wide one. Recomputed from the bookings
+    # table on every request anyway, so this is a signal rather than a record.
+    for provider_id, no_shows, ended in (
+        Booking.objects.filter(status__in=[BookingStatus.COMPLETED, BookingStatus.NO_SHOW])
+        .values("provider_id")
+        .annotate(
+            no_shows=Count("pk", filter=Q(status=BookingStatus.NO_SHOW)),
+            ended=Count("pk"),
+        )
+        .values_list("provider_id", "no_shows", "ended")
+    ):
+        if ended < 5:
+            continue
+        metrics.observe_no_show(provider_id=provider_id, no_show=no_shows / ended >= 0.5)
 
     logger.info("Raised %s risk flags", raised)
     return raised

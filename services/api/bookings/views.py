@@ -61,6 +61,7 @@ from core.notifications import format_appointment_time
 from core.pagination import CompactPagination
 from core.permissions import IsProvider
 from core.schema import BAD_REQUEST, FORBIDDEN, NOT_FOUND, THROTTLED, UNAUTHORIZED
+from observability import metrics
 from payments.due import amount_due, default_kind
 from payments.idempotency import idempotent
 from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
@@ -228,6 +229,11 @@ class BookingCreateView(APIView):
         serializer = BookingCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         booking = serializer.save()
+
+        # Denominator of the conversion rate lives in the quote endpoint; this is
+        # the numerator. Paired by provider so a shop whose payment page is
+        # broken is visible instead of being averaged away platform-wide.
+        metrics.observe_conversion(provider_id=booking.provider_id, created=True)
 
         send_booking_confirmation(
             to=request.user.email,
@@ -622,6 +628,11 @@ class QuoteView(APIView):
             raise BusinessRuleViolation(
                 "One or more of those services is not available from this provider."
             )
+
+        # Counted once the quote is a real answer, not on the way in: a request
+        # for services that provider does not offer is not a lost conversion, it
+        # is a bad request.
+        metrics.observe_conversion(provider_id=provider.pk, quoted=True)
 
         starts_at = payload["starts_at"]
         duration = timedelta(minutes=sum(service.duration_minutes for service in services))

@@ -137,6 +137,8 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/risk/customers/{customer_pk}/",
     "/api/v1/risk/flags/{id}/clear/",
     # exports
+    "/api/v1/observability/metrics/",
+    "/api/v1/observability/delivery-failure/",
     "/api/v1/exports/",
     "/api/v1/exports/{id}/",
 }

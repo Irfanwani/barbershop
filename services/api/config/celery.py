@@ -45,6 +45,15 @@ app.conf.beat_schedule = {
         "task": "bookings.waitlist.expire_offers",
         "schedule": crontab(minute="*/5"),
     },
+    # Is anybody still being reminded of their appointment?
+    #
+    # Hourly, because the failure this exists to catch is the one that does not
+    # announce itself: the reminder job runs, sends nothing, and reports success.
+    # Nothing crashes, every dashboard is green, and nobody is told.
+    "check-delivery-health": {
+        "task": "observability.tasks.check_delivery_health",
+        "schedule": crontab(minute="*/15"),
+    },
     # Cheapest revenue on the platform: the customer already liked the haircut.
     # Daily, because the window is measured in weeks and the record of who has
     # been told means a missed run is not a missed customer forever.

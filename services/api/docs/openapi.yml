@@ -7110,6 +7110,49 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/observability/metrics/:
+    get:
+      operationId: observability_metrics
+      description: Counters, latency percentiles, booking conversion and no-show rate.
+      summary: Platform metrics
+      tags:
+      - observability
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/observability/delivery-failure/:
+    post:
+      operationId: observability_delivery_failure
+      description: |-
+        Record that something did not arrive.
+
+        Written by the senders themselves. The alternative - inferring failure from
+        absence of success - cannot tell "we sent it" from "we tried and gave up",
+        which is exactly the distinction this whole feature is for.
+      summary: Record a delivery failure
+      tags:
+      - observability
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/exports/:
     get:
       operationId: exports_list

@@ -24,6 +24,7 @@ from django.utils import timezone
 
 from bookings.models import Booking, BookingStatus
 from core.notifications import deliver_push, format_appointment_time
+from observability import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +76,27 @@ def _send_reminders(bookings: list[Booking], *, audience: str) -> int:
         tokens = list(user.push_tokens.filter(active=True).values_list("token", flat=True))
 
         if tokens and _wants_reminders(user):
-            deliver_push(
+            delivered = deliver_push(
                 tokens,
                 title="Appointment reminder",
                 body=_body(booking, audience=audience),
                 data={"screen": "/bookings", "reference": booking.reference},
             )
-            sent += 1
+            # The *outcome*, not "we called the function".
+            #
+            # This used to be `sent += 1` regardless of what came back, so a
+            # reminder that failed every single night still reported itself as
+            # sent and every dashboard stayed green while nobody was reminded of
+            # anything. Counting the attempt rather than the result is how a
+            # delivery outage stays invisible.
+            outcome = "sent" if delivered else "failed"
+            metrics.observe_reminder(channel="push", outcome=outcome)
+            if delivered:
+                sent += 1
+            else:
+                _record_failure("push", "push gateway did not accept", booking.reference)
         elif not tokens:
+            metrics.observe_reminder(channel="push", outcome="skipped_no_token")
             logger.debug("No push token for %s; skipping reminder", user.username)
 
         # Marked sent either way. A user with no token, or who has switched
@@ -90,6 +104,17 @@ def _send_reminders(bookings: list[Booking], *, audience: str) -> int:
         Booking.objects.filter(pk=booking.pk).update(reminder_sent_at=now)
 
     return sent
+
+
+def _record_failure(channel: str, reason: str, reference: str = "") -> None:
+    """Write a delivery failure down.
+
+    In memory the counter vanishes on the next deploy; the thing somebody asks
+    to see at 9am is "did reminders arrive last night", and that needs a row.
+    """
+    from observability.models import DeliveryFailure
+
+    DeliveryFailure.objects.create(channel=channel, reason=reason[:300], reference=reference[:64])
 
 
 def _body(booking: Booking, *, audience: str) -> str:

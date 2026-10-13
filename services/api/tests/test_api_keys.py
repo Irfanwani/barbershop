@@ -101,7 +101,7 @@ class TestTheKeyItself:
         assert full not in str(stored.__dict__)
 
     def test_the_secret_is_shown_exactly_once(self):
-        user, client, token = a_customer()
+        _user, client, token = a_customer()
 
         created = client.post(
             KEYS,
@@ -120,7 +120,7 @@ class TestTheKeyItself:
         assert full not in str(listed.data)
 
     def test_its_name_and_prefix_survive(self):
-        user, client, token = a_customer()
+        _user, client, token = a_customer()
 
         created = client.post(
             KEYS, {"name": "Shopfront", "scopes": [READ, WRITE]}, **auth_header(token)
@@ -233,7 +233,7 @@ class TestReadCannotWrite:
         key.scopes = [READ]
         key.save(update_fields=["scopes"])
 
-        second = a_booked_customer()
+        a_booked_customer()
         assert client.get(f"{BOOKINGS}", **key_header(full)).status_code == 200
 
     def test_an_endpoint_that_declares_no_scope_is_not_reachable_with_a_key(self):
@@ -270,7 +270,7 @@ class TestRevocationIsImmediate:
         assert client.get(f"{BOOKINGS}", **key_header(full)).status_code == 401
 
     def test_revoking_through_the_api_works_the_same(self):
-        user, client, token = a_customer()
+        _user, client, token = a_customer()
         created = client.post(KEYS, {"name": "Till", "scopes": [READ]}, **auth_header(token))
         full = created.data["key"]
         key_id = created.data["id"]
@@ -286,7 +286,7 @@ class TestRevocationIsImmediate:
     def test_revoking_keeps_the_record(self):
         """Somebody deciding to stop trusting an integration should not also
         delete the history of what it once did."""
-        user, client, token = a_customer()
+        _user, client, token = a_customer()
         created = client.post(KEYS, {"name": "Till", "scopes": [READ]}, **auth_header(token))
         client.delete(f"{KEYS}{created.data['id']}/", **auth_header(token))
 
@@ -297,7 +297,7 @@ class TestRevocationIsImmediate:
 
     def test_an_expired_key_is_refused(self):
         user, client, _token = a_customer()
-        key, full = ApiKey.issue(
+        _key, full = ApiKey.issue(
             user=user,
             name="Old",
             scopes=[READ],
@@ -349,7 +349,7 @@ class TestManagingKeys:
 
     def test_you_cannot_revoke_somebody_elses(self):
         one, _c1, _t1 = a_customer()
-        two, c2, t2 = a_customer()
+        _two, c2, t2 = a_customer()
         key, _full = mint(one, scopes=[READ])
 
         response = c2.delete(f"{KEYS}{key.pk}/", **auth_header(t2))
@@ -369,7 +369,7 @@ class TestManagingKeys:
         """A key nobody has used in months is a key somebody should revoke, and
         this is the only way anybody can find that out."""
         user, client, token = a_customer()
-        _unused, unused_full = mint(user, scopes=[READ], name="Unused")
+        _unused, _unused_full = mint(user, scopes=[READ], name="Unused")
         _used, used_full = mint(user, scopes=[READ], name="Used")
 
         client.get(f"{BOOKINGS}", **key_header(used_full))
@@ -396,9 +396,9 @@ class TestManagingKeys:
 
         from api_keys.throttling import ApiKeyRateThrottle
 
-        user, client, _token = a_customer()
-        one, full_one = mint(user, scopes=[READ], name="One")
-        two, full_two = mint(user, scopes=[READ], name="Two")
+        user, _client, _token = a_customer()
+        one, _full_one = mint(user, scopes=[READ], name="One")
+        two, _full_two = mint(user, scopes=[READ], name="Two")
 
         class FakeRequest:
             def __init__(self, auth):
