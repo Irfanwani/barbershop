@@ -68,6 +68,43 @@ jobs:
         # A stale lockfile means CI is not testing what will ship.
         run: uv lock --check
 
+      # Django's PostGIS backend loads GDAL and GEOS through ctypes, and the
+      # GitHub runner image has neither. The runtime packages ship only
+      # versioned sonames (`libgdal.so.32`); the unversioned `libgdal.so` and
+      # `libgeos_c.so` that Django's `find_library` name list actually looks for
+      # come from the -dev packages. Without this, `manage.py check` dies in
+      # Django's own import chain before it says anything useful.
+      - name: Install GIS libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgdal-dev libgeos-dev libproj-dev
+
+          # Resolve explicitly rather than trusting that the symlinks landed, and
+          # fail here with a clear message if they did not. Setting an empty
+          # path would just move the failure somewhere less legible. The `ls`
+          # fallback covers the case where the ldconfig cache has not been
+          # refreshed after the install.
+          gdal_so=$(ldconfig -p | awk '/libgdal\.so/ {print $NF; exit}')
+          geos_so=$(ldconfig -p | awk '/libgeos_c\.so/ {print $NF; exit}')
+          [ -n "$gdal_so" ] || gdal_so=$(ls /usr/lib/*/libgdal.so* /lib/*/libgdal.so* 2>/dev/null | head -1)
+          [ -n "$geos_so" ] || geos_so=$(ls /usr/lib/*/libgeos_c.so* /lib/*/libgeos_c.so* 2>/dev/null | head -1)
+          if [ -z "$gdal_so" ] || [ -z "$geos_so" ]; then
+            echo "::error::GDAL/GEOS did not resolve after install (gdal='$gdal_so' geos='$geos_so')"
+            exit 1
+          fi
+          echo "GDAL_LIBRARY_PATH=$gdal_so" >> "$GITHUB_ENV"
+          echo "GEOS_LIBRARY_PATH=$geos_so" >> "$GITHUB_ENV"
+
+      - name: The GIS libraries load
+        run: |
+          uv run python -c "
+          from django.contrib.gis.gdal import libgdal
+          from django.contrib.gis.geos import libgeos
+          print('GDAL', libgdal.gdal_version())
+          print('GEOS', libgeos.geos_version())
+          "
+
       - name: Django system check
         run: uv run python manage.py check --deploy --fail-level ERROR
           || uv run python manage.py check

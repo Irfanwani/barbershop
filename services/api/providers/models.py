@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import UTC, datetime, time
 from decimal import Decimal
 
 from django.conf import settings
@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db.models import F, Q
 from django.utils.text import slugify
+from django.utils.timezone import is_naive, make_aware
 
 from accounts.models import ReminderPreferencesMixin
 from core.fields import EncryptedTextField
@@ -191,8 +192,25 @@ class ProviderProfile(ReminderPreferencesMixin, TimeStampedModel):
         return format_minor(price) if price is not None else None
 
     def is_open_at(self, moment=None) -> bool:
-        moment = moment or self.local_now()
-        return self.opening_time <= moment.time() <= self.closing_time
+        """Whether the shop is open at ``moment``.
+
+        ``moment`` is converted onto this shop's own clock before the comparison.
+        It used to be compared raw, and ``datetime.time()`` on an aware value
+        returns the *UTC* wall time - so passing a moment answered with the
+        server's clock for every shop outside UTC. The no-argument form went
+        through ``local_now()`` and was correct, which is why the bug sat latent
+        with exactly one caller and no failure behind it. This is the same
+        mistake P5.6 exists to remove, arriving through the argument.
+        """
+        if moment is None:
+            local = self.local_now()
+        else:
+            if is_naive(moment):
+                # Naive means UTC here. Guessing the server's local zone would be
+                # a second silent wrong answer on top of the first.
+                moment = make_aware(moment, UTC)
+            local = self.localtime(moment)
+        return self.opening_time <= local.time() <= self.closing_time
 
     def refresh_rating(self, save: bool = True) -> Decimal:
         """Recompute the cached rating from its reviews."""

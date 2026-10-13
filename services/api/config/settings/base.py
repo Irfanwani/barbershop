@@ -176,6 +176,15 @@ AWS_S3_REGION_NAME = env.get("AWS_S3_REGION_NAME", "ap-south-1")
 # provider search is a radius query, not a Python loop over coordinates.
 # ---------------------------------------------------------------------------
 
+# GEOS and GDAL are loaded through ctypes. Normally Django's own name-based
+# lookup finds them. These are here so an environment can pin the exact library,
+# which matters on slim CI images that ship only versioned sonames
+# (`libgdal.so.32`) and not the unversioned symlink Django looks for. Empty is
+# fine and means "go and look for it yourself", which is the default everywhere
+# except CI.
+GDAL_LIBRARY_PATH = env.get("GDAL_LIBRARY_PATH", "")
+GEOS_LIBRARY_PATH = env.get("GEOS_LIBRARY_PATH", "")
+
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",

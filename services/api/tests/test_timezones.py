@@ -13,7 +13,7 @@ the following morning.
 
 from __future__ import annotations
 
-from datetime import time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -56,6 +56,22 @@ def a_shop(tz_name: str = "", *, opening=time(9), closing=time(18)):
         timezone_name=tz_name,
     )
     return profile
+
+
+def database_now() -> datetime:
+    """The clock the search filter actually reads.
+
+    The `open_now` filter asks Postgres for `CURRENT_TIMESTAMP` so the
+    comparison stays in the query and survives pagination. Anything that wants
+    to reason about what that filter did has to read the same clock - freezing
+    Python's clock and comparing the two is how this test spent years only
+    passing during one narrow window of the day.
+    """
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT CURRENT_TIMESTAMP")
+        return cursor.fetchone()[0]
 
 
 def at(moment_utc: str) -> object:
@@ -210,39 +226,69 @@ class TestOpenNowFollowsTheSameChainTheShopPageDoes:
         ],
     )
     def test_the_filter_agrees_with_the_shop_page(self, shop_zone, account_zone, expected_zone):
-        """Frozen at 10:00 UTC, which is 15:30 in Kolkata and 11:00 in London.
+        """The filter and the shop page must agree about the same instant.
 
-        Hours are set to a window that is open in the expected zone and shut in
-        the others, so a filter reading the wrong clock returns the opposite
-        answer rather than a coincidence.
+        Two clocks are in play and this used to mix them. The search filter asks
+        the *database* for `CURRENT_TIMESTAMP` - deliberately, so the comparison
+        stays in SQL and survives pagination - while `is_open_at` reads the
+        Python clock. `freeze_time` only moves the Python one, so freezing time
+        and then comparing the two compared a database clock against a frozen
+        Python clock. That disagreed whenever the real time was outside the
+        window chosen for the frozen time, which is most of the day.
+
+        So: take the instant from the database, and derive the window from it.
+        The test is now true at any hour of any day, which is the only property
+        that makes it worth having in CI.
         """
-        from freezegun import freeze_time
+        db_now = database_now()
 
-        local_hour = {
-            "Asia/Kolkata": 15,
-            "Europe/London": 11,
-            "UTC": 10,
-        }[expected_zone]
-        window = time(local_hour - 1, 0)
-
-        shop = a_shop(
-            shop_zone,
-            opening=window,
-            closing=time(local_hour + 1, 0),
-        )
+        shop = a_shop(shop_zone, opening=time(9), closing=time(18))
         shop.user.timezone_name = account_zone
         shop.user.save(update_fields=["timezone_name"])
 
+        # Used only to place the window, never to decide the answer. The window
+        # is the hour either side of the shop's own local time right now, so a
+        # filter reading the server's clock gets the opposite answer. It is
+        # built from whole hours rather than by subtracting a timedelta, because
+        # a window centred on 00:20 or 23:50 wraps midnight - and
+        # `opening <= t <= closing` is then true for no time at all, which is a
+        # test that fails for one hour a day and looks like a product bug.
+        local_hour = db_now.astimezone(shop.tz()).hour
+        shop.opening_time = time(max(0, local_hour - 1))
+        shop.closing_time = time(min(23, local_hour + 1), 59)
+        shop.save(update_fields=["opening_time", "closing_time"])
+
         client, token = logged_in(make_user())
 
-        with freeze_time("2026-03-01 10:00:00", tz_offset=0):
-            response = client.get(f"{PROVIDERS}?open_now=true", **auth_header(token))
+        response = client.get(f"{PROVIDERS}?open_now=true", **auth_header(token))
 
         assert response.status_code == 200
         listed = shop.pk in [row["id"] for row in response.data["results"]]
         # The shop's own page is the reference: if it says open, the search must
         # agree, and the two are computed by completely different code.
-        assert listed is shop.is_open_at(timezone.now())
+        assert listed is shop.is_open_at(db_now)
+
+    def test_the_shop_is_judged_by_its_own_clock_not_the_servers(self):
+        """The specific failure the chain exists to prevent.
+
+        `is_open_at` took a moment and compared `moment.time()` straight
+        against the shop's opening hours. On an aware datetime `.time()` is the
+        UTC wall time, so every shop outside UTC was judged by the server's
+        clock - and this passed for years because the only caller omitted the
+        argument and went through `local_now()` instead.
+        """
+        shop = a_shop("Asia/Kolkata", opening=time(14), closing=time(16))
+
+        # 15:30 in Kolkata, which is 10:00 UTC: inside the shop's hours.
+        inside = datetime(2026, 3, 1, 10, 0, tzinfo=UTC)
+        assert shop.is_open_at(inside) is True
+
+        # The same instant read in London is 10:00, outside 14:00-16:00.
+        london = inside.astimezone(ZoneInfo("Europe/London"))
+        assert london.time() == time(10, 0)
+        assert shop.opening_time > london.time()
+        # And a moment genuinely outside the shop's hours stays outside.
+        assert shop.is_open_at(datetime(2026, 3, 1, 4, 0, tzinfo=UTC)) is False
 
 
 class TestTheShopCanSetItsZone:
