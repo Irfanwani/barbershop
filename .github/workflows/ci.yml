@@ -166,11 +166,29 @@ jobs:
       # catches it being forgotten.
       - name: The built site serves
         run: |
-          npx vite preview --port 4173 --silent &
+          # `--logLevel error`, not `--silent`: Vite has no `--silent` flag and
+          # exits on the unknown option, so the server never started and the
+          # checks below failed against nothing.
+          npx vite preview --port 4173 --logLevel error &
+          server_pid=$!
+          trap 'kill $server_pid 2>/dev/null || true' EXIT
+
+          ready=""
           for _ in $(seq 1 30); do
-            curl -sf -o /dev/null http://localhost:4173/ && break
+            if curl -sf -o /dev/null http://localhost:4173/; then ready=1; break; fi
+            if ! kill -0 $server_pid 2>/dev/null; then
+              echo "::error::vite preview exited before serving anything"
+              exit 1
+            fi
             sleep 1
           done
+          # Otherwise the loop below reports five confusing "served 000" errors
+          # for what is really one problem: the server never booted.
+          if [ -z "$ready" ]; then
+            echo "::error::vite preview did not come up on port 4173"
+            exit 1
+          fi
+
           for path in / /knowledge /assets/logo-512.png /assets/favicon.png /a-route-that-does-not-exist; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:4173$path")
             if [ "$code" != "200" ]; then

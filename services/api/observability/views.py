@@ -75,6 +75,10 @@ class RecordDeliveryFailureView(APIView):
     @extend_schema(
         operation_id="observability_delivery_failure",
         summary="Record a delivery failure",
+        # Stated rather than left to inference: spectacular cannot guess a body
+        # from an APIView, and guessing wrong here means the documented request
+        # shape silently drifts from what the view actually reads.
+        request=OpenApiTypes.OBJECT,
         responses={201: OpenApiTypes.OBJECT},
     )
     def post(self, request):
