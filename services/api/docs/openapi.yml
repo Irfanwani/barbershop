@@ -7110,6 +7110,81 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/exports/:
+    get:
+      operationId: exports_list
+      description: Ask for an export, and see how the ones before it went.
+      summary: Your export requests
+      tags:
+      - exports
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExportRequest'
+          description: ''
+    post:
+      operationId: exports_request
+      description: Queued and emailed. Poll the row for `status`; there is nothing
+        to download afterwards, by design - a copy of your data sitting in storage
+        is a copy somebody eventually forwards.
+      summary: Ask for a spreadsheet
+      tags:
+      - exports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExportRequestRequest'
+        required: true
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRequest'
+          description: ''
+  /api/v1/exports/{id}/:
+    get:
+      operationId: exports_detail
+      description: One request, for polling.
+      summary: One export request
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - exports
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRequest'
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list
@@ -9891,6 +9966,88 @@ components:
         preferred_service_type:
           type: string
           maxLength: 32
+    DatasetsEnum:
+      enum:
+      - bookings
+      - revenue
+      - clients
+      - payouts
+      type: string
+      description: |-
+        * `bookings` - bookings
+        * `revenue` - revenue
+        * `clients` - clients
+        * `payouts` - payouts
+    ExportRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        from_date:
+          type: string
+          format: date
+        to_date:
+          type: string
+          format: date
+        datasets:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetsEnum'
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ExportStatusEnum'
+          readOnly: true
+        row_count:
+          type: integer
+          readOnly: true
+        failure_reason:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        sent_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - created_at
+      - failure_reason
+      - from_date
+      - id
+      - row_count
+      - sent_at
+      - status
+      - to_date
+    ExportRequestRequest:
+      type: object
+      properties:
+        from_date:
+          type: string
+          format: date
+        to_date:
+          type: string
+          format: date
+        datasets:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetsEnum'
+      required:
+      - from_date
+      - to_date
+    ExportStatusEnum:
+      enum:
+      - queued
+      - sent
+      - failed
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `sent` - Sent
+        * `failed` - Failed
     Inventory:
       type: object
       properties:

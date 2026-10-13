@@ -15,6 +15,13 @@ ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
 # Nothing leaves the machine during a test run.
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+# Run tasks in the request that scheduled them. Without this, any endpoint that
+# calls ``.delay()`` reaches for a broker that does not exist in tests and
+# returns a 500 - which reads like a bug in the endpoint rather than a missing
+# broker.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
 PUSH_NOTIFICATION_URL = ""
 RAZORPAY_KEY_ID = "rzp_test_key"
 RAZORPAY_KEY_SECRET = "rzp_test_secret"

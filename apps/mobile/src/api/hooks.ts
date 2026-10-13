@@ -27,6 +27,7 @@ import {
   consultationsApi,
   loyaltyApi,
   referralsApi,
+  exportsApi,
   riskApi,
   savedShopsApi,
   seriesApi,
@@ -385,6 +386,19 @@ export function useUpdateConsultationForm() {
     mutationFn: ({ id, body }: { id: number; body: Parameters<typeof consultationsApi.updateForm>[1] }) =>
       consultationsApi.updateForm(id, body),
     onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
+  });
+}
+
+/** The spreadsheets this shop has asked for. */
+export function useExports() {
+  return useQuery({ queryKey: keys.exports, queryFn: exportsApi.list, retry: false });
+}
+
+export function useRequestExport() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: exportsApi.request,
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.exports }),
   });
 }
 

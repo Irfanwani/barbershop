@@ -736,6 +736,25 @@ export interface CustomerRiskResponse extends CustomerRiskSummary {
   customer_display_name: string;
 }
 
+/**
+ * A spreadsheet somebody asked for, and what became of it.
+ *
+ * There is no download link, by design. The file goes out by email and is not
+ * kept: a copy of a shop's data sitting in storage is a copy somebody eventually
+ * forwards.
+ */
+export interface ExportRequest {
+  id: number;
+  from_date: string;
+  to_date: string;
+  datasets: string[];
+  status: 'queued' | 'sent' | 'failed';
+  row_count: number;
+  failure_reason: string;
+  created_at: string;
+  sent_at: string | null;
+}
+
 /** One movement in the points history. */
 export interface PointsEntry {
   id: number;

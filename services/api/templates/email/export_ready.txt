@@ -1,0 +1,21 @@
+Hello,
+
+Here is the data you asked for from BarberShop.
+
+Shop:    {{ provider_name }}
+Period:  {{ period }}
+Files:   {{ file_names|join:", " }}
+
+Each file is UTF-8 encoded and opens directly in Excel, Numbers, Google Sheets
+or any spreadsheet. Amounts are in two columns: the plain number in the
+smallest unit (paise), and a formatted one for reading.
+
+The dates in the bookings file are in UTC and in {{ provider_name }}'s own time
+zone, because those are not always the same and the local one is the one you
+booked against.
+
+If you need a different period, or a dataset that is not here, ask us and we
+will put it together.
+
+{{ support_email }}
+{{ brand }}

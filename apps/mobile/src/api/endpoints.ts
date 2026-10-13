@@ -26,6 +26,7 @@ import type {
   Payout,
   BookingSeries,
   ConsultationForm,
+  ExportRequest,
   CustomerRiskResponse,
   ConsultationFormPrompt,
   ConsultationQuestion,
@@ -109,6 +110,13 @@ export const consultationsApi = {
 
 export const referralsApi = {
   mine: () => api.get<MyReferrals>('/promotions/referrals/me/'),
+};
+
+export const exportsApi = {
+  list: () => api.get<ExportRequest[]>('/exports/'),
+  request: (body: { from_date: string; to_date: string; datasets?: string[] }) =>
+    api.post<ExportRequest>('/exports/', body),
+  detail: (id: number) => api.get<ExportRequest>(`/exports/${id}/`),
 };
 
 export const riskApi = {

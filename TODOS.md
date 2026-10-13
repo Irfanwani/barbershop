@@ -1295,7 +1295,37 @@ they will maintain two records, and ours will be the stale one.
 - Payout history alongside
 
 **Acceptance:** an export contains every booking in the period, not just the
-first page.
+first page — tested, 25 API tests and 9 app tests, including 250 bookings
+against a 20-per-page list.
+
+**The file is not kept.** It goes out by email and is not stored. A copy of a
+salon's data sitting on a server is a copy somebody eventually forwards, and the
+row that survives is the *request* - who asked, for what period, and whether it
+arrived. Without it "the export never came" is unactionable.
+
+**No pagination, anywhere.** Every dataset streams off the cursor. Anything that
+fetched a page and then iterated in Python passes a glance at the code and fails
+a shop with four hundred bookings, which is why the test is 250 rows rather than
+three.
+
+**Amounts come out twice**: plain paise, and a formatted column beside it. A
+spreadsheet that opens where the decimal separator is a comma turns a column of
+rupees into one enormous number.
+
+**Free text cannot become a formula.** A booking note typed as `=cmd()` must
+not become a formula in somebody's spreadsheet, so cells starting `=`, `+`, `-`
+or `@` are prefixed with an apostrophe. Newlines in a note are flattened, or a
+multi-line note becomes two rows in some readers.
+
+**Dates are given twice too** - UTC and the shop's own clock - because those are
+not the same and the local one is the one they booked against.
+
+**A refusal sends nothing at all.** Too many rows fails before the first file
+is emailed, so a request that cannot be satisfied in full never arrives as a
+partial file that looks complete.
+
+**The worker never emails twice**, even if it is redelivered, because the task
+checks the row's status before doing anything.
 
 ## P5.5 Observability
 

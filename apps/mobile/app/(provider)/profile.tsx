@@ -67,6 +67,12 @@ export default function ProviderProfile() {
       onPress: () => router.push('/(provider)/consultation-forms'),
     },
     {
+      icon: 'download-outline',
+      title: 'Export to a spreadsheet',
+      subtitle: 'Bookings, revenue and clients, emailed to you',
+      onPress: () => router.push('/(provider)/exports'),
+    },
+    {
       icon: 'notifications-outline',
       title: 'Notifications',
       subtitle: 'What BarberShop is allowed to tell you',

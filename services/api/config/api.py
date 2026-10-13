@@ -27,6 +27,8 @@ urlpatterns = [
     path("api-keys/", include("api_keys.urls")),
     # --- risk / no-show scoring --------------------------------------------
     path("risk/", include("risk.urls")),
+    # --- exports ----------------------------------------------------------
+    path("exports/", include("exports.urls")),
     # --- reviews -----------------------------------------------------------
     path("reviews/", include("reviews.urls")),
     # --- payments ----------------------------------------------------------
