@@ -58,6 +58,13 @@ app.conf.beat_schedule = {
         "task": "bookings.reminders.request_reviews",
         "schedule": crontab(hour=16, minute=0),
     },
+    # The next visit of every running series. Daily, and only ever one
+    # occurrence per series per run, so a task that was down for a week does not
+    # arrive and book seven appointments in one go.
+    "materialise-recurring-series": {
+        "task": "bookings.tasks.materialise_recurring_series",
+        "schedule": crontab(hour=4, minute=15),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

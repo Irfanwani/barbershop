@@ -24,17 +24,17 @@ from bookings.consultation import (
 from bookings.models import (
     Booking,
     BookingItem,
-    BookingStatus,
     WaitlistEntry,
     WaitlistOffer,
     WaitlistStatus,
     has_room,
     is_within_working_hours,
 )
+from bookings.pricing import booking_items, price_appointment
 from core.exceptions import BusinessRuleViolation
-from core.money import CURRENCY, compute_deposit, format_minor
+from core.money import format_minor
 from promotions import loyalty
-from promotions.models import PromoCode, PromoError, PromoRedemption, price, resolve
+from promotions.models import PromoCode, PromoError, PromoRedemption, resolve
 from providers.models import ProviderProfile, Service, Staff
 from providers.serializers import ProviderSummarySerializer
 
@@ -403,31 +403,13 @@ class BookingCreateSerializer(serializers.Serializer):
             subtotal,
             self.validated_data.get("redeem_points", 0),
         )
-        breakdown = price(subtotal, code=promo, points_off=points_off)
-        platform_fee = breakdown.platform_fee
-        total = breakdown.total
-        self.discount = breakdown.discount
+        # One implementation of the money, shared with the recurring series so
+        # a later visit cannot quietly cost a different amount from the first.
+        amounts = price_appointment(provider, services, promo=promo, points_off=points_off)
+        self.discount = amounts.discount
         self.promo = promo
-        self.points_to_spend = breakdown.points_discount
+        self.points_to_spend = amounts.points_discount
         self.points_to_redeem = self.validated_data.get("redeem_points", 0)
-
-        # The strictest requirement across the basket. A customer booking a
-        # colour service and a trim has agreed to the colour service's deposit;
-        # taking the average would under-charge the shop on the thing that
-        # actually costs them the chair time.
-        deposit_percent = max((service.deposit_percent for service in services), default=0)
-        deposit, balance = compute_deposit(total, deposit_percent)
-
-        # The late-cancel fee is a slice of the *deposit*, worked out now. Both
-        # sides agree to it at booking time; a policy tightened afterwards must
-        # not apply to a booking that predates it.
-        late_cancel_fee, _ = compute_deposit(deposit, provider.late_cancel_fee_percent)
-
-        status = (
-            BookingStatus.AWAITING_CONFIRMATION
-            if provider.requires_approval
-            else BookingStatus.PENDING_PAYMENT
-        )
 
         with transaction.atomic():
             booking = Booking.objects.create(
@@ -436,30 +418,20 @@ class BookingCreateSerializer(serializers.Serializer):
                 staff=self.validated_data.get("staff_obj"),
                 starts_at=starts_at,
                 ends_at=ends_at,
-                status=status,
-                subtotal=subtotal,
-                platform_fee=platform_fee,
-                total=total,
-                deposit=deposit,
-                balance=balance,
+                status=amounts.status,
+                subtotal=amounts.subtotal,
+                platform_fee=amounts.platform_fee,
+                total=amounts.total,
+                deposit=amounts.deposit,
+                balance=amounts.balance,
                 cancellation_window_hours=provider.cancellation_window_hours,
                 late_cancel_fee_percent=provider.late_cancel_fee_percent,
-                late_cancel_fee=late_cancel_fee,
-                currency=CURRENCY,
+                late_cancel_fee=amounts.late_cancel_fee,
+                currency=amounts.currency,
                 notes=self.validated_data.get("notes", ""),
             )
             BookingItem.objects.bulk_create(
-                [
-                    BookingItem(
-                        booking=booking,
-                        service=service,
-                        name=service.name,
-                        unit_price=service.price,
-                        quantity=1,
-                        duration_minutes=service.duration_minutes,
-                    )
-                    for service in services
-                ]
+                [BookingItem(booking=booking, **fields) for fields in booking_items(services)]
             )
 
             # Frozen onto the booking, inside the same transaction. A booking

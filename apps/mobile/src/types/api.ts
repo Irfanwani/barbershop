@@ -631,6 +631,29 @@ export interface ConsultationAnswer {
   is_sensitive: boolean;
 }
 
+/**
+ * A run of appointments booked at once.
+ *
+ * `next_starts_at` is already worked out by the server. The app does not add
+ * an interval to anything, because "the next one is four weeks after the last
+ * one we managed" is exactly how a series creeps a week earlier every time a
+ * visit is missed.
+ */
+export interface BookingSeries {
+  id: number;
+  provider: number;
+  staff: number | null;
+  staff_name: string | null;
+  starts_at: string;
+  interval_days: number;
+  total_occurrences: number;
+  created_occurrences: number;
+  status: 'active' | 'stopped' | 'finished';
+  next_starts_at: string | null;
+  next_occurrence_index: number | null;
+  service_names: string[];
+}
+
 /** One movement in the points history. */
 export interface PointsEntry {
   id: number;

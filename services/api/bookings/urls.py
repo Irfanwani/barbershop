@@ -9,6 +9,8 @@ from bookings.views import (
     BookingDetailView,
     BookingListView,
     BookingRescheduleView,
+    BookingSeriesStopView,
+    BookingSeriesView,
     BookingStatusView,
     ConsultationFormsView,
     QuoteView,
@@ -25,6 +27,8 @@ urlpatterns = [
     path("", BookingListView.as_view(), name="list"),
     path("quote/", QuoteView.as_view(), name="quote"),
     path("consultation-forms/", ConsultationFormsView.as_view(), name="consultation-forms"),
+    path("series/", BookingSeriesView.as_view(), name="series"),
+    path("series/<int:pk>/stop/", BookingSeriesStopView.as_view(), name="series-stop"),
     path("waitlist/", WaitlistView.as_view(), name="waitlist"),
     path("waitlist/offers/", WaitlistOfferListView.as_view(), name="waitlist-offers"),
     path(

@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Count, F, Q
 from django.utils import timezone
@@ -132,6 +133,19 @@ class Booking(TimeStampedModel):
 
     notes = models.TextField(blank=True, default="", max_length=500)
 
+    #: The series this appointment is one of, if any. Null for the ones that
+    #: are just a booking, which is nearly all of them.
+    series = models.ForeignKey(
+        "bookings.BookingSeries",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bookings",
+    )
+    #: Which occurrence, counting from zero at the series' start. Unique within
+    #: a series, so a task that runs twice cannot create the same week twice.
+    occurrence_index = models.PositiveSmallIntegerField(null=True, blank=True)
+
     #: What must be paid now to secure the slot, and what is owed on arrival.
     #: Frozen here, like the prices: a shop raising its deposit policy next week
     #: must not change what somebody agreed to pay today.
@@ -183,6 +197,13 @@ class Booking(TimeStampedModel):
             models.CheckConstraint(
                 condition=Q(total__lte=F("subtotal") + F("platform_fee")),
                 name="bookings_total_within_items_plus_fee",
+            ),
+            # A week can only be in a series once, however many times the
+            # materialising task runs. Two bookings for the same occurrence
+            # would be two charges for one appointment.
+            models.UniqueConstraint(
+                fields=["series", "occurrence_index"],
+                name="bookings_series_occurrence_uniq",
             ),
         ]
 
@@ -749,3 +770,114 @@ class SlotHold(models.Model):
 
     def __str__(self) -> str:
         return f"held for offer {self.offer_id}"
+
+
+class SeriesStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    STOPPED = "stopped", "Stopped"
+    FINISHED = "finished", "Finished"
+
+
+class BookingSeries(TimeStampedModel):
+    """A run of appointments booked at once, at a fixed interval.
+
+    "Trims every four weeks, so their next visits are already on the calendar"
+    is the pitch. What makes it work rather than merely exist is the interval
+    being measured from an **origin**, never from the last occurrence:
+
+    - If the next booking were computed as ``last + interval``, skipping one
+      occurrence would slide every later one a week earlier. A customer who
+      missed February would find March moved to where February was.
+    - Measured from the origin, occurrence *n* is always at
+      ``starts_at + n * interval``, so a skipped week is a hole in the series
+      rather than a shift of everything after it.
+
+    Each occurrence is an ordinary :class:`Booking` with its own price, deposit
+    and cancellation, because it is separately chargeable and a customer who
+    misses one must be able to cancel that one alone.
+    """
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="booking_series"
+    )
+    provider = models.ForeignKey(
+        "providers.ProviderProfile", on_delete=models.CASCADE, related_name="booking_series"
+    )
+    staff = models.ForeignKey(
+        "providers.Staff",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="booking_series",
+    )
+
+    #: Occurrence 0. The anchor for every other date in the series.
+    starts_at = models.DateTimeField()
+    #: Same time of day as ``starts_at``, this many days later.
+    interval_days = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(365)]
+    )
+    #: How many appointments in total, including the first.
+    total_occurrences = models.PositiveSmallIntegerField(
+        default=4, validators=[MinValueValidator(1), MaxValueValidator(52)]
+    )
+
+    status = models.CharField(
+        max_length=16, choices=SeriesStatus.choices, default=SeriesStatus.ACTIVE
+    )
+
+    #: When the customer stopped it, if they did. Kept so a stopped series is
+    #: not silently resurrected by a task that started before the stop landed.
+    stopped_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "bookings_series"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "starts_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.customer} every {self.interval_days}d x{self.total_occurrences}"
+
+    @property
+    def created_occurrences(self) -> int:
+        return self.bookings.count()
+
+    def occurs_at(self, index: int) -> datetime:
+        """When occurrence ``index`` is due.
+
+        Always from the origin. See the class docstring for why that is the
+        whole point of this model.
+        """
+        return self.starts_at + timedelta(days=self.interval_days * index)
+
+    def next_index(self, now=None) -> int | None:
+        """The next occurrence still worth booking, or ``None`` when finished.
+
+        An occurrence whose moment has passed without a booking is **skipped**,
+        not retried. This is what stops a single taken slot from stalling the
+        series for good: without it, week one blocks and every later week waits
+        behind it forever, and the customer quietly stops turning up.
+
+        Skipping is also why a missed week does not drag the rest earlier.
+        Because the remaining dates are still measured from the origin, week two
+        lands two intervals in - in the gap, not where week one would have been.
+        """
+        moment = now or timezone.now()
+        taken = set(self.bookings.values_list("occurrence_index", flat=True))
+        for index in range(self.total_occurrences):
+            if index in taken:
+                continue
+            if self.occurs_at(index) < moment:
+                continue
+            return index
+        return None
+
+    def skipped_indices(self, *, now=None) -> list[int]:
+        """Occurrences whose moment passed with nothing booked. For the log."""
+        moment = now or timezone.now()
+        taken = set(self.bookings.values_list("occurrence_index", flat=True))
+        return [
+            index
+            for index in range(self.total_occurrences)
+            if index not in taken and self.occurs_at(index) < moment
+        ]

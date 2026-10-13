@@ -5785,6 +5785,77 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/bookings/series/:
+    get:
+      operationId: bookings_series_list
+      description: Start a run of visits, and see the ones already running.
+      summary: Your recurring bookings
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: bookings_series_create
+      description: Books the first visit now and records the rest. Each later visit
+        becomes its own booking when it comes round, separately chargeable and separately
+        cancellable.
+      summary: Book a series of visits
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingSeriesCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookingSeriesCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookingSeriesCreateRequest'
+        required: true
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingSeries'
+          description: ''
+  /api/v1/bookings/series/{id}/stop/:
+    post:
+      operationId: bookings_series_stop
+      description: |-
+        Call off the visits that have not been booked yet.
+
+        The ones already on the calendar stay. Each of those is separately
+        chargeable, so a customer who booked six weeks of trims is entitled to the
+        two that have already happened to be paid for.
+      summary: Stop a recurring series
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - bookings
+      security:
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingSeries'
+          description: ''
   /api/v1/bookings/waitlist/:
     get:
       operationId: bookings_waitlist_list
@@ -9000,6 +9071,117 @@ components:
       - service
       - unit_price
       - unit_price_display
+    BookingSeries:
+      type: object
+      description: A series and where its next visit lands.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        provider:
+          type: integer
+          readOnly: true
+        staff:
+          type: integer
+          readOnly: true
+          nullable: true
+        staff_name:
+          type: string
+          nullable: true
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+        interval_days:
+          type: integer
+          readOnly: true
+        total_occurrences:
+          type: integer
+          readOnly: true
+        created_occurrences:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookingSeriesStatusEnum'
+          readOnly: true
+        next_starts_at:
+          type: string
+          nullable: true
+          readOnly: true
+        next_occurrence_index:
+          type: integer
+          nullable: true
+          readOnly: true
+        service_names:
+          type: array
+          items:
+            type: string
+          readOnly: true
+      required:
+      - created_occurrences
+      - id
+      - interval_days
+      - next_occurrence_index
+      - next_starts_at
+      - provider
+      - service_names
+      - staff
+      - staff_name
+      - starts_at
+      - status
+      - total_occurrences
+    BookingSeriesCreateRequest:
+      type: object
+      description: |-
+        Book several visits at once.
+
+        Only ``services``, ``starts_at``, ``interval_days`` and ``total_occurrences``
+        are taken from the client. The dates of the later visits are worked out from
+        the first one on the server: a client that chose its own dates could put two
+        occurrences in the same week.
+      properties:
+        provider:
+          type: integer
+        services:
+          type: array
+          items:
+            type: integer
+        starts_at:
+          type: string
+          format: date-time
+        interval_days:
+          type: integer
+          maximum: 365
+          minimum: 1
+        total_occurrences:
+          type: integer
+          maximum: 52
+          minimum: 2
+        staff:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          default: ''
+          maxLength: 500
+      required:
+      - interval_days
+      - provider
+      - services
+      - starts_at
+      - total_occurrences
+    BookingSeriesStatusEnum:
+      enum:
+      - active
+      - stopped
+      - finished
+      type: string
+      description: |-
+        * `active` - Active
+        * `stopped` - Stopped
+        * `finished` - Finished
     BookingStatusEnum:
       enum:
       - pending_payment

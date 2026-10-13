@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
-import { useBookings, useCancelBooking } from '@/api/hooks';
+import { useBookings, useCancelBooking, useMySeries, useStopSeries } from '@/api/hooks';
 import { Button, Card, EmptyState, useColors } from '@/components/ui';
-import { BookingRow } from '@/components/booking-row';
+import { BookingRow, formatWhen } from '@/components/booking-row';
 
 type Tab = 'upcoming' | 'past';
 
@@ -21,6 +22,10 @@ export default function CustomerBookings() {
 
   const bookings = useBookings(tab === 'upcoming' ? { upcoming: true } : { past: true });
   const cancel = useCancelBooking();
+  const seriesList = useMySeries();
+  const stopSeries = useStopSeries();
+
+  const running = (seriesList.data ?? []).filter((item) => item.status === 'active');
 
   const rows = bookings.data?.results ?? [];
 
@@ -63,11 +68,57 @@ export default function CustomerBookings() {
         }
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         ListHeaderComponent={
-          rows.length ? (
-            <Text className="px-4 pb-1 text-xs" style={{ color: colors.textSubtle }}>
-              {rows.length} {rows.length === 1 ? 'booking' : 'bookings'}
-            </Text>
-          ) : null
+          <View className="gap-3">
+            {/* Only on the upcoming tab: a run whose next visit has been and
+                gone is history, and listing it there would read as an
+                appointment that is still coming. */}
+            {tab === 'upcoming' && running.length > 0 ? (
+              <View className="px-4">
+                <Text className="pb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
+                  Regular visits
+                </Text>
+                <View className="gap-2">
+                  {running.map((item) => (
+                    <Card key={item.id} className="gap-2">
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-[15px] font-medium" style={{ color: colors.text }}>
+                          {item.service_names.join(', ') || 'Your regular visits'}
+                        </Text>
+                        <Ionicons name="repeat" size={18} color={colors.accent} />
+                      </View>
+                      <Text className="text-xs" style={{ color: colors.textMuted }}>
+                        Every {item.interval_days} days, {item.total_occurrences}{' '}
+                        visits
+                        {item.next_starts_at
+                          ? ` · next ${formatWhen(item.next_starts_at)}`
+                          : ' · all booked'}
+                      </Text>
+                      <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                        {item.created_occurrences} of {item.total_occurrences} booked. Each
+                        one is paid for separately.
+                      </Text>
+                      <Button
+                        variant="ghost"
+                        onPress={() => void stopSeries.mutateAsync(item.id)}
+                        loading={stopSeries.isPending && stopSeries.variables?.vars === item.id}
+                        testID={`stop-series-${item.id}`}>
+                        Stop these visits
+                      </Button>
+                      <Text className="text-2xs" style={{ color: colors.textSubtle }}>
+                        Visits already booked stay on your calendar - each is paid for
+                        on its own, so cancel any one of them on its own.
+                      </Text>
+                    </Card>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+            {rows.length ? (
+              <Text className="px-4 pb-1 text-xs" style={{ color: colors.textSubtle }}>
+                {rows.length} {rows.length === 1 ? 'booking' : 'bookings'}
+              </Text>
+            ) : null}
+          </View>
         }
         renderItem={({ item }) => (
           <View className="px-4">

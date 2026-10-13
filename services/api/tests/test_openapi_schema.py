@@ -121,6 +121,9 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/providers/me/consultation-forms/",
     "/api/v1/providers/me/consultation-forms/{id}/",
     "/api/v1/bookings/consultation-forms/",
+    # recurring bookings
+    "/api/v1/bookings/series/",
+    "/api/v1/bookings/series/{id}/stop/",
 }
 
 

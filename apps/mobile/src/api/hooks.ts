@@ -26,6 +26,7 @@ import {
   consultationsApi,
   loyaltyApi,
   savedShopsApi,
+  seriesApi,
   reviewsApi,
   type ProviderSearch,
   type StaffHoursInput,
@@ -33,6 +34,7 @@ import {
 import { newIdempotencyKey } from '@/api/client';
 import { keys } from '@/lib/query-client';
 import type {
+  BookingSeries,
   Availability,
   Booking,
   BookingPage,
@@ -381,6 +383,35 @@ export function useUpdateConsultationForm() {
       consultationsApi.updateForm(id, body),
     onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
   });
+}
+
+/** The runs of appointments this customer has going. */
+export function useMySeries() {
+  return useQuery({ queryKey: keys.mySeries, queryFn: seriesApi.list, retry: false });
+}
+
+export function useCreateSeries() {
+  const invalidate = useInvalidateBookings();
+  const client = useQueryClient();
+  return useIdempotentMutation<
+    Parameters<typeof seriesApi.create>[0],
+    BookingSeries
+  >((body) => seriesApi.create(body), {
+    onSuccess: (series: BookingSeries) => {
+      invalidate(series.starts_at);
+      void client.invalidateQueries({ queryKey: keys.mySeries });
+    },
+  });
+}
+
+export function useStopSeries() {
+  const client = useQueryClient();
+  return useIdempotentMutation<number, BookingSeries>(
+    (id) => seriesApi.stop(id),
+    {
+      onSuccess: () => client.invalidateQueries({ queryKey: keys.mySeries }),
+    },
+  );
 }
 
 /** What this customer has in their loyalty balance, for the checkout screen. */

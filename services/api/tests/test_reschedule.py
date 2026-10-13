@@ -333,6 +333,24 @@ class TestPriceChanges:
 
 
 class TestTheCancellationWindowStillApplies:
+    """These are about a booking that starts *inside* the 24-hour window.
+
+    That cannot be expressed by arithmetic on the wall clock. `soon()` has to
+    find a slot that is both inside working hours and less than 24 hours away,
+    and those two constraints overlap only for part of the day: run at 02:00
+    and the next slot inside opening hours is tomorrow morning, 31 hours out,
+    which makes every one of these tests quietly assert the wrong thing.
+
+    So the clock is fixed. Mid-morning, comfortably inside both.
+    """
+
+    @pytest.fixture(autouse=True)
+    def a_fixed_clock(self):
+        from freezegun import freeze_time
+
+        with freeze_time("2026-06-01 10:00:00", tz_offset=0):
+            yield
+
     def test_a_late_move_cancels_instead_of_moving(self):
         """Otherwise "I need a different time" dodges the late-cancel fee."""
         fixture = a_booking(starts_at=soon())

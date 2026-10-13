@@ -68,7 +68,19 @@ def a_form(
 
 
 def a_slot(hours: int = 48) -> str:
-    return (timezone.now() + timedelta(hours=hours)).isoformat()
+    """A bookable slot ``hours`` from now.
+
+    Pulled into the shop's working hours, which default to 09:00-20:00. Plain
+    "48 hours from now" lands outside them whenever the suite runs overnight,
+    so these tests used to fail for most of the day and pass in the morning -
+    the same trap the reschedule tests fell into.
+    """
+    moment = timezone.localtime() + timedelta(hours=hours)
+    if moment.hour < 9:
+        moment = moment.replace(hour=10)
+    elif moment.hour >= 19:
+        moment = moment.replace(hour=18)
+    return moment.replace(minute=0, second=0, microsecond=0).isoformat()
 
 
 def a_customer():

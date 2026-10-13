@@ -204,3 +204,16 @@ def request_reviews() -> dict[str, int]:
     from reviews.requests import send_requests
 
     return send_requests()
+
+
+@shared_task(ignore_result=True)
+def materialise_recurring_series() -> None:
+    """Put the next visit of every running series on the calendar.
+
+    Daily rather than hourly: the horizon is weeks, so a run that misses by an
+    hour costs nothing, and booking a customer's chair without them asking is
+    not something to do more often than it needs doing.
+    """
+    from bookings.series import materialise_due
+
+    materialise_due()

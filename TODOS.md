@@ -634,7 +634,7 @@ deep link, because they may not have the app.
 
 ## P3.3 Recurring bookings
 
-**Status:** todo
+**Status:** done
 
 "Trims every 4 weeks, so their next visits are already on the calendar"
 (SchedulingKit).
@@ -646,7 +646,45 @@ deep link, because they may not have the app.
   on its own, which matters because they are separately chargeable
 
 **Acceptance:** a six-week series produces the next booking at six weeks, not
-at seven; skipping one occurrence does not shift the rest.
+at seven; skipping one occurrence does not shift the rest — tested, 28 API tests
+and 7 app tests.
+
+**Dates come from an origin, never from the last thing that happened.**
+Occurrence *n* is always at `starts_at + n * interval`. This is the whole
+design, and it is the part a naive implementation gets wrong: computing the next
+booking as "the last one we managed, plus the interval" slides every later visit
+a week earlier each time one is missed. A customer who skipped February would
+find March sitting in February's slot, forever.
+
+**A week that cannot be booked is stepped over, not retried.** The first version
+kept trying the blocked week, which meant one taken slot stalled the entire
+series behind it and the customer quietly stopped turning up. `next_index()`
+skips occurrences whose moment has passed with nothing booked. Both acceptance
+tests fail against the naive implementation — verified by mutating the model
+and watching them go red.
+
+**Only about three weeks of a series exist at once.** Each occurrence is
+separately chargeable, so materialising a six-visit run on day one would leave a
+shop's chair committed to five unpaid appointments. One occurrence per run, and
+nothing beyond the booking horizon is ever created.
+
+**Each occurrence is priced by the same function as a one-off booking.** The
+money lives in `bookings/pricing.py` and both callers use it, because a series
+whose third visit quietly costs something different from the first is the exact
+bug having two implementations invites. Verified by running the booking,
+deposit, promotion and loyalty suites through the refactor unchanged.
+
+**The 90-day booking limit is applied where bookings are made, not where a
+series is declared.** Six trims every four weeks spans five months; refusing to
+even *record* that because the last visit is far out would refuse the feature.
+
+**Stopping leaves the visits already booked alone.** They are separately
+chargeable and may already be paid for, so a customer who booked six weeks of
+trims is entitled to the two that have happened.
+
+**The app sends an interval and a count, never a list of dates.** A client that
+worked out the schedule itself would put two visits in the same week the first
+time a phone disagreed about the length of a month.
 
 ## P3.4 Referral programme
 

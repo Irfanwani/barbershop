@@ -24,6 +24,7 @@ import type {
   ProductOrder,
   LedgerEntry,
   Payout,
+  BookingSeries,
   ConsultationForm,
   ConsultationFormPrompt,
   ConsultationQuestion,
@@ -99,6 +100,30 @@ export const consultationsApi = {
   ) => api.patch<ConsultationForm>(`/providers/me/consultation-forms/${id}/`, body),
 
   deleteForm: (id: number) => api.delete(`/providers/me/consultation-forms/${id}/`),
+};
+
+export const seriesApi = {
+  list: () => api.get<BookingSeries[]>('/bookings/series/'),
+
+  /**
+   * Book several visits at once.
+   *
+   * Only the interval and how many are sent. The dates of the later visits are
+   * worked out on the server from the first one: a client that chose its own
+   * dates could put two visits in the same week.
+   */
+  create: (body: {
+    provider: number;
+    services: number[];
+    starts_at: string;
+    interval_days: number;
+    total_occurrences: number;
+    staff?: number;
+    notes?: string;
+  }) => api.post<BookingSeries>('/bookings/series/', body),
+
+  /** Stop the visits not booked yet. The ones already on the calendar stay. */
+  stop: (id: number) => api.post<BookingSeries>(`/bookings/series/${id}/stop/`, {}),
 };
 
 export const loyaltyApi = {

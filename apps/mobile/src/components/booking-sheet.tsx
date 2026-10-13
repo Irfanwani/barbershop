@@ -8,6 +8,7 @@ import { errorMessage } from '@/api/client';
 import {
   useConsultationPrompt,
   useCreateBooking,
+  useCreateSeries,
   useJoinWaitlist,
   usePointsBalance,
   useQuote,
@@ -23,6 +24,16 @@ import type {
   ProviderDetail,
   Service,
 } from '@/types/api';
+
+/** How often somebody actually wants to be in a chair. */
+const INTERVALS = [
+  { days: 14, label: 'Every 2 weeks' },
+  { days: 28, label: 'Every 4 weeks' },
+  { days: 42, label: 'Every 6 weeks' },
+  { days: 56, label: 'Every 8 weeks' },
+] as const;
+
+const VISIT_COUNTS = [3, 4, 6, 8] as const;
 
 /**
  * Choosing services, a time and confirming the price.
@@ -62,8 +73,14 @@ export function BookingSheet({
   // different from a question that is not on the form at all - only the second
   // one may be left out.
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  // Off by default. Most bookings are one appointment, and a sheet that opens
+  // offering six is a sheet that has to be read before it can be used.
+  const [repeat, setRepeat] = useState(false);
+  const [intervalDays, setIntervalDays] = useState(28);
+  const [visitCount, setVisitCount] = useState(6);
 
   const quote = useQuote();
+  const series = useCreateSeries();
   const points = usePointsBalance(Boolean(slot));
   const prompt = useConsultationPrompt(
     provider.id,
@@ -180,6 +197,22 @@ export function BookingSheet({
     if (!slot) return;
     setError(null);
     try {
+      if (repeat) {
+        // The server works out every later date from this first one. The app
+        // never adds an interval, so a visit that gets skipped cannot drag the
+        // rest of the run earlier.
+        await series.mutateAsync({
+          provider: provider.id,
+          services: selected.map((service) => service.id),
+          starts_at: slot,
+          interval_days: intervalDays,
+          total_occurrences: visitCount,
+          ...(staffId ? { staff: staffId } : {}),
+        });
+        onClose();
+        router.replace('/(customer)/bookings');
+        return;
+      }
       const asked = (prompt.data?.questions ?? []).filter((question) => {
         const value = (answers[question.id] ?? '').trim();
         return value.length > 0;
@@ -495,7 +528,104 @@ export function BookingSheet({
               <View className="gap-3">
                 <View className="gap-2">
                   <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
-                    5 · Discounts
+                    5 · Regular visits
+                  </Text>
+                  <Pressable
+                    onPress={() => setRepeat(!repeat)}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: repeat }}
+                    testID="repeat-toggle"
+                    className="flex-row items-center justify-between rounded-2xl border px-4 py-3"
+                    style={{
+                      backgroundColor: repeat ? `${colors.accent}12` : colors.surface,
+                      borderColor: repeat ? colors.accent : colors.border,
+                    }}>
+                    <View className="flex-1 pr-3">
+                      <Text className="text-sm font-medium" style={{ color: colors.text }}>
+                        Make this a regular
+                      </Text>
+                      <Text className="text-xs" style={{ color: colors.textSubtle }}>
+                        Book several visits now. Each is paid for on its own, and you
+                        can cancel any one of them on its own.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={repeat ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={repeat ? colors.accent : colors.textSubtle}
+                    />
+                  </Pressable>
+
+                  {repeat ? (
+                    <>
+                      <View className="flex-row gap-2">
+                        {INTERVALS.map((option) => (
+                          <Pressable
+                            key={option.days}
+                            onPress={() => setIntervalDays(option.days)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: intervalDays === option.days }}
+                            testID={`interval-${option.days}`}>
+                            <View
+                              className="rounded-full px-3 py-1.5"
+                              style={{
+                                backgroundColor:
+                                  intervalDays === option.days ? colors.accent : colors.surface,
+                              }}>
+                              <Text
+                                className="text-xs font-medium"
+                                style={{
+                                  color:
+                                    intervalDays === option.days
+                                      ? colors.accentText
+                                      : colors.textMuted,
+                                }}>
+                                {option.label}
+                              </Text>
+                            </View>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <View className="flex-row gap-2">
+                        {VISIT_COUNTS.map((count) => (
+                          <Pressable
+                            key={count}
+                            onPress={() => setVisitCount(count)}
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: visitCount === count }}
+                            testID={`visits-${count}`}>
+                            <View
+                              className="rounded-full px-3 py-1.5"
+                              style={{
+                                backgroundColor:
+                                  visitCount === count ? colors.accent : colors.surface,
+                              }}>
+                              <Text
+                                className="text-xs font-medium"
+                                style={{
+                                  color:
+                                    visitCount === count ? colors.accentText : colors.textMuted,
+                                }}>
+                                {count} visits
+                              </Text>
+                            </View>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Text className="text-xs leading-4" style={{ color: colors.textSubtle }}>
+                        {visitCount} visits, every {intervalDays} days, starting{' '}
+                        {formatWhen(slot as string)}. Each one is booked separately and
+                        charged separately.
+                      </Text>
+                    </>
+                  ) : null}
+                </View>
+
+                <View className="gap-2">
+                  <Text className="text-xs font-semibold uppercase tracking-wide" style={{ color: colors.textSubtle }}>
+                    6 · Discounts
                   </Text>
                   <View className="flex-row items-end gap-2">
                     <View className="flex-1">

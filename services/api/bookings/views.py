@@ -24,7 +24,15 @@ from rest_framework.views import APIView
 
 from accounts.email import send_booking_confirmation
 from bookings.consultation import questions_for as consultation_questions_for
-from bookings.models import Booking, BookingStatus, WaitlistEntry, WaitlistOffer, has_room
+from bookings.models import (
+    Booking,
+    BookingSeries,
+    BookingStatus,
+    WaitlistEntry,
+    WaitlistOffer,
+    has_room,
+    is_within_working_hours,
+)
 from bookings.reschedule import late_window_message
 from bookings.serializers import (
     BookingCreateSerializer,
@@ -37,6 +45,7 @@ from bookings.serializers import (
     WaitlistJoinSerializer,
     WaitlistOfferSerializer,
 )
+from bookings.series import create_series, stop_series
 from bookings.waitlist import (
     OfferUnavailable,
     accept_offer,
@@ -56,7 +65,7 @@ from payments.idempotency import idempotent
 from payments.refunds import RefundError, refund_booking_deposit, refund_booking_payment
 from promotions import loyalty
 from promotions.models import PromoError, price, resolve
-from providers.models import ProviderProfile, Service
+from providers.models import ProviderProfile, Service, Staff
 
 logger = logging.getLogger(__name__)
 
@@ -969,3 +978,217 @@ class BookingRescheduleView(APIView):
             BookingSerializer(booking, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class BookingSeriesSerializer(serializers.ModelSerializer):
+    """A series and where its next visit lands."""
+
+    next_starts_at = serializers.SerializerMethodField()
+    next_occurrence_index = serializers.SerializerMethodField()
+    created_occurrences = serializers.IntegerField(read_only=True)
+    service_names = serializers.SerializerMethodField()
+    staff_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookingSeries
+        fields = [
+            "id",
+            "provider",
+            "staff",
+            "staff_name",
+            "starts_at",
+            "interval_days",
+            "total_occurrences",
+            "created_occurrences",
+            "status",
+            "next_starts_at",
+            "next_occurrence_index",
+            "service_names",
+        ]
+        read_only_fields = fields
+
+    def get_next_occurrence_index(self, obj: BookingSeries) -> int | None:
+        return obj.next_index()
+
+    def get_next_starts_at(self, obj: BookingSeries) -> str | None:
+        index = obj.next_index()
+        if index is None:
+            return None
+        return obj.occurs_at(index).isoformat()
+
+    def get_service_names(self, obj: BookingSeries) -> list[str]:
+        first = obj.bookings.order_by("occurrence_index").first()
+        if first is None:
+            return []
+        return [item.name for item in first.items.all()]
+
+    def get_staff_name(self, obj: BookingSeries) -> str | None:
+        return obj.staff.name if obj.staff else None
+
+
+class BookingSeriesCreateSerializer(serializers.Serializer):
+    """Book several visits at once.
+
+    Only ``services``, ``starts_at``, ``interval_days`` and ``total_occurrences``
+    are taken from the client. The dates of the later visits are worked out from
+    the first one on the server: a client that chose its own dates could put two
+    occurrences in the same week.
+    """
+
+    provider = serializers.IntegerField()
+    services = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    starts_at = serializers.DateTimeField()
+    interval_days = serializers.IntegerField(min_value=1, max_value=365)
+    total_occurrences = serializers.IntegerField(min_value=2, max_value=52)
+    staff = serializers.IntegerField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=500, default="")
+
+    def validate(self, attrs: dict) -> dict:
+        provider = get_object_or_404(ProviderProfile, pk=attrs["provider"])
+
+        if not provider.is_bookable:
+            raise BusinessRuleViolation("This provider is not taking bookings right now.")
+
+        services = list(
+            Service.objects.filter(
+                pk__in=attrs["services"], provider=provider, is_active=True
+            ).select_related("provider")
+        )
+        if len(services) != len(attrs["services"]):
+            raise BusinessRuleViolation(
+                "One or more of those services is not available from this provider."
+            )
+
+        starts_at = attrs["starts_at"]
+        now = timezone.now()
+        if starts_at <= now:
+            raise BusinessRuleViolation("That time has already passed. Pick a later slot.")
+
+        # A year is plenty for anything anybody means by a haircut schedule,
+        # and it stops "six visits, every eight months" being accepted as a
+        # series. The 90-day booking limit is *not* applied here: a trim every
+        # four weeks for six months is the whole point of the feature, and the
+        # visits beyond 90 days are simply materialised later, once they are
+        # close enough to book.
+        last = starts_at + timedelta(days=attrs["interval_days"] * (attrs["total_occurrences"] - 1))
+        if last > now + timedelta(days=365):
+            raise BusinessRuleViolation(
+                "That series runs further ahead than we can keep. Try fewer "
+                "visits, or a shorter interval."
+            )
+
+        staff = None
+        if attrs.get("staff") is not None:
+            staff = Staff.objects.filter(
+                pk=attrs["staff"], provider=provider, is_active=True
+            ).first()
+            if staff is None:
+                raise BusinessRuleViolation("That staff member is not available at this shop.")
+
+        duration = timedelta(minutes=sum(service.duration_minutes for service in services))
+        if not is_within_working_hours(provider, starts_at, starts_at + duration):
+            raise BusinessRuleViolation(
+                f"{provider.display_name} is open "
+                f"{provider.opening_time:%H:%M} to {provider.closing_time:%H:%M}."
+            )
+
+        # Every visit has to land on a day the shop (and that barber) works.
+        # A series that fails on week seven is worse than one refused up front.
+        for index in range(attrs["total_occurrences"]):
+            when = starts_at + timedelta(days=attrs["interval_days"] * index)
+            if not is_within_working_hours(provider, when, when + duration):
+                raise BusinessRuleViolation(
+                    f"{when:%d %b %Y} is outside this shop's working hours."
+                )
+            if staff is not None and not staff.is_open_on(when.weekday()):
+                raise BusinessRuleViolation(f"{staff.name} does not work on {when:%d %b}.")
+
+        attrs["provider_obj"] = provider
+        attrs["service_objs"] = services
+        attrs["staff_obj"] = staff
+        return attrs
+
+
+class BookingSeriesView(APIView):
+    """Start a run of visits, and see the ones already running."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="bookings_series_list", summary="Your recurring bookings")
+    def get(self, request):
+        series = (
+            BookingSeries.objects.filter(customer=request.user)
+            .select_related("provider", "staff")
+            .order_by("-created_at")
+        )
+        return Response(BookingSeriesSerializer(series, many=True).data)
+
+    @extend_schema(
+        operation_id="bookings_series_create",
+        summary="Book a series of visits",
+        description=(
+            "Books the first visit now and records the rest. Each later visit "
+            "becomes its own booking when it comes round, separately chargeable "
+            "and separately cancellable."
+        ),
+        request=BookingSeriesCreateSerializer,
+        responses={201: BookingSeriesSerializer},
+    )
+    def post(self, request):
+        body = BookingSeriesCreateSerializer(data=request.data, context={"request": request})
+        body.is_valid(raise_exception=True)
+
+        services: list[Service] = body.validated_data["service_objs"]
+        starts_at = body.validated_data["starts_at"]
+        duration = timedelta(minutes=sum(service.duration_minutes for service in services))
+
+        if not has_room(
+            body.validated_data["provider_obj"],
+            starts_at,
+            starts_at + duration,
+            staff=body.validated_data["staff_obj"],
+        ):
+            raise BusinessRuleViolation("That slot is already taken. Pick another time.")
+
+        try:
+            series, _first = create_series(
+                customer=request.user,
+                provider=body.validated_data["provider_obj"],
+                services=services,
+                starts_at=starts_at,
+                interval_days=body.validated_data["interval_days"],
+                total_occurrences=body.validated_data["total_occurrences"],
+                staff=body.validated_data["staff_obj"],
+                notes=body.validated_data.get("notes", ""),
+            )
+        except ValueError as exc:
+            raise BusinessRuleViolation(str(exc)) from exc
+
+        series = (
+            BookingSeries.objects.filter(pk=series.pk).select_related("provider", "staff").get()
+        )
+        return Response(
+            BookingSeriesSerializer(series, context={"request": request}).data, status=201
+        )
+
+
+class BookingSeriesStopView(APIView):
+    """Call off the visits that have not been booked yet.
+
+    The ones already on the calendar stay. Each of those is separately
+    chargeable, so a customer who booked six weeks of trims is entitled to the
+    two that have already happened to be paid for.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="bookings_series_stop",
+        summary="Stop a recurring series",
+        responses={200: BookingSeriesSerializer},
+    )
+    def post(self, request, pk: int):
+        series = get_object_or_404(BookingSeries, pk=pk, customer=request.user)
+        stop_series(series, request.user)
+        series.refresh_from_db()
+        return Response(BookingSeriesSerializer(series, context={"request": request}).data)
