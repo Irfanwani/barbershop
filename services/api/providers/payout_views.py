@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
@@ -37,7 +38,7 @@ class WithdrawalSerializer(serializers.Serializer):
         "What you have earned and what has been paid out. Derived from an append-only "
         "ledger, so every figure can be explained line by line."
     ),
-    responses={200: None, 403: FORBIDDEN, 404: NOT_FOUND},
+    responses={200: OpenApiTypes.OBJECT, 403: FORBIDDEN, 404: NOT_FOUND},
 )
 class ProviderBalanceView(APIView):
     """The provider's position.
@@ -57,7 +58,7 @@ class ProviderBalanceView(APIView):
     tags=["providers"],
     summary="Your earnings, line by line",
     description="Append-only. Entries are never edited or deleted.",
-    responses={200: None, 403: FORBIDDEN, 404: NOT_FOUND},
+    responses={200: OpenApiTypes.OBJECT, 403: FORBIDDEN, 404: NOT_FOUND},
 )
 class ProviderLedgerView(APIView):
     permission_classes = [IsAuthenticated, IsProvider]
@@ -96,7 +97,7 @@ class ProviderLedgerView(APIView):
         "when the bank confirms."
     ),
     request=WithdrawalSerializer,
-    responses={200: None, 400: BAD_REQUEST, 403: FORBIDDEN, 404: NOT_FOUND},
+    responses={200: OpenApiTypes.OBJECT, 400: BAD_REQUEST, 403: FORBIDDEN, 404: NOT_FOUND},
 )
 class WithdrawalView(APIView):
     """Ask to be paid.

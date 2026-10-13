@@ -1151,7 +1151,13 @@ class BookingSeriesView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="bookings_series_list", summary="Your recurring bookings")
+    @extend_schema(
+        operation_id="bookings_series_list",
+        summary="Your recurring bookings",
+        # The view already returns this; the decorator just never said so,
+        # and spectacular cannot infer a serializer from an APIView.
+        responses={200: BookingSeriesSerializer(many=True)},
+    )
     def get(self, request):
         series = (
             BookingSeries.objects.filter(customer=request.user)

@@ -653,9 +653,11 @@ class MyServiceView(APIView):
         "pointed at, for any signed-in user."
     ),
     request=ServiceSerializer,
+    # 204 is declared on DELETE alone, below. One union for the whole view told a
+    # generated client that a GET could come back empty and that a DELETE would
+    # return a Service body — and DELETE returns no body at all.
     responses={
         200: ServiceSerializer,
-        204: None,
         400: BAD_REQUEST,
         401: UNAUTHORIZED,
         403: FORBIDDEN,
@@ -683,7 +685,12 @@ class MyServiceDetailView(APIView):
         serializer.save()
         return Response(serializer.data)
 
-    @extend_schema(operation_id="providers_services_delete")
+    # The error codes are repeated because a method-level `responses` replaces the
+    # class-level set outright rather than merging with it.
+    @extend_schema(
+        operation_id="providers_services_delete",
+        responses={204: None, 400: BAD_REQUEST, 401: UNAUTHORIZED, 403: FORBIDDEN, 404: NOT_FOUND},
+    )
     def delete(self, request, pk: int):
         """Retire a service.
 
@@ -799,7 +806,7 @@ class PriceInsightView(APIView):
 
     permission_classes = []
 
-    @extend_schema(operation_id="providers_price_insights")
+    @extend_schema(operation_id="providers_price_insights", responses={200: OpenApiTypes.OBJECT})
     def get(self, request):
         from providers.models import ServiceType
         from providers.pricing import plausible_prices, price_band
@@ -834,7 +841,7 @@ class ServicePriceIndexView(APIView):
 
     permission_classes = []
 
-    @extend_schema(operation_id="providers_service_prices")
+    @extend_schema(operation_id="providers_service_prices", responses={200: OpenApiTypes.OBJECT})
     def get(self, request):
         from providers.pricing import service_name_bands
 
@@ -870,7 +877,7 @@ class ServiceSuggestionView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="providers_suggest_services")
+    @extend_schema(operation_id="providers_suggest_services", responses={200: OpenApiTypes.OBJECT})
     def post(self, request):
         from providers.suggestions import (
             Matcher,

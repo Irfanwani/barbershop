@@ -251,6 +251,42 @@ def test_the_committed_schema_is_current(tmp_path):
         )
 
 
+def test_no_successful_response_is_documented_as_returning_nothing():
+    """
+    A 200 that returns data must not be documented as an empty body.
+
+    Eleven endpoints were: balance, ledger, withdraw, the series list, price
+    bands, suggestions, the review summary, product types and the order quote
+    all answered with real payloads while the contract said "No response
+    body". spectacular infers nothing from an ``APIView``, so a view that
+    forgets to declare ``responses=`` silently documents itself as returning
+    nothing — and a client generated from that believes it.
+
+    204 is exempt: "No Content" is exactly what a 204 means.
+    """
+    import yaml
+
+    spec = yaml.safe_load(
+        (Path(__file__).resolve().parent.parent / "docs" / "openapi.yml").read_text()
+    )
+
+    offenders = [
+        f"{method.upper()} {code} {path}"
+        for path, methods in spec["paths"].items()
+        for method, operation in methods.items()
+        if method in {"get", "post", "put", "patch", "delete"}
+        for code, response in (operation.get("responses") or {}).items()
+        if response.get("description") == "No response body"
+        and code.startswith("2")
+        and code != "204"
+    ]
+
+    assert not offenders, (
+        "Documented as returning no body, but a 2xx other than 204 means a payload "
+        "is coming back. Give the view a `responses=` entry:\n  " + "\n  ".join(offenders)
+    )
+
+
 def test_the_committed_schema_has_no_warnings():
     """A schema full of warnings is documentation nobody can rely on."""
     import subprocess

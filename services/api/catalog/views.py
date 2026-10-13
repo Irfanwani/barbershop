@@ -8,6 +8,7 @@ from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -111,7 +112,7 @@ class PopularProductListView(APIView):
 @extend_schema(
     tags=["products"],
     summary="Categories",
-    responses={200: None},
+    responses={200: OpenApiTypes.OBJECT},
 )
 class ProductCategoryListView(APIView):
     permission_classes = []
@@ -262,7 +263,7 @@ class OrderCreateView(APIView):
     summary="Price a basket",
     description="What you would pay, without creating anything.",
     request=OrderCreateSerializer,
-    responses={200: None, 400: BAD_REQUEST},
+    responses={200: OpenApiTypes.OBJECT, 400: BAD_REQUEST},
 )
 class OrderQuoteView(APIView):
     permission_classes = [IsAuthenticated]

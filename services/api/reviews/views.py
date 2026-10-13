@@ -133,7 +133,10 @@ class ReviewCreateView(APIView):
     summary="Read or delete a review",
     description="You can delete your own; staff can delete any. Hidden reviews read as absent.",
     request=None,
-    responses={200: ReviewSerializer, 204: None, 401: UNAUTHORIZED, 403: FORBIDDEN, 404: NOT_FOUND},
+    # GET returns a review; DELETE returns nothing. Declaring both codes for both
+    # methods let a generated client expect a body from a delete that never sends
+    # one, so 204 is declared on DELETE alone.
+    responses={200: ReviewSerializer, 401: UNAUTHORIZED, 403: FORBIDDEN, 404: NOT_FOUND},
 )
 class ReviewDetailView(APIView):
     """Read or delete one review."""
@@ -147,7 +150,12 @@ class ReviewDetailView(APIView):
         )
         return Response(ReviewSerializer(review).data)
 
-    @extend_schema(operation_id="reviews_delete")
+    # The error codes are repeated because a method-level `responses` replaces the
+    # class-level set outright rather than merging with it.
+    @extend_schema(
+        operation_id="reviews_delete",
+        responses={204: None, 401: UNAUTHORIZED, 403: FORBIDDEN, 404: NOT_FOUND},
+    )
     def delete(self, request, pk: int):
         """Delete your own review.
 
@@ -197,7 +205,7 @@ class ReviewReplyView(APIView):
         "reviews, plus a written summary when there are enough of them. Falls back "
         "to the numbers alone when no model is configured."
     ),
-    responses={200: None, 404: NOT_FOUND},
+    responses={200: OpenApiTypes.OBJECT, 404: NOT_FOUND},
 )
 class ProviderSummaryView(APIView):
     """A shop's reviews, condensed.
