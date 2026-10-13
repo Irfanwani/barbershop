@@ -70,16 +70,26 @@ jobs:
           enable-cache: true
           cache-dependency-glob: services/api/uv.lock
 
-      # Pinned deliberately, and the reason the dead `USE_PYTHON_VERSION` env var
-      # was removed rather than honoured. Nothing read it, so this job ran
-      # whatever uv picked for `requires-python` - which was 3.12 - while the code
-      # is developed and run locally on 3.13. A version-specific bug would have
-      # shipped on the strength of a green run for the other one.
+      - name: Set up Python
+        run: uv python install 3.13
+
+      # Assert the interpreter, because this went wrong quietly. `USE_PYTHON_VERSION`
+      # was set in the env and read by nothing; `.python-version` was gitignored,
+      # so it existed locally and not in CI. uv resolved 3.13 on one machine and
+      # 3.12 on the other and every run stayed green. A version-specific bug
+      # would have shipped on the strength of a green run for the other one.
       #
       # pyproject allows >=3.12,<3.14, so 3.12 is supported but is no longer what
       # CI exercises. A matrix over both would cover the declared range.
-      - name: Set up Python
-        run: uv python install 3.13
+      - name: The interpreter is the version we think it is
+        run: |
+          uv run python -c "
+          import sys, pathlib
+          want = pathlib.Path('.python-version').read_text().strip()
+          got = f'{sys.version_info.major}.{sys.version_info.minor}'
+          print(f'declared {want}, running {got} on {sys.executable}')
+          assert got == want, f'expected Python {want}, running {got}'
+          "
 
       - name: Install dependencies
         run: uv sync --locked --group ci

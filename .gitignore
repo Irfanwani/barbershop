@@ -29,7 +29,11 @@ dist/
 
 .venv/
 venv/
-.python-version
+
+# `.python-version` is deliberately *not* ignored. It used to be, which meant
+# the file existed on developer machines and not in CI: uv resolved 3.13 locally
+# and 3.12 in CI, so the suite only ever ran on one of the two versions the
+# project claims to support. Pinned and committed, both agree.
 
 .pytest_cache/
 .mypy_cache/
