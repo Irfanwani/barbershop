@@ -133,6 +133,9 @@ EXPECTED_ENDPOINTS = {
     "/api/v1/api-keys/",
     "/api/v1/api-keys/usage/",
     "/api/v1/api-keys/{id}/",
+    # risk / no-show scoring
+    "/api/v1/risk/customers/{customer_pk}/",
+    "/api/v1/risk/flags/{id}/clear/",
 }
 
 

@@ -7,6 +7,7 @@ import { BOOKING_STATUS_LABELS } from '@/api/endpoints';
 import { useBookings, useCollectBooking, useTransitionBooking } from '@/api/hooks';
 import { Button, Card, EmptyState, useColors } from '@/components/ui';
 import { BookingRow } from '@/components/booking-row';
+import { CustomerRiskSheet } from '@/components/customer-risk-sheet';
 import { formatPaise } from '@/lib/money';
 
 type Tab = 'today' | 'upcoming' | 'past';
@@ -25,6 +26,7 @@ export default function ProviderBookings() {
   const [collectError, setCollectError] = useState<string | null>(null);
 
   const rows = bookings.data?.results ?? [];
+  const [riskFor, setRiskFor] = useState<{ id: number; name: string } | null>(null);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -142,6 +144,9 @@ export default function ProviderBookings() {
               perspective="provider"
               statusLabel={BOOKING_STATUS_LABELS[item.status]}
               actions={pendingActions(item)}
+              onPress={() =>
+                setRiskFor({ id: item.customer.id, name: item.customer.display_name })
+              }
             />
           </View>
         )}
@@ -178,6 +183,13 @@ export default function ProviderBookings() {
             </Text>
           </Card>
         </View>
+      ) : null}
+      {riskFor ? (
+        <CustomerRiskSheet
+          customerId={riskFor.id}
+          displayName={riskFor.name}
+          onClose={() => setRiskFor(null)}
+        />
       ) : null}
     </View>
   );

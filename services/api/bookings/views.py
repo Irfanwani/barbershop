@@ -67,6 +67,7 @@ from payments.refunds import RefundError, refund_booking_deposit, refund_booking
 from promotions import loyalty
 from promotions.models import PromoError, price, resolve
 from providers.models import ProviderProfile, Service, Staff
+from risk.scoring import assess as risk_assess
 
 logger = logging.getLogger(__name__)
 
@@ -667,6 +668,11 @@ class QuoteView(APIView):
                 "deposit_percent": deposit_percent,
                 "deposit": deposit,
                 "deposit_display": format_minor(deposit),
+                # Advisory only, and only for somebody who has a history here.
+                # This never changes `deposit` or `deposit_percent` above: a
+                # score that quietly raises what somebody pays is a score that
+                # ends in a chargeback with the shop none the wiser.
+                "risk": risk_assess(user, provider).as_payload(),
                 "balance": balance,
                 "balance_display": format_minor(balance),
                 # The policy, quoted before checkout. A customer who only finds

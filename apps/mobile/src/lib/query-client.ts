@@ -58,6 +58,8 @@ export const keys = {
   mySeries: ['bookings', 'series'] as const,
   myReferrals: ['promotions', 'referrals', 'me'] as const,
   apiKeys: ['api-keys'] as const,
+  risk: () => ['risk'] as const,
+  customerRisk: (customerId: number | null) => ['risk', 'customers', customerId] as const,
   apiKeyUsage: ['api-keys', 'usage'] as const,
   myConsultationForms: ['providers', 'me', 'consultation-forms'] as const,
   consultationPrompt: (providerId: number | null, serviceIds: number[]) =>

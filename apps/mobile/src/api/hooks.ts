@@ -27,6 +27,7 @@ import {
   consultationsApi,
   loyaltyApi,
   referralsApi,
+  riskApi,
   savedShopsApi,
   seriesApi,
   reviewsApi,
@@ -384,6 +385,24 @@ export function useUpdateConsultationForm() {
     mutationFn: ({ id, body }: { id: number; body: Parameters<typeof consultationsApi.updateForm>[1] }) =>
       consultationsApi.updateForm(id, body),
     onSuccess: () => invalidate.invalidateQueries({ queryKey: keys.myConsultationForms }),
+  });
+}
+
+/** Where a customer stands at your shop. Provider only. */
+export function useCustomerRisk(customerId: number | null) {
+  return useQuery({
+    queryKey: keys.customerRisk(customerId),
+    queryFn: () => riskApi.customer(customerId!),
+    enabled: customerId !== null,
+    retry: false,
+  });
+}
+
+export function useClearRiskFlag() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: riskApi.clearFlag,
+    onSuccess: () => void client.invalidateQueries({ queryKey: keys.risk() }),
   });
 }
 

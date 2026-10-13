@@ -26,6 +26,7 @@ import type {
   Payout,
   BookingSeries,
   ConsultationForm,
+  CustomerRiskResponse,
   ConsultationFormPrompt,
   ConsultationQuestion,
   MyReferrals,
@@ -108,6 +109,13 @@ export const consultationsApi = {
 
 export const referralsApi = {
   mine: () => api.get<MyReferrals>('/promotions/referrals/me/'),
+};
+
+export const riskApi = {
+  customer: (customerId: number) =>
+    api.get<CustomerRiskResponse>(`/risk/customers/${customerId}/`),
+  clearFlag: (flagId: number) =>
+    api.post<{ id: number; cleared: boolean }>(`/risk/flags/${flagId}/clear/`, {}),
 };
 
 export const apiKeysApi = {

@@ -72,6 +72,17 @@ app.conf.beat_schedule = {
         "task": "bookings.tasks.retry_stuck_whatsapp_messages",
         "schedule": crontab(minute="*/5"),
     },
+    # The score is also computed on demand at quote time, so this only keeps
+    # the stored copy roughly current. Flags are raised, never acted on
+    # automatically - a human decides what a flag means.
+    "risk-refresh": {
+        "task": "risk.tasks.refresh_risk_profiles",
+        "schedule": crontab(hour=5, minute=10),
+    },
+    "risk-sweep": {
+        "task": "risk.tasks.sweep_risk_flags",
+        "schedule": crontab(hour=5, minute=25),
+    },
     "expire-stale-push-tokens": {
         "task": "accounts.tasks.expire_stale_tokens",
         "schedule": crontab(hour=3, minute=0),

@@ -7058,6 +7058,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiKey'
           description: ''
+  /api/v1/risk/customers/{customer_pk}/:
+    get:
+      operationId: risk_customer
+      description: 'Advisory. The suggested deposit is a recommendation, not a price:
+        the deposit actually taken stays whatever the service says.'
+      summary: A customer's record at your shop
+      parameters:
+      - in: path
+        name: customer_pk
+        schema:
+          type: integer
+        required: true
+      tags:
+      - risk
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/risk/flags/{id}/clear/:
+    post:
+      operationId: risk_clear_flag
+      description: Kept rather than deleted, so the record of what happened survives
+        being forgiven.
+      summary: Clear a flag
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - risk
+      security:
+      - ApiKey: []
+      - knoxApiToken: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/v1/reviews/:
     get:
       operationId: reviews_list

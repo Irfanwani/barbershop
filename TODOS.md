@@ -1246,7 +1246,41 @@ nothing that learns from it.
 - Abusive behaviour (mass booking/cancelling) is flagged
 
 **Acceptance:** a customer with two no-shows in five bookings is recommended
-a deposit, and the recommendation is advisory, not enforced.
+a deposit, and the recommendation is advisory, not enforced — tested, 28 API
+tests and 8 app tests.
+
+**Nothing is said until there are three appointments.** One no-show out of one
+booking is a hundred per cent rate and means nothing at all, and a system that
+flags on the first one trains every provider to ignore the flag. A customer
+with no history is **unknown**, not low-risk: a shop that treats unknown as
+risky ends up demanding deposits from every new customer.
+
+**The recommendation changes nothing.** The quote carries it, the booking
+carries the same figure, and the deposit actually taken stays whatever the
+service's own policy says. A score that quietly raises what somebody pays ends
+in a chargeback with the shop none the wiser. Tested by booking as a
+two-no-show customer and asserting the deposit is still zero.
+
+**Cancelling is not not turning up.** A shop cancelling an appointment is
+counted in the record but never held against the customer, and a customer who
+churns slots gets a *low* flag and a 25% suggestion rather than the treatment a
+no-show run gets.
+
+**Unknown, clean and risky are three different sentences.** They read
+differently in the app on purpose. "Not enough history" and "nothing here
+stands out" collapse into the same string if you are not careful, and the
+moment they do, a customer with twelve clean appointments reads as a customer
+we know nothing about.
+
+**Flags are flags, not bans.** The sweep raises them; a person decides what
+they mean. A flag can be cleared, and clearing keeps the record — otherwise a
+bad month is a life sentence and a customer who fixed whatever it was has no
+way of showing that.
+
+**The cached profile is a cache.** Everything is recomputed from bookings, like
+the money ledger and the points ledger. A stored counter that drifts from the
+bookings is a counter that denies somebody an appointment they had every right
+to.
 
 ## P5.4 Provider CSV export
 

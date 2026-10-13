@@ -569,6 +569,14 @@ export interface Quote {
   points_spent: number;
   /** What those points were worth, in paise, as the server priced them. */
   points_worth_minor: number;
+  /**
+   * What we know about this customer at this shop.
+   *
+   * Advisory, and the price above does not move because of it. Null risk level
+   * means "not enough history to have an opinion", which is not the same as
+   * "we think you are fine".
+   */
+  risk: CustomerRiskSummary;
   items: { service_id: number; name: string; unit_price: number; unit_price_display: string; duration_minutes: number }[];
   is_available: boolean;
 }
@@ -702,6 +710,30 @@ export interface ApiKeyUsage {
   active_count: number;
   unused_count: number;
   idle_count: number;
+}
+
+/**
+ * A customer's record at a shop, and what the platform suggests doing about it.
+ *
+ * Nothing here is enforced. A suggested deposit is something for a provider to
+ * take into account when they set their own policy - it is not a price.
+ */
+export interface CustomerRiskSummary {
+  total_bookings: number;
+  completed: number;
+  no_shows: number;
+  cancelled: number;
+  no_show_rate: number;
+  cancel_rate: number;
+  risk_level: 'low' | 'medium' | 'high' | null;
+  suggested_deposit_percent: number | null;
+  advisory: true;
+  flags: { id: number; kind: string; severity: string; reason: string; raised_at: string }[];
+}
+
+/** The same, as a provider looks at one customer, with their name. */
+export interface CustomerRiskResponse extends CustomerRiskSummary {
+  customer_display_name: string;
 }
 
 /** One movement in the points history. */

@@ -490,6 +490,22 @@ export function BookingSheet({
                     </View>
                   ) : null}
 
+                  {priced.risk?.risk_level ? (
+                    <View
+                      className="mt-2 rounded-xl px-3 py-2"
+                      style={{ backgroundColor: `${colors.warning}14` }}
+                      testID="risk-advisory">
+                      <Text className="text-xs font-semibold" style={{ color: colors.warning }}>
+                        Worth a deposit this time
+                      </Text>
+                      <Text className="text-xs" style={{ color: colors.textMuted }}>
+                        {priced.risk.no_shows} of {priced.risk.no_shows + priced.risk.completed}{' '}
+                        appointments not turned up to. You can take a larger deposit to
+                        secure the slot — the price below does not change on its own.
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {cancellationNote(priced) ? (
                     <Text className="mt-3 text-xs leading-4" style={{ color: colors.textSubtle }}>
                       {cancellationNote(priced)}
