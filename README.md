@@ -64,7 +64,15 @@ make setup          # install backend, app and website dependencies
 make dev-api        # run the Django API on http://127.0.0.1:8000
 make dev-app        # run the Expo app on your simulator/device
 make dev-web        # serve the marketing site on :4173
+
+make lint           # ruff + eslint, all three services
+make typecheck      # mypy + tsc, all three services
+make test           # every test suite
 ```
+
+`make lint` and `make typecheck` cover the backend, the app **and** the website.
+CI runs the same set, so a green local run means the same thing a green CI run
+means.
 
 Detailed, per-service instructions live in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 

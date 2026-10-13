@@ -78,7 +78,12 @@ test-web: ## Run the website test suite
 test-app: ## Run the app test suite
 	@cd $(APP_DIR) && npm test
 
-lint: lint-api lint-app ## Lint the backend and the app
+# Both umbrella targets list every service explicitly. `typecheck` used to have no
+# prerequisites at all, so `make typecheck` printed "Nothing to be done" and
+# exited 0: a green light for having typechecked nothing. `lint` had the same
+# shape of omission for the website, which CI does lint - so the local target
+# disagreed with CI about what "linted" means.
+lint: lint-api lint-app lint-web ## Lint the backend, the app and the website
 
 lint-api: ## Lint the backend with ruff
 	@cd $(API_DIR) && uv run ruff check . && uv run ruff format --check .
@@ -86,13 +91,19 @@ lint-api: ## Lint the backend with ruff
 lint-app: ## Lint the app with eslint
 	@cd $(APP_DIR) && npm run lint
 
-typecheck: ## Typecheck every service
+lint-web: ## Lint the website with eslint
+	@cd $(WEB_DIR) && npm run lint
 
-typecheck-api:
+typecheck: typecheck-api typecheck-app typecheck-web ## Typecheck every service
+
+typecheck-api: ## Typecheck the backend with mypy
 	@cd $(API_DIR) && uv run mypy .
 
-typecheck-app:
+typecheck-app: ## Typecheck the app with tsc
 	@cd $(APP_DIR) && npm run typecheck
+
+typecheck-web: ## Typecheck the website with tsc
+	@cd $(WEB_DIR) && npm run typecheck
 
 format: ## Auto-format the backend
 	@cd $(API_DIR) && uv run ruff format . && uv run ruff check --fix .

@@ -21,6 +21,17 @@ cd barbershop
 make setup
 ```
 
+Then check the whole thing is wired before you write anything:
+
+```bash
+make lint        # ruff + eslint across the API, the app and the website
+make typecheck   # mypy + tsc across all three
+make test        # every test suite
+```
+
+These are the same checks CI runs. The per-service sections below are for when
+you are working on one part and do not want to wait for all three.
+
 ## The API
 
 ### Environment
