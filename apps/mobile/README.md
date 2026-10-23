@@ -26,8 +26,10 @@ npm run start:dev  # dev-client build, if you have the dev client installed
 
 ## Pointing it at an API
 
-The base URL comes from `EXPO_PUBLIC_API_URL`, defaulting to
-`http://127.0.0.1:8000` (see `src/api/client.ts`):
+The base URL comes from `EXPO_PUBLIC_API_URL` (see `src/api/client.ts`). Without
+it, dev builds fall back to `http://127.0.0.1:8000` with a warning; **release
+builds refuse to bundle at all** — `expo export` and EAS fail fast instead of
+shipping an app whose API host is unreachable from a real device:
 
 ```bash
 EXPO_PUBLIC_API_URL=http://192.168.1.20:8000 npm start

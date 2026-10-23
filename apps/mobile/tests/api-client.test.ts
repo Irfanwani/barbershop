@@ -14,6 +14,7 @@ import {
   errorMessage,
   isApiError,
   request,
+  resolveApiBaseUrl,
 } from '@/api/client';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -237,8 +238,60 @@ describe('errorMessage', () => {
   });
 });
 
+describe('resolveApiBaseUrl', () => {
+  // Regression for #4: a release export with no EXPO_PUBLIC_API_URL bundled
+  // http://127.0.0.1:8000 and every request on a real device failed silently.
+  // The guard lives at the exact place the value is resolved, and these tests
+  // pin both branches of the build-variant decision.
+
+  it('prefers the configured value in every build variant, trailing slash stripped', () => {
+    expect(resolveApiBaseUrl('https://api.barbershop.dev', 'production')).toBe(
+      'https://api.barbershop.dev',
+    );
+    expect(resolveApiBaseUrl('https://api.barbershop.dev/', 'production')).toBe(
+      'https://api.barbershop.dev',
+    );
+    expect(resolveApiBaseUrl('https://api.barbershop.dev', 'development')).toBe(
+      'https://api.barbershop.dev',
+    );
+  });
+
+  it('treats whitespace as unset, which no build would serve anyway', () => {
+    expect(() => resolveApiBaseUrl('   ', 'production')).toThrow(/EXPO_PUBLIC_API_URL/);
+  });
+
+  it('falls back to localhost outside production builds, and says so', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(resolveApiBaseUrl(undefined, 'development')).toBe('http://127.0.0.1:8000');
+    expect(resolveApiBaseUrl(undefined, 'test')).toBe('http://127.0.0.1:8000');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('EXPO_PUBLIC_API_URL'));
+  });
+
+  it('refuses to ship the localhost fallback in a production build', () => {
+    // The 127.0.0.1 string must stay behind the non-production guard: a bare
+    // `?? fallback` on the module above is how a release bundle once pointed
+    // at the developer's own machine.
+    expect(() => resolveApiBaseUrl(undefined, 'production')).toThrow(
+      /EXPO_PUBLIC_API_URL/,
+    );
+    let thrown: unknown;
+    try {
+      resolveApiBaseUrl(undefined, 'production');
+    } catch (caught) {
+      thrown = caught;
+    }
+    expect(String(thrown)).not.toContain('127.0.0.1');
+  });
+});
+
 describe('base url', () => {
   it('never ends in a slash, so paths do not double up', () => {
     expect(API_BASE_URL.endsWith('/')).toBe(false);
+  });
+
+  it('resolves the localhost fallback for a test run, which jest reports as dev', () => {
+    // jest runs with NODE_ENV=test: the dev branch, with the warning logged.
+    expect(API_BASE_URL).toBe('http://127.0.0.1:8000');
   });
 });

@@ -194,8 +194,33 @@ jobs:
 
       # A screen that typechecks can still fail to bundle on a missing asset or
       # a bad import, and that only shows up on a device otherwise.
+      #
+      # `expo export` is a release bundle: with no EXPO_PUBLIC_API_URL it used
+      # to silently inline http://127.0.0.1:8000 (unreachable from any real
+      # device), and resolveApiBaseUrl now refuses. The env below is the host
+      # CI asserts on — swap it for the real production API host when one is
+      # pinned down.
       - name: Bundle
+        env:
+          EXPO_PUBLIC_API_URL: https://api.barbershop.example.com
         run: npx expo export --platform all --output-dir dist
+
+      # The env var only matters if it made it into the JavaScript, so assert
+      # on the artifact: the configured host present, the localhost fallback
+      # absent.
+      - name: The exported bundle points at the configured API host
+        run: |
+          set -euo pipefail
+          if grep -RIl "127\.0\.0\.1:8000" dist >/dev/null 2>&1; then
+            echo "::error::bundle still references the localhost http://127.0.0.1:8000 fallback"
+            grep -RIn "127\.0\.0\.1:8000" dist || true
+            exit 1
+          fi
+          if ! grep -RIl "api.barbershop.example.com" dist >/dev/null 2>&1; then
+            echo "::error::EXPO_PUBLIC_API_URL was not inlined into the bundle"
+            exit 1
+          fi
+          echo "EXPO_PUBLIC_API_URL inlined into dist"
 
   web:
     name: Marketing site

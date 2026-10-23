@@ -10,9 +10,54 @@
 
 import type { ApiErrorBody } from '@/types/api';
 
-export const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
-).replace(/\/$/, '');
+/**
+ * The localhost fallback, allowed only outside production builds.
+ *
+ * On a phone, `127.0.0.1` is the phone itself — a release bundle pointing
+ * there fails every request without a single readable error, which is exactly
+ * what a shared build with a missing env variable used to ship.
+ */
+const LOCAL_DEV_FALLBACK = 'http://127.0.0.1:8000';
+
+/**
+ * Resolves the API base URL the bundle ships with, and is the one place a
+ * missing `EXPO_PUBLIC_API_URL` can turn into a localhost bundle.
+ *
+ * - Explicit value: always used, whatever the build variant.
+ * - Unset outside production (dev server, tests): localhost fallback, logged
+ *   loudly so a dev run is never quietly pointed anywhere unexpected.
+ * - Unset in production (`expo export`, EAS build): hard error at bundle
+ *   time. The export aborts instead of producing an app whose API host is
+ *   unreachable.
+ *
+ * `process.env.NODE_ENV` is inlined by babel-preset-expo — `'production'` in
+ * release bundles, `'development'` under `expo start`, `'test'` under jest —
+ * so the third branch fires during a release export, before the bundle is
+ * written.
+ */
+export function resolveApiBaseUrl(
+  configured: string | undefined,
+  mode: string,
+): string {
+  const url = configured?.trim();
+  if (url) return url.replace(/\/$/, '');
+
+  if (mode !== 'production') {
+    console.warn(
+      `[api] EXPO_PUBLIC_API_URL is not set. Falling back to ${LOCAL_DEV_FALLBACK}, which is only reachable from a simulator or emulator.`,
+    );
+    return LOCAL_DEV_FALLBACK;
+  }
+
+  throw new Error(
+    'EXPO_PUBLIC_API_URL is not set: refusing to bundle an API base URL a release build cannot reach. Set EXPO_PUBLIC_API_URL (see .env.example) and rebuild.',
+  );
+}
+
+export const API_BASE_URL = resolveApiBaseUrl(
+  process.env.EXPO_PUBLIC_API_URL,
+  process.env.NODE_ENV,
+);
 
 const API_ROOT = `${API_BASE_URL}/api/v1`;
 
