@@ -6,8 +6,8 @@ need real credentials.
 
 - **Backend** — `services/api` (Django + DRF), 1218 tests
 - **App** — `apps/mobile` (React Native / Expo), 282 tests
-- **Web** — `apps/web` (Vite marketing site), 47 tests
-- **Total** — **1547 automated tests**
+- **Web** — `apps/web` (Vite marketing site), 32 tests
+- **Total** — **1532 automated tests**
 
 Counts below are taken from the suites themselves, not estimated.
 
@@ -62,8 +62,8 @@ Feature sections map to `TODOS.md`. Counts are tests, not files.
 
 | Section | Feature | Backend | App | Web | Total |
 |---|---|---:|---:|---:|---:|
-| P0.1 | Marketing site shop list | – | – | 26 | 26 |
-| P0.2 | Site does not advertise absent features | – | – | 21 | 21 |
+| P0.1 | Marketing site landing page | – | – | 9 | 9 |
+| P0.2 | Site does not advertise absent features | – | – | 23 | 23 |
 | P1.1 | Deposits on long services | 49 | – | – | 49 |
 | P1.2 | Cancellation policy and late fee | 22 | – | – | 22 |
 | P1.3 | Refunds | 38 | – | – | 38 |
@@ -91,7 +91,7 @@ Feature sections map to `TODOS.md`. Counts are tests, not files.
 | P5.5 | Observability | 37 | – | – | 37 |
 | P5.6 | Timezone correctness | 21 | 4 | – | 25 |
 | — | Cross-cutting foundations | 508 | 179 | – | 687 |
-| | **Total** | **1218** | **282** | **47** | **1547** |
+| | **Total** | **1218** | **282** | **32** | **1532** |
 
 ---
 
@@ -512,47 +512,27 @@ Not tied to one feature, but load-bearing for all of them.
 
 # Part 2 — Web (marketing site)
 
-47 tests across `apps/web/tests/`.
+32 tests across `apps/web/tests/`. The site is static: it explains the app,
+points at the store listings, and hosts the knowledge base. There is no API
+surface left to test.
 
-## P0.1 The shop list — 26 tests
+## Marketing page — 9 tests
 
-`tests/home.test.tsx` (13)
-
-| Test | Covers |
-|---|---|
-| `ShopCard shows the name, meta and starting price` | Card contents |
-| `ShopCard says when a shop is not taking bookings` | Closed state |
-| `ShopCard says so when there are no reviews` | Empty reviews |
-| `ShopCard shows a distance once there is an origin` | Distance with a location |
-| `ShopCard falls back to an initial when there is no photo` | Missing photo |
-| `ShopCard uses a real image when there is one` | Photo present |
-| `PriceCard leads with the typical figure and shows the range` | Typical price and range |
-| `PriceCard labels a thin sample honestly` | Thin sample wording |
-| `PriceCard renders nothing for an unusable band` | Unusable band |
-| `ShopList explains an empty platform rather than showing a blank` | Empty platform |
-| `the page renders the hero and the live numbers` | Hero and stats |
-| `the page shows the knowledge base link` | Knowledge base link |
-| `when the API is down still renders the page and says what is missing` | API failure |
-
-`tests/format.test.ts` (13)
+`tests/home.test.tsx`
 
 | Test | Covers |
 |---|---|
-| `formatPaise converts paise to rupees` | Money formatting |
-| `formatPaise refuses to invent a price` | Missing price |
-| `describeBand calls a well-populated band typical` | Band description |
-| `describeBand refuses to call a single shop typical` | Sample honesty |
-| `describeBand pluralises a thin sample correctly` | Pluralisation |
-| `describeBand returns nothing for a band with no median` | No median |
-| `buildQuery drops empty values` | Query building |
-| `buildQuery encodes values` | Encoding |
-| `buildQuery copes with nothing at all` | Empty input |
-| `distance measures a known distance` | Distance |
-| `distance is zero for the same point` | Same point |
-| `distance says nothing when there is no location to measure from` | No location |
-| `distance formats a distance for a card` | Formatting |
+| `says what the app is and who it is for` | Hero copy and both audiences |
+| `explains how booking works` | Steps and download section |
+| `offers the app from the hero and the download section` | Download CTAs |
+| `links to the knowledge base in the main navigation` | Primary navigation |
+| `sends popular questions to the answer that actually exists` | Knowledge-base deep links |
+| `opens the store listings in a new tab` | App Store and Google Play |
+| `the footer links to pages and anchors that exist` | No dead internal links |
+| `the footer does not bring back the documentation links that were never served` | **No Architecture / Development / API links** |
+| `the footer only deep-links to knowledge base sections that exist` | Anchor integrity |
 
-## Knowledge base — 21 tests
+## Knowledge base — 23 tests
 
 `tests/knowledge.test.tsx`
 
@@ -566,6 +546,7 @@ Not tied to one feature, but load-bearing for all of them.
 | `the content itself documents every shipped capability affirmatively` | Affirmative documentation |
 | `the content itself never promises a feature that does not exist` | **No false promises** |
 | `search finds an answer by its question` | Search by title |
+| `search answers how to get the app` | Download instructions |
 | `search finds an answer by a word someone would type` | Search by body |
 | `search finds a no-show by how it is phrased` | Plain-language search |
 | `search ranks a title match above a passing mention` | Ranking |
@@ -579,9 +560,12 @@ Not tied to one feature, but load-bearing for all of them.
 | `the page filters to providers` | Provider filter |
 | `the page marks the active filter for assistive tech` | Accessibility |
 | `the page returns to everything` | Clearing the filter |
+| `the page scrolls to a deep-linked answer` | **Anchor scroll on `/knowledge#section`** |
 
-The three tests marked in bold are the P0.2 fix: they fail if the site claims a
-feature is unavailable when it ships, or promises one that does not exist.
+The two tests marked in bold are the P0.2 rule: they fail if the site claims a
+feature is unavailable when it ships, or promises one that does not exist. The
+footer test above is the regression for the dead documentation links that were
+never part of the deploy.
 
 ---
 
@@ -788,7 +772,7 @@ Stated plainly rather than left to be discovered:
   covered; broker behaviour, retries across restarts and beat scheduling are not.
 - **No end-to-end browser test.** The web suite is unit-level. The CI serving
   check proves the built site serves and the SPA fallback works, but no test
-  clicks through the shop list.
+  clicks through the knowledge base or follows a real store listing.
 - **Email is never actually delivered.** Content and link generation are tested;
   deliverability and spam-folder behaviour are not.
 - **No load or concurrency testing.** `test_performance.py` asserts query counts

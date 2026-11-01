@@ -1,6 +1,13 @@
 # Marketing site
 
-The public site and the product knowledge base. Vite + React + TypeScript.
+The public site for BarberShop: a landing page explaining what the app does and
+where to download it, plus the product knowledge base. Vite + React +
+TypeScript.
+
+The site is intentionally static. It is a front door, not a second client — all
+booking, payment and shop-management features live in the mobile app. That
+means the site has no API dependency and cannot show a blank page when the
+backend is unreachable.
 
 ```bash
 npm ci
@@ -15,10 +22,12 @@ npm run preview    # serves dist/ on :4173
 `npm run build` already runs `tsc --noEmit` first, so a type error fails the
 build rather than shipping.
 
-The dev server proxies nothing. In development the site talks to
-`http://localhost:8000/api/v1` and to `/api/v1` everywhere else; see
-`API_BASE` in `src/lib/api.ts`. Override it at runtime with
-`window.BARBERSHOP_API_URL` if you need to point at something else.
+## Download links
+
+The App Store and Google Play URLs live in `STORE_LINKS` in
+`src/content/site.ts`. The Android link uses the package name from
+`apps/mobile/app.json`; the App Store link is a store search until the listing
+has a numeric app id. Update both in one place when the listings go live.
 
 ## Deploying
 
@@ -49,10 +58,10 @@ catches it.
 
 ## Testing
 
-47 tests over Vitest and Testing Library. They check the things that actually
-break a site: that the page renders when the API is down, that a missing price
-renders `—` and not `₹0.00`, that a thin price sample is not labelled
-"typical", and that the knowledge base has no duplicate anchors.
+32 tests over Vitest and Testing Library. They check the things that actually
+break a marketing site: that the page names the product and its audience, that
+every store and knowledge-base link goes somewhere that exists, and that the
+footer does not reintroduce links to files that are not part of the deploy.
 
 The knowledge base content is data (`src/content/knowledge.ts`), and its
 structure is asserted rather than assumed — every entry needs an id for

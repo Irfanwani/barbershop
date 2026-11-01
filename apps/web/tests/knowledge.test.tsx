@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import App from '@/App';
 import {
   GROUPS,
   SHIPPED_CAPABILITIES,
@@ -91,6 +92,10 @@ describe('the content itself', () => {
 describe('search', () => {
   it('finds an answer by its question', () => {
     expect(searchEntries('refund')[0]?.entry.id).toBe('refund-how');
+  });
+
+  it('answers how to get the app', () => {
+    expect(searchEntries('download')[0]?.entry.id).toBe('download-app');
   });
 
   it('finds an answer by a word someone would type', () => {
@@ -198,5 +203,18 @@ describe('the page', () => {
     await user.click(screen.getByRole('button', { name: 'For providers' }));
     await user.click(screen.getByRole('button', { name: 'Everyone' }));
     expect(screen.getByRole('heading', { name: 'Booking an appointment' })).toBeInTheDocument();
+  });
+
+  it('scrolls to a deep-linked answer', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
+
+    render(
+      <MemoryRouter initialEntries={['/knowledge#getting-paid']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    scrollIntoView.mockRestore();
   });
 });

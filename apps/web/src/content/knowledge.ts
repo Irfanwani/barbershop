@@ -51,7 +51,7 @@ export const GROUPS: Group[] = [
             id: 'how-to-find-a-shop',
             question: 'How do I find a shop near me?',
             answer:
-              'Open the app or the website and allow location sharing, and the list is sorted by how far away each shop is. Your coordinates are used in your browser to sort the list and are not stored on our servers. Without location, you get every shop instead, unsorted.',
+              'Open the app and allow location sharing, and the list is sorted by how far away each shop is. Your coordinates are used on your device to sort the list and are not stored on our servers. Without location, you get every shop instead, unsorted.',
             keywords: ['near me', 'location', 'search', 'sort', 'distance', 'nearby'],
           },
           {
@@ -391,6 +391,30 @@ export const GROUPS: Group[] = [
             keywords: ['sign in', 'login', 'log in', 'otp', 'code', 'password', 'account'],
           },
           {
+            id: 'download-app',
+            question: 'Where do I download the app?',
+            answer:
+              'BarberShop is on the App Store for iPhone and iPad and on Google Play for Android. Use the download links on our home page, or search the store for BarberShop. The app is free to download, and one account works whether you book appointments or run a shop.',
+            keywords: [
+              'download',
+              'install',
+              'get the app',
+              'app store',
+              'google play',
+              'android',
+              'iphone',
+              'ios',
+              'store',
+            ],
+          },
+          {
+            id: 'website-or-app',
+            question: 'Can I book on the website instead of the app?',
+            answer:
+              'The website explains what BarberShop does and hosts this knowledge base. Booking, paying, reminders and managing a shop all happen in the app, which is free on the App Store and Google Play.',
+            keywords: ['website', 'web', 'browser', 'book online', 'without app', 'computer'],
+          },
+          {
             id: 'waitlist',
             question: 'The time I want is taken. Can I wait for a cancellation?',
             answer:
@@ -429,7 +453,7 @@ export const GROUPS: Group[] = [
             id: 'location-not-stored',
             question: 'Do you store my location?',
             answer:
-              'Not for browsing. Your coordinates are used in your browser to sort shops by distance and are not written to our servers. A booking does involve the provider knowing where the appointment is, because they have to be there.',
+              'Not for browsing. Your coordinates are used on your device to sort shops by distance and are not written to our servers. A booking does involve the provider knowing where the appointment is, because they have to be there.',
             keywords: ['location', 'privacy', 'gps', 'tracking', 'stored'],
           },
           {

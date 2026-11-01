@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { groupsFor, searchEntries } from '@/content/knowledge';
 
@@ -23,18 +24,6 @@ export default function Knowledge() {
   const groups = useMemo(() => groupsFor(audience), [audience]);
 
   const results = useMemo(() => (query.trim() ? searchEntries(query) : null), [query]);
-
-  // A deep link like /knowledge#providers has to actually land on the heading.
-  // The router does not scroll for you, and a link that positions the viewport
-  // nowhere is indistinguishable from a broken link.
-  useEffect(() => {
-    const { hash } = window.location;
-    if (!hash) return;
-    const target = document.getElementById(hash.slice(1));
-    if (!target) return;
-    // After paint, so the element has a box to scroll to.
-    requestAnimationFrame(() => target.scrollIntoView());
-  }, []);
 
   return (
     <>
@@ -139,7 +128,7 @@ export default function Knowledge() {
                 <p className="section-lede">{group.summary}</p>
 
                 {group.sections.map((section) => (
-                  <section className="kb-section" key={section.id}>
+                  <section className="kb-section" id={section.id} key={section.id}>
                     <h3>{section.title}</h3>
                     <p className="muted">{section.blurb}</p>
                     <dl className="kb-list">
@@ -166,6 +155,21 @@ export default function Knowledge() {
             refund in progress. We do not hold money on your behalf, so they are the only people
             who can move it.
           </p>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="wrap download-panel">
+          <div>
+            <h2 className="section-title">Ready when you are</h2>
+            <p className="section-lede">
+              The knowledge base explains how things work. The app is where you book, pay and
+              manage the shop.
+            </p>
+          </div>
+          <Link className="button" to="/#download">
+            Get the app
+          </Link>
         </div>
       </section>
     </>

@@ -2,7 +2,7 @@
 
 # ✂️ BarberShop
 
-**The single home for the entire BarberShop platform — backend API and mobile app.**
+**The single home for the entire BarberShop platform — backend API, mobile app and public site.**
 
 [![CI](https://github.com/Irfanwani/barbershop/actions/workflows/ci.yml/badge.svg)](https://github.com/Irfanwani/barbershop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -84,8 +84,9 @@ PostgreSQL · Razorpay · Gunicorn · WhiteNoise · drf-spectacular
 **Mobile** — Expo SDK 54 · React Native 0.81 · expo-router · TypeScript ·
 TanStack Query · Zustand · NativeWind · expo-secure-store
 
-**Website** — Vite and React, with a searchable knowledge base covering the whole product
-step. Deployable to anything that serves files.
+**Website** — Vite and React. A static landing page for the app, plus a
+searchable knowledge base covering the whole product. Deployable to anything
+that serves files.
 
 ## Quality gates
 
