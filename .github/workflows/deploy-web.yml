@@ -1,0 +1,89 @@
+name: Deploy website
+
+# The website is a static site inside a monorepo. A push that only touches the
+# API or the mobile app cannot change it, so the paths filter is the version
+# check: GitHub compares the incoming tree, and we do not have to remember to
+# bump a number (or forget to). Run it by hand with `workflow_dispatch` too.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+        env:
+          # The repository is served from https://irfanwani.github.io/barbershop,
+          # so assets and the router need the project prefix. Vite's relative
+          # `./` base still works locally and in CI.
+          VITE_BASE_PATH: /barbershop/
+
+      # GitHub Pages has no SPA fallback. A copy of index.html at 404.html lets
+      # the router take over on /barbershop/knowledge and other deep links.
+      - name: Add static-host fallbacks
+        run: |
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: apps/web/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,6 +1,18 @@
 import { Link } from 'react-router-dom';
 
 import {
+  ArrowUpRight,
+  CheckIcon,
+  DownloadArt,
+  FeatureArtwork,
+  PinIcon,
+  ScissorsMark,
+  Sparkle,
+  StarIcon,
+  StepArtwork,
+} from '@/components/Illustrations';
+import { Reveal } from '@/components/Reveal';
+import {
   BOOKING_STEPS,
   CUSTOMER_FEATURES,
   POPULAR_QUESTIONS,
@@ -19,37 +31,14 @@ import {
  * hiccup can never blank the page a visitor arrived on.
  */
 
-function CheckMark() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="M5 10.5 8.5 14 15 6.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function FeatureList({ features }: { features: Feature[] }) {
-  return (
-    <ul className="feature-list">
-      {features.map((feature) => (
-        <li key={feature.title}>
-          <span className="feature-check" aria-hidden="true">
-            <CheckMark />
-          </span>
-          <span>
-            <strong>{feature.title}.</strong> {feature.body}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+const MARQUEE_ITEMS = [
+  'Real availability',
+  'No surprise prices',
+  'Deposits & balances',
+  'Reminders that land',
+  'Payouts that clear',
+  'One app, two roles',
+];
 
 function AppleIcon() {
   return (
@@ -70,7 +59,7 @@ function PlayIcon() {
 function StoreButton({ link }: { link: StoreLink }) {
   return (
     <a
-      className="store-button"
+      className={`store-button store-button--${link.id}`}
       href={link.href}
       target="_blank"
       rel="noopener noreferrer"
@@ -80,7 +69,24 @@ function StoreButton({ link }: { link: StoreLink }) {
         <span className="store-eyebrow">{link.eyebrow}</span>
         <strong>{link.store}</strong>
       </span>
+      <ArrowUpRight className="store-arrow" />
     </a>
+  );
+}
+
+function FeatureRow({ feature, index }: { feature: Feature; index: number }) {
+  return (
+    <li>
+      <Reveal className="feature-row" delay={index * 55}>
+        <span className="feature-icon">
+          <FeatureArtwork art={feature.art} />
+        </span>
+        <div className="feature-copy">
+          <strong>{feature.title}</strong>
+          <p>{feature.body}</p>
+        </div>
+      </Reveal>
+    </li>
   );
 }
 
@@ -88,10 +94,31 @@ export default function Home() {
   return (
     <>
       <section className="hero">
+        <div className="hero-wash hero-wash--one" aria-hidden="true" />
+        <div className="hero-wash hero-wash--two" aria-hidden="true" />
         <div className="wrap hero-inner">
-          <div className="hero-copy">
-            <p className="eyebrow">One app · Both sides of the chair</p>
-            <h1>Book the chair. Run the shop.</h1>
+          <Reveal className="hero-copy">
+            <p className="eyebrow">
+              <span className="eyebrow-dot" aria-hidden="true" />
+              One app · Both sides of the chair
+            </p>
+            <h1 className="hero-title">
+              Book the chair.{' '}
+              <span className="hero-title-accent">
+                Run the shop.
+                <svg className="hero-underline" viewBox="0 0 340 18" aria-hidden="true">
+                  <path
+                    className="art-draw d1"
+                    pathLength={1}
+                    d="M5 12c55-8 106-9 164-6 52 2 104 4 166-2"
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </h1>
             <p className="lede">
               BarberShop is the app for people who want a haircut and the people who give one.
               Find a shop, see the price before you confirm, and take a slot from the shop’s
@@ -100,162 +127,324 @@ export default function Home() {
             <div className="hero-actions">
               <Link className="button" to="/#download">
                 Get the app
+                <ArrowUpRight className="button-icon" />
               </Link>
               <Link className="button button-ghost" to="/knowledge">
                 Browse the knowledge base
               </Link>
             </div>
-            <p className="fineprint">
-              Free for customers · Providers pay 1% of completed bookings
-            </p>
-          </div>
+            <ul className="hero-proof">
+              <li>
+                <CheckIcon /> Free for customers
+              </li>
+              <li>
+                <CheckIcon /> Providers pay 1%
+              </li>
+              <li>
+                <CheckIcon /> No surprise prices
+              </li>
+            </ul>
+          </Reveal>
 
-          <div className="hero-card" aria-hidden="true">
-            <div className="phone">
-              <div className="phone-notch" />
-              <div className="phone-screen">
-                <div className="phone-bar">
-                  <img src="./assets/logo-512.png" alt="" width={24} height={24} />
-                  <span>BarberShop</span>
+          <Reveal className="hero-visual" delay={140}>
+            <div className="hero-stage" aria-hidden="true">
+              <div className="hero-glow" />
+              <svg className="hero-orbit" viewBox="0 0 460 460" focusable="false">
+                <circle
+                  cx="230"
+                  cy="230"
+                  r="186"
+                  fill="none"
+                  stroke="var(--line-strong)"
+                  strokeWidth="1.5"
+                  strokeDasharray="4 10"
+                />
+                <circle cx="230" cy="44" r="5" fill="var(--accent)" />
+                <circle cx="386" cy="310" r="4" fill="var(--gold)" />
+              </svg>
+              <Sparkle className="hero-sparkle hero-sparkle--one" />
+              <Sparkle className="hero-sparkle hero-sparkle--two" />
+
+              <div className="app-preview">
+                <div className="app-topbar">
+                  <span className="app-logo">
+                    <img src="./assets/logo-512.png" alt="" width={28} height={28} />
+                  </span>
+                  <span className="app-name">BarberShop</span>
+                  <span className="app-live">
+                    <span /> Live
+                  </span>
                 </div>
 
-                <div className="phone-switch">
+                <div className="role-toggle">
                   <span className="is-active">Customer</span>
                   <span>Provider</span>
                 </div>
 
-                <p className="phone-label">Next appointment</p>
-                <div className="phone-card">
-                  <div className="phone-card-top">
-                    <strong>Haircut &amp; beard</strong>
-                    <span className="phone-chip">Confirmed</span>
+                <div className="preview-shop">
+                  <div className="preview-shop-head">
+                    <span className="preview-avatar">F</span>
+                    <div className="preview-shop-name">
+                      <strong>Fade &amp; Co.</strong>
+                      <span>
+                        <StarIcon /> 4.9 · 0.8 km
+                      </span>
+                    </div>
+                    <span className="preview-open">Open</span>
                   </div>
-                  <p>Saturday · 11:30</p>
-                  <p className="phone-card-note">Deposit paid · balance at the chair</p>
+
+                  <div className="preview-service">
+                    <span>
+                      <strong>Skin fade + beard</strong>
+                      <small>45 min · today</small>
+                    </span>
+                    <strong>₹450</strong>
+                  </div>
+
+                  <p className="preview-label">Next available</p>
+                  <div className="preview-slots">
+                    <span className="slot is-selected">6:30</span>
+                    <span className="slot">7:15</span>
+                    <span className="slot">8:00</span>
+                  </div>
+
+                  <div className="preview-cta">Book · ₹100 deposit</div>
+                  <p className="preview-note">
+                    <CheckIcon /> Full price shown before you confirm
+                  </p>
                 </div>
 
-                <div className="phone-list">
-                  <p>
-                    <span>Real availability</span>
-                    <span className="phone-dot" />
-                  </p>
-                  <p>
-                    <span>Full price before you confirm</span>
-                    <span className="phone-dot" />
-                  </p>
-                  <p>
-                    <span>Reminder before the day</span>
-                    <span className="phone-dot" />
-                  </p>
-                </div>
+                <div className="app-home-bar" />
               </div>
+
+              <div className="float-card float-card--confirm">
+                <span className="float-icon float-icon--check">
+                  <CheckIcon />
+                </span>
+                <span>
+                  <strong>Confirmed</strong>
+                  <small>Sat · 11:30</small>
+                </span>
+              </div>
+
+              <div className="float-card float-card--price">
+                <span>
+                  <small>Deposit paid</small>
+                  <strong>₹100</strong>
+                </span>
+                <span className="float-pill">Balance ₹350</span>
+              </div>
+
+              <div className="float-sticker">
+                Fresh cut
+                <br />
+                booked
+              </div>
+
+              <div className="float-rating">
+                <StarIcon />
+                <strong>4.9</strong>
+                <small>128 reviews</small>
+              </div>
+
+              <span className="hero-pin">
+                <PinIcon />
+              </span>
             </div>
+          </Reveal>
+        </div>
+
+        <div className="marquee" aria-hidden="true">
+          <div className="marquee-track">
+            {[0, 1].map((copy) => (
+              <div className="marquee-group" key={copy}>
+                {MARQUEE_ITEMS.map((item) => (
+                  <span className="marquee-item" key={item}>
+                    <ScissorsMark />
+                    {item}
+                  </span>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section id="features" className="section">
+      <section id="features" className="section features-section">
         <div className="wrap">
-          <div className="section-head">
-            <h2 className="section-title">Two sides of the chair, one app</h2>
+          <Reveal className="section-head section-head--split">
+            <div>
+              <p className="eyebrow">What it does</p>
+              <h2 className="section-title">
+                Two sides of the chair, <em>one app.</em>
+              </h2>
+            </div>
             <p className="section-lede">
               Customers book and pay. Providers take the booking, collect the money and see
               their earnings. Both use the same app; your role decides what you see.
             </p>
-          </div>
+          </Reveal>
 
           <div className="feature-grid">
-            <article className="feature-card">
-              <p className="feature-eyebrow">For customers</p>
-              <h3>Find the right shop, then get on with your day.</h3>
-              <FeatureList features={CUSTOMER_FEATURES} />
-              <Link className="text-link" to="/knowledge#booking">
-                Customer guide →
-              </Link>
-            </article>
+            <Reveal className="feature-card feature-card--customer">
+              <span className="feature-card-stamp" aria-hidden="true">
+                01 / Customer
+              </span>
+              <header className="feature-card-head">
+                <p className="feature-eyebrow">
+                  <span className="feature-role-dot" aria-hidden="true" />
+                  For customers
+                </p>
+                <h3>Find the right shop, then get on with your day.</h3>
+                <p className="feature-intro">
+                  Browse nearby shops, compare the real price and take a time that actually
+                  exists. Everything up to the chair happens in a few taps.
+                </p>
+              </header>
 
-            <article className="feature-card">
-              <p className="feature-eyebrow">For providers</p>
-              <h3>Run the shop, not a spreadsheet and three group chats.</h3>
-              <FeatureList features={PROVIDER_FEATURES} />
-              <Link className="text-link" to="/knowledge#provider">
-                Provider guide →
+              <ul className="feature-list">
+                {CUSTOMER_FEATURES.map((feature, index) => (
+                  <FeatureRow feature={feature} index={index} key={feature.title} />
+                ))}
+              </ul>
+
+              <Link className="text-link" to="/knowledge#booking">
+                Customer guide
+                <ArrowUpRight className="text-link-icon" />
               </Link>
-            </article>
+            </Reveal>
+
+            <Reveal className="feature-card feature-card--provider" delay={90}>
+              <span className="feature-card-stamp" aria-hidden="true">
+                02 / Provider
+              </span>
+              <header className="feature-card-head">
+                <p className="feature-eyebrow">
+                  <span className="feature-role-dot" aria-hidden="true" />
+                  For providers
+                </p>
+                <h3>Run the shop, not a spreadsheet and three group chats.</h3>
+                <p className="feature-intro">
+                  Your calendar, your money and your customers in one place — with the records
+                  attached to the booking instead of scattered across notes.
+                </p>
+              </header>
+
+              <ul className="feature-list">
+                {PROVIDER_FEATURES.map((feature, index) => (
+                  <FeatureRow feature={feature} index={index} key={feature.title} />
+                ))}
+              </ul>
+
+              <Link className="text-link" to="/knowledge#provider">
+                Provider guide
+                <ArrowUpRight className="text-link-icon" />
+              </Link>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      <section id="how" className="section section-alt">
+      <section id="how" className="section how-section">
+        <div className="how-glow how-glow--one" aria-hidden="true" />
+        <div className="how-glow how-glow--two" aria-hidden="true" />
         <div className="wrap">
-          <div className="section-head">
-            <h2 className="section-title">How booking works</h2>
+          <Reveal className="section-head section-head--split section-head--light">
+            <div>
+              <p className="eyebrow eyebrow--lime">How it works</p>
+              <h2 className="section-title">How booking works</h2>
+            </div>
             <p className="section-lede">
               Three steps, and the awkward parts — finding a free slot and agreeing a price —
               happen before you commit rather than at the counter.
             </p>
-          </div>
+          </Reveal>
 
           <ol className="steps">
             {BOOKING_STEPS.map((step, index) => (
-              <li className="step" key={step.title}>
-                <span className="step-number">{index + 1}</span>
-                <h3>{step.title}</h3>
-                <p>{step.body}</p>
+              <li key={step.title}>
+                <Reveal className="step" delay={index * 100}>
+                  <div className="step-top">
+                    <span className="step-number">0{index + 1}</span>
+                    <span className="step-rule" aria-hidden="true" />
+                  </div>
+                  <div className="step-art">
+                    <StepArtwork art={step.art} />
+                  </div>
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </Reveal>
               </li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section id="download" className="section">
-        <div className="wrap download-panel">
-          <div className="download-copy">
-            <p className="eyebrow">Get the app</p>
-            <h2 className="section-title">Your next appointment starts here.</h2>
-            <p className="section-lede">
-              Booking, payments, reminders and the shop’s back office all live in the app.
-              Download it free on the App Store or Google Play.
-            </p>
-          </div>
-
-          <div className="download-actions">
-            <div className="store-buttons">
-              {STORE_LINKS.map((link) => (
-                <StoreButton key={link.id} link={link} />
-              ))}
+      <section id="download" className="section download-section">
+        <div className="wrap">
+          <Reveal className="download-panel">
+            <div className="download-copy">
+              <p className="eyebrow eyebrow--cream">Get the app</p>
+              <h2 className="section-title">Your next appointment starts here.</h2>
+              <p className="section-lede">
+                Booking, payments, reminders and the shop’s back office all live in the app.
+                Download it free on the App Store or Google Play.
+              </p>
+              <div className="store-buttons">
+                {STORE_LINKS.map((link) => (
+                  <StoreButton key={link.id} link={link} />
+                ))}
+              </div>
+              <p className="fineprint">
+                Free to download · One account for booking or running a shop
+              </p>
             </div>
-            <p className="fineprint">
-              Free to download · One account for booking or running a shop
-            </p>
-          </div>
+            <div className="download-visual" aria-hidden="true">
+              <DownloadArt />
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      <section id="questions" className="section section-alt">
+      <section id="questions" className="section section-alt questions-section">
         <div className="wrap">
-          <div className="section-head">
-            <h2 className="section-title">Answers before you ask</h2>
+          <Reveal className="section-head section-head--split">
+            <div>
+              <p className="eyebrow">Good questions</p>
+              <h2 className="section-title">Answers before you ask.</h2>
+            </div>
             <p className="section-lede">
               Deposits, refunds, no-shows, earnings and payouts — the knowledge base covers
               how the product works for customers and for providers.
             </p>
-          </div>
+          </Reveal>
 
           <ul className="question-list">
-            {POPULAR_QUESTIONS.map((item) => (
+            {POPULAR_QUESTIONS.map((item, index) => (
               <li key={item.entryId}>
-                <Link to={`/knowledge#${item.entryId}`}>
-                  <span>{item.question}</span>
-                  <span aria-hidden="true">→</span>
-                </Link>
+                <Reveal className="question-card" delay={index * 70}>
+                  <Link to={`/knowledge#${item.entryId}`}>
+                    <span className="question-index">0{index + 1}</span>
+                    <span className="question-body">
+                      <span className="question-tag">{item.tag}</span>
+                      <strong>{item.question}</strong>
+                    </span>
+                    <span className="question-arrow">
+                      <ArrowUpRight />
+                    </span>
+                  </Link>
+                </Reveal>
               </li>
             ))}
           </ul>
 
-          <Link className="button button-ghost" to="/knowledge">
-            Open the knowledge base
-          </Link>
+          <Reveal className="questions-cta" delay={120}>
+            <p>Can’t find the answer here? The whole product is documented in the app guide.</p>
+            <Link className="button button-ghost" to="/knowledge">
+              Open the knowledge base
+              <ArrowUpRight className="button-icon" />
+            </Link>
+          </Reveal>
         </div>
       </section>
     </>

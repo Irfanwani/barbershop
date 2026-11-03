@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -11,12 +12,13 @@ import { fileURLToPath } from 'node:url';
  * links wants a router, and hand-rolling history handling to avoid a build is
  * spending effort on the wrong problem. See docs/decisions/0006.
  *
- * `base: './'` keeps asset URLs relative, so `dist/` can be served from a
- * subpath, a CDN, or opened straight off disk.
+ * `base` is relative by default, so `dist/` can be served from a subpath, a
+ * CDN, or opened straight off disk. GitHub Pages sets `VITE_BASE_PATH` to
+ * `/barbershop/` so the router and asset URLs know about the project prefix.
  */
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: process.env.VITE_BASE_PATH ?? './',
   build: {
     outDir: 'dist',
     sourcemap: true,

@@ -1,5 +1,7 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+
+import { ArrowUpRight, ScissorsMark } from '@/components/Illustrations';
 
 /**
  * Chrome shared by every route.
@@ -34,13 +36,42 @@ function HashScroller() {
   return null;
 }
 
+/** A thin gradient bar that fills as the visitor reads down the page. */
+function ScrollProgress() {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const update = () => {
+      const distance = document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(distance > 0 ? Math.min(1, Math.max(0, window.scrollY / distance)) : 0);
+    };
+
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  return (
+    <div className="scroll-progress" aria-hidden="true">
+      <span style={{ transform: `scaleX(${progress})` }} />
+    </div>
+  );
+}
+
 export function Header() {
   return (
     <header className="site-header">
+      <ScrollProgress />
       <div className="wrap header-inner">
-        <Link className="brand" to="/">
-          <img src="./assets/logo-512.png" alt="" width={36} height={36} />
-          <span>BarberShop</span>
+        <Link className="brand" to="/" aria-label="BarberShop home">
+          <span className="brand-mark">
+            <img src="./assets/logo-512.png" alt="" width={38} height={38} />
+          </span>
+          <span className="brand-name">BarberShop</span>
         </Link>
         <nav aria-label="Main">
           <Link className="header-extra" to="/#features">
@@ -49,14 +80,25 @@ export function Header() {
           <Link className="header-extra" to="/#how">
             How it works
           </Link>
-          <NavLink to="/knowledge">Knowledge base</NavLink>
-          <Link className="button button-small" to="/#download">
+          <NavLink className="header-kb" to="/knowledge">
+            Knowledge base
+          </NavLink>
+          <Link className="button button-small button-nav" to="/#download">
             Get the app
+            <ArrowUpRight className="button-icon" />
           </Link>
         </nav>
       </div>
     </header>
   );
+}
+
+function backToTop() {
+  const reduced =
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
 }
 
 export function Footer() {
@@ -66,13 +108,16 @@ export function Footer() {
     <footer className="site-footer">
       <div className="wrap footer-grid">
         <div className="footer-brand">
-          <Link className="brand" to="/">
-            <img src="./assets/logo-512.png" alt="" width={32} height={32} />
-            <span>BarberShop</span>
+          <Link className="brand" to="/" aria-label="BarberShop home">
+            <span className="brand-mark">
+              <img src="./assets/logo-512.png" alt="" width={38} height={38} />
+            </span>
+            <span className="brand-name">BarberShop</span>
           </Link>
-          <p className="muted">
+          <p>
             One app for the people in the chair and the people who put them there.
           </p>
+          <p className="footer-note">Free for customers · Providers pay 1% of completed bookings</p>
         </div>
 
         <nav aria-label="Product">
@@ -91,9 +136,19 @@ export function Footer() {
         </nav>
       </div>
 
+      <div className="wrap footer-mark" aria-hidden="true">
+        <span>Book the chair.</span>
+        <ScissorsMark className="footer-mark-scissors" />
+        <span className="footer-mark-accent">Run the shop.</span>
+      </div>
+
       <div className="wrap footer-bottom">
         <p>© {year} BarberShop</p>
-        <p>Free for customers · Providers pay 1% of completed bookings</p>
+        <button className="back-top" type="button" onClick={backToTop}>
+          Back to top
+          <ArrowUpRight className="back-top-icon" />
+        </button>
+        <p>Made for good hair days.</p>
       </div>
     </footer>
   );

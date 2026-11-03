@@ -7,6 +7,8 @@
 [![CI](https://github.com/Irfanwani/barbershop/actions/workflows/ci.yml/badge.svg)](https://github.com/Irfanwani/barbershop/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+[**Visit the website →**](https://irfanwani.github.io/barbershop)
+
 </div>
 
 ---

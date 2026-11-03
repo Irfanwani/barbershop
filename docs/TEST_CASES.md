@@ -6,8 +6,8 @@ need real credentials.
 
 - **Backend** — `services/api` (Django + DRF), 1218 tests
 - **App** — `apps/mobile` (React Native / Expo), 282 tests
-- **Web** — `apps/web` (Vite marketing site), 32 tests
-- **Total** — **1532 automated tests**
+- **Web** — `apps/web` (Vite marketing site), 33 tests
+- **Total** — **1533 automated tests**
 
 Counts below are taken from the suites themselves, not estimated.
 
@@ -62,7 +62,7 @@ Feature sections map to `TODOS.md`. Counts are tests, not files.
 
 | Section | Feature | Backend | App | Web | Total |
 |---|---|---:|---:|---:|---:|
-| P0.1 | Marketing site landing page | – | – | 9 | 9 |
+| P0.1 | Marketing site landing page | – | – | 10 | 10 |
 | P0.2 | Site does not advertise absent features | – | – | 23 | 23 |
 | P1.1 | Deposits on long services | 49 | – | – | 49 |
 | P1.2 | Cancellation policy and late fee | 22 | – | – | 22 |
@@ -91,7 +91,7 @@ Feature sections map to `TODOS.md`. Counts are tests, not files.
 | P5.5 | Observability | 37 | – | – | 37 |
 | P5.6 | Timezone correctness | 21 | 4 | – | 25 |
 | — | Cross-cutting foundations | 508 | 179 | – | 687 |
-| | **Total** | **1218** | **282** | **32** | **1532** |
+| | **Total** | **1218** | **282** | **33** | **1533** |
 
 ---
 
@@ -512,7 +512,7 @@ Not tied to one feature, but load-bearing for all of them.
 
 # Part 2 — Web (marketing site)
 
-32 tests across `apps/web/tests/`. The site is static: it explains the app,
+33 tests across `apps/web/tests/`. The site is static: it explains the app,
 points at the store listings, and hosts the knowledge base. There is no API
 surface left to test.
 
@@ -566,6 +566,14 @@ The two tests marked in bold are the P0.2 rule: they fail if the site claims a
 feature is unavailable when it ships, or promises one that does not exist. The
 footer test above is the regression for the dead documentation links that were
 never part of the deploy.
+
+## Scroll reveal — 1 test
+
+`tests/reveal.test.tsx`
+
+| Test | Covers |
+|---|---|
+| `reveals its content once it enters the viewport` | IntersectionObserver reveal, one-way visibility |
 
 ---
 

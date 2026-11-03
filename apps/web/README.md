@@ -31,13 +31,28 @@ has a numeric app id. Update both in one place when the listings go live.
 
 ## Deploying
 
-`npm run build` writes `dist/`. `base` is `./`, so `dist/` can be served from
-a domain root, a subpath, or a CDN without rebuilding.
+The live site is published at **https://irfanwani.github.io/barbershop** by
+[`.github/workflows/deploy-web.yml`](../../.github/workflows/deploy-web.yml).
+It runs on every push to `main` that touches `apps/web/**` (and can be started
+by hand with `workflow_dispatch`). The paths filter is deliberate: GitHub
+already compares the tree, so there is no version number to remember to bump —
+only an actual website change starts a deploy.
+
+The workflow typechecks, lints, tests and builds with
+`VITE_BASE_PATH=/barbershop/`, copies `dist/index.html` to `dist/404.html` for
+GitHub Pages (which has no SPA fallback), and uploads the result with the Pages
+actions.
+
+For any other host, `npm run build` writes `dist/`. `base` is `./` by default,
+so the output can be served from a domain root or a CDN. For a subpath, set
+`VITE_BASE_PATH` to that prefix (with a trailing slash) at build time so the
+router and assets agree.
 
 **The server must fall back to `index.html` for unknown paths.** The site is a
 single-page app with real routes, so `/knowledge` is not a file — it is the
 same `index.html` served for every path. `vite preview` does this for you; a
-production host does not, unless you tell it to.
+production host does not, unless you tell it to. GitHub Pages uses the
+`404.html` copy made by the workflow.
 
 ```nginx
 location / {
@@ -58,10 +73,12 @@ catches it.
 
 ## Testing
 
-32 tests over Vitest and Testing Library. They check the things that actually
+33 tests over Vitest and Testing Library. They check the things that actually
 break a marketing site: that the page names the product and its audience, that
 every store and knowledge-base link goes somewhere that exists, and that the
 footer does not reintroduce links to files that are not part of the deploy.
+One test covers the scroll-reveal observer directly; the rest of the suite
+renders with the no-IntersectionObserver fallback that real old browsers get.
 
 The knowledge base content is data (`src/content/knowledge.ts`), and its
 structure is asserted rather than assumed — every entry needs an id for
