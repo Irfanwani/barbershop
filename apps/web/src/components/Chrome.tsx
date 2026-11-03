@@ -18,7 +18,7 @@ import { ArrowUpRight, ScissorsMark } from '@/components/Illustrations';
  * different page — a link that appears to do nothing.
  */
 function HashScroller() {
-  const { pathname, hash } = useLocation();
+  const { pathname, hash, key } = useLocation();
 
   useEffect(() => {
     if (!hash) {
@@ -63,7 +63,7 @@ function HashScroller() {
     if (revealTarget) {
       revealTarget.style.removeProperty('transition');
     }
-  }, [pathname, hash]);
+  }, [pathname, hash, key]);
 
   return null;
 }
