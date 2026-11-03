@@ -29,8 +29,40 @@ function HashScroller() {
     const target = document.getElementById(decodeURIComponent(hash.slice(1)));
     if (!target) return;
 
+    // A deep link can land on a `Reveal` target before its observer has fired.
+    // Reveal translates the block down by 26px while it waits, and the browser
+    // includes that transform in the scroll box — so scrolling first would put
+    // the target 26px too high once it animates in. Show it for this jump and
+    // skip the transition, then let the observer keep it visible.
+    const revealTarget = target.classList.contains('reveal') ? target : null;
+    if (revealTarget) {
+      revealTarget.classList.add('is-visible');
+      revealTarget.style.transition = 'none';
+      void revealTarget.offsetHeight;
+    }
+
     // The effect runs after the commit, so the target has a box to scroll to.
-    target.scrollIntoView();
+    // Scroll explicitly rather than relying on the fragment scroll: the app
+    // renders after the browser has already handled the URL, and a sticky
+    // header means "top" needs the header height taken off.
+    const header = document.querySelector<HTMLElement>('.site-header');
+    const gap = target.classList.contains('kb-item') ? 12 : 0;
+    const top = Math.max(
+      0,
+      target.getBoundingClientRect().top + window.scrollY - (header?.offsetHeight ?? 0) - gap,
+    );
+
+    // Keep the jump instant even though anchor links elsewhere use CSS smooth
+    // scrolling; a deep link should be at its answer on the first paint.
+    const root = document.documentElement;
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo({ top, behavior: 'auto' });
+    root.style.scrollBehavior = previousBehavior;
+
+    if (revealTarget) {
+      revealTarget.style.removeProperty('transition');
+    }
   }, [pathname, hash]);
 
   return null;

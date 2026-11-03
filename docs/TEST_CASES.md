@@ -560,7 +560,7 @@ surface left to test.
 | `the page filters to providers` | Provider filter |
 | `the page marks the active filter for assistive tech` | Accessibility |
 | `the page returns to everything` | Clearing the filter |
-| `the page scrolls to a deep-linked answer` | **Anchor scroll on `/knowledge#section`** |
+| `the page scrolls to a deep-linked answer` | **Anchor scroll on `/knowledge#answer`** |
 
 The two tests marked in bold are the P0.2 rule: they fail if the site claims a
 feature is unavailable when it ships, or promises one that does not exist. The

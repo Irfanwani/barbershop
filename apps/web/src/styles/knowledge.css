@@ -345,7 +345,7 @@
   border-top: 1px solid var(--line);
 }
 
-.kb-item:target {
+.kb-item[id] {
   scroll-margin-top: calc(var(--header-h) + 0.75rem);
 }
 

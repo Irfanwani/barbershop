@@ -206,15 +206,15 @@ describe('the page', () => {
   });
 
   it('scrolls to a deep-linked answer', async () => {
-    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
+    const scrollTo = vi.spyOn(window, 'scrollTo');
 
     render(
-      <MemoryRouter initialEntries={['/knowledge#getting-paid']}>
+      <MemoryRouter initialEntries={['/knowledge#withdraw']}>
         <App />
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
-    scrollIntoView.mockRestore();
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    scrollTo.mockRestore();
   });
 });
