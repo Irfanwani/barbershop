@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
+      "backgroundColor": "#1B1511"
     },
     "ios": {
       "bundleIdentifier": "com.barbershop.app",
@@ -27,7 +27,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
-        "backgroundColor": "#0F172A"
+        "backgroundColor": "#1B1511"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -47,16 +47,16 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 220,
+          "imageWidth": 260,
           "resizeMode": "contain",
-          "backgroundColor": "#0F172A"
+          "backgroundColor": "#1B1511"
         }
       ],
       [
         "expo-notifications",
         {
-          "icon": "./assets/adaptive-icon-foreground.png",
-          "color": "#F97316"
+          "icon": "./assets/notification-icon.png",
+          "color": "#E34E26"
         }
       ],
       [

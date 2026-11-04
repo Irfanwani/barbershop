@@ -108,7 +108,7 @@ read-only; their history and issues are intact.
 
 | Repository                                                        | Now                                          |
 | ---------------------------------------------------------------- | -------------------------------------------- |
-| [`servicebarbershop`](https://github.com/Irfanwani/servicebarbershop) | The app, and the source of the branding.   |
+| [`servicebarbershop`](https://github.com/Irfanwani/servicebarbershop) | The original app and visual reference.      |
 | [`barbershopui`](https://github.com/Irfanwani/barbershopui)         | The separate provider app.                   |
 | [`barbershopbackend`](https://github.com/Irfanwani/barbershopbackend) | The backend; its git history is preserved in `services/api`. |
 

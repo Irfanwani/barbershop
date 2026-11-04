@@ -89,9 +89,10 @@ Toolkit Query and NativeBase. They had drifted into two entirely different archi
 and shared almost no code.
 
 `apps/mobile` is a **new app** built on Expo SDK 54 / RN 0.81 with expo-router. Every
-screen from both old apps was carried across and cleaned up; the **branding — icons,
-launcher images, splash screens, illustration SVGs — came from `servicebarbershop`**,
-which is the more polished of the two.
+screen from both old apps was carried across and cleaned up. The original
+illustrations came from `servicebarbershop`, the more polished of the two old
+apps. The launcher icons and splash screens now use the **BarberShop brand shared
+with `apps/web`**.
 
 ### Removed dependencies
 
