@@ -3,8 +3,6 @@
 The backend for the BarberShop marketplace: REST API, geospatial provider
 search, bookings, payments and reviews.
 
-Part of the [BarberShop monorepo](../../README.md).
-
 ## Stack
 
 | Concern       | Choice                          |
